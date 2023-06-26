@@ -50,7 +50,22 @@ class SeqScanExecutor : public AbstractExecutor {
     }
 
     void nextTuple() override {
-        
+            auto record = fh_->get_record(rid, context_);
+            bool cond_flag=true;
+            // test conds
+            for(auto & cond : conds_){
+                cond_flag = cond_flag && cond.test_record(tab_, record);
+                if(!cond_flag){
+                    break;
+                }
+            }
+            if(cond_flag){
+                fh_->delete_record(rid, context_);
+            }
+    }
+    bool is_end() const override{
+        bool ret = false; 
+        return ret;
     }
 
     std::unique_ptr<RmRecord> Next() override {

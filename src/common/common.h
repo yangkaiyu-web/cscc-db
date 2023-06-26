@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 #include "defs.h"
 #include "record/rm_defs.h"
+#include "system/sm_meta.h"
 
 
 struct TabCol {
@@ -36,8 +37,38 @@ struct Value {
     };
     std::string str_val;  // string value
 
-    std::shared_ptr<RmRecord> raw;  // raw record buffer
+    friend bool operator==(const Value &x, const Value &y) {
+        bool ret = false;
+        if(x.type==y.type){
+            if(x.type == TYPE_INT){
+                ret = x.int_val == y.int_val;
+            } else if(x.type == TYPE_FLOAT){
+                ret  = x.float_val==y.float_val;
+            }else  if (x.type == TYPE_STRING){
+                ret  =  x.str_val==y.str_val;
+            }
+        }
+        return ret;
+        
+    }
 
+    friend bool operator!=(const Value &x, const Value &y) { return !(x == y); }
+    std::shared_ptr<RmRecord> raw;  // raw record buffer
+    static Value read_from_record(std::unique_ptr<RmRecord> &record,ColMeta& col){
+        Value ret;
+        if(col.type == TYPE_INT){
+            int int_val  = *(int*)(record->data+col.offset);
+            ret.set_int(int_val);
+        } else if(col.type == TYPE_FLOAT){
+            float float_val  = *(float*)(record->data+col.offset);
+            ret.set_float(float_val);
+        }else  if (col.type == TYPE_STRING){
+            char* raw_str_val  = record->data+col.offset;
+            std::string str_val  = std::string(raw_str_val);
+            ret.set_str(str_val);
+        }
+        return ret;
+    }
     void set_int(int int_val_) {
         type = TYPE_INT;
         int_val = int_val_;
@@ -80,6 +111,25 @@ struct Condition {
     bool is_rhs_val;  // true if right-hand side is a value (not a column)
     TabCol rhs_col;   // right-hand side column
     Value rhs_val;    // right-hand side value
+    //
+    //
+    bool test_record(TabMeta& tab,std::unique_ptr<RmRecord> &record){
+        assert(lhs_col.tab_name == tab.name);
+        auto cond_lhs_col_meta = tab.get_col(lhs_col.col_name);
+
+        auto lhs_val= Value::read_from_record(record,*cond_lhs_col_meta);
+        Value real_rhs_val ;
+        if(is_rhs_val){
+            auto cond_rhs_col_meta = tab.get_col(rhs_col.col_name);
+            real_rhs_val = Value::read_from_record(record,*cond_rhs_col_meta);
+        }
+        else {
+            real_rhs_val = rhs_val;
+        }
+
+        return real_rhs_val  == lhs_val;
+        
+    }
 };
 
 struct SetClause {
