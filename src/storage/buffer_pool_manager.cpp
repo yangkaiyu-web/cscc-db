@@ -10,6 +10,14 @@ See the Mulan PSL v2 for more details. */
 
 #include "buffer_pool_manager.h"
 
+void BufferPoolManager::print()
+{
+    for (auto &item : page_table_)
+    {
+        std::cout << item.first.toString() << " frame id:" << item.second << std::endl;
+    }
+}
+
 /**
  * @description: 从free_list或replacer中得到可淘汰帧页的 *frame_id,调用前需要加bpm锁
  * @return {bool} true: 可替换帧查找成功 , false: 可替换帧查找失败
@@ -108,6 +116,7 @@ Page *BufferPoolManager::fetch_page(PageId page_id)
         page.reset_memory();
         disk_manager_->read_page(page_id.fd, page_id.page_no, page.data_, PAGE_SIZE);
         page_latches_[frame_id].unlock();
+        return &page;
     }
     else
     {
@@ -220,7 +229,7 @@ Page *BufferPoolManager::new_page(PageId *page_id)
         return nullptr;
     }
 
-    page_id_t new_page_id = disk_manager_->allocate_page(page_id->fd);
+    page_id->page_no = disk_manager_->allocate_page(page_id->fd);
     auto &new_page = pages_[new_frame_id];
 
     if (new_page.is_dirty())
@@ -232,13 +241,12 @@ Page *BufferPoolManager::new_page(PageId *page_id)
     new_page.reset_memory();
     new_page.pin_count_ = 1;
     new_page.is_dirty_ = false;
-    new_page.id_.page_no = new_page_id;
+    new_page.id_.fd = page_id->fd;
+    new_page.id_.page_no = page_id->page_no;
 
     latch_.lock();
     page_table_[new_page.id_] = new_frame_id;
     latch_.unlock();
-
-    page_id->page_no = new_page_id;
 
     return &new_page;
 }

@@ -84,6 +84,8 @@ public:
 
     void flush_all_pages(int fd);
 
+    void print();
+
 private:
     bool find_victim_page(frame_id_t *frame_id);
 
