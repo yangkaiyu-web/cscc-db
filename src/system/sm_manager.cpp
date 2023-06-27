@@ -15,9 +15,11 @@ See the Mulan PSL v2 for more details. */
 
 #include <fstream>
 
+#include "errors.h"
 #include "index/ix.h"
 #include "record/rm.h"
 #include "record_printer.h"
+#include "system/sm_meta.h"
 
 /**
  * @description: 判断是否为一个文件夹
@@ -85,7 +87,15 @@ void SmManager::drop_db(const std::string& db_name) {
  * @param {string&} db_name 数据库名称，与文件夹同名
  */
 void SmManager::open_db(const std::string& db_name) {
-    
+  
+    if (!is_dir(db_name)) {
+        throw DatabaseNotFoundError(db_name);
+    }
+    if (chdir(db_name.c_str()) < 0) {  // 进入名为db_name的目录
+        throw UnixError();
+    }
+    std::ifstream ofs(DB_META_NAME);
+    ofs >> db_;
 }
 
 /**
@@ -101,6 +111,11 @@ void SmManager::flush_meta() {
  * @description: 关闭数据库并把数据落盘
  */
 void SmManager::close_db() {
+    flush_meta();
+  
+    if (chdir("..") < 0) {
+        throw UnixError();
+    }
     
 }
 
@@ -188,7 +203,16 @@ void SmManager::create_table(const std::string& tab_name, const std::vector<ColD
  * @param {Context*} context
  */
 void SmManager::drop_table(const std::string& tab_name, Context* context) {
-    
+    if (!db_.is_table(tab_name)) {
+        throw TableNotFoundError(tab_name);
+    }
+    // erase table meta
+    db_.tabs_.erase(tab_name);
+    // destroy record file
+    rm_manager_->destroy_file(tab_name);
+    fhs_.erase(tab_name);
+    flush_meta();
+  
 }
 
 /**
