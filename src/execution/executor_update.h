@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #pragma once
+#include <cassert>
 #include "execution_defs.h"
 #include "execution_manager.h"
 #include "executor_abstract.h"
@@ -39,6 +40,31 @@ class UpdateExecutor : public AbstractExecutor {
     }
     std::unique_ptr<RmRecord> Next() override {
         
+        for( auto& rid : rids_){
+            auto record = fh_->get_record(rid, context_);
+            bool cond_flag=true;
+            // test conds
+            for(auto & cond : conds_){
+                cond_flag = cond_flag && cond.test_record(tab_, record);
+                if(!cond_flag){
+                    break;
+                }
+            }
+            if(cond_flag){
+                for (auto &set_clause : set_clauses_) {
+                    assert(tab_name_ ==  set_clause.lhs.tab_name);
+                    auto &col =  *tab_.get_col( set_clause.lhs.col_name);
+                    auto &val = set_clause.rhs;
+                    if (col.type != val.type) {
+                        throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
+                    }
+                    val.init_raw(col.len);
+                    memcpy(record.get()->data + col.offset, val.raw->data, col.len);
+                }
+                fh_->update_record(rid,record.get()->data , context_);
+            }
+        }
+
         return nullptr;
     }
 
