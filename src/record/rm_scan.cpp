@@ -16,17 +16,13 @@ See the Mulan PSL v2 for more details. */
  * @brief 初始化file_handle和rid
  * @param file_handle
  */
-RmScan::RmScan(const RmFileHandle *file_handle) : file_handle_(file_handle)
-{
+RmScan::RmScan(const RmFileHandle *file_handle) : file_handle_(file_handle) {
     // Todo:
     // 初始化file_handle和rid（指向第一个存放了记录的位置）
-    for (int i = 1; i < file_handle->file_hdr_.num_pages; ++i)
-    {
+    for (int i = 1; i < file_handle->file_hdr_.num_pages; ++i) {
         RmPageHandle page_handle = file_handle->fetch_page_handle(i);
-        for (int j = 0; j < file_handle->file_hdr_.num_records_per_page; ++j)
-        {
-            if (Bitmap::is_set(page_handle.bitmap, j))
-            {
+        for (int j = 0; j < file_handle->file_hdr_.num_records_per_page; ++j) {
+            if (Bitmap::is_set(page_handle.bitmap, j)) {
                 rid_.page_no = i;
                 rid_.slot_no = j;
                 return;
@@ -40,17 +36,14 @@ RmScan::RmScan(const RmFileHandle *file_handle) : file_handle_(file_handle)
 /**
  * @brief 找到文件中下一个存放了记录的位置
  */
-void RmScan::next()
-{
+void RmScan::next() {
     // Todo:
     // 找到文件中下一个存放了记录的非空闲位置，用rid_来指向这个位置
-    for (int i = rid_.page_no; i < file_handle_->file_hdr_.num_pages; ++i)
-    {
+    for (int i = rid_.page_no; i < file_handle_->file_hdr_.num_pages; ++i) {
         RmPageHandle page_handle = file_handle_->fetch_page_handle(i);
-        for (int j = (i == rid_.page_no ? rid_.slot_no : 0); j < file_handle_->file_hdr_.num_records_per_page; ++j)
-        {
-            if (Bitmap::is_set(page_handle.bitmap, j))
-            {
+        for (int j = (i == rid_.page_no ? rid_.slot_no : 0);
+             j < file_handle_->file_hdr_.num_records_per_page; ++j) {
+            if (Bitmap::is_set(page_handle.bitmap, j)) {
                 rid_.page_no = i;
                 rid_.slot_no = j;
                 return;
@@ -64,8 +57,7 @@ void RmScan::next()
 /**
  * @brief ​ 判断是否到达文件末尾
  */
-bool RmScan::is_end() const
-{
+bool RmScan::is_end() const {
     // Todo: 修改返回值
     for (int i = rid_.page_no; i < file_handle_->file_hdr_.num_pages; ++i) {
         RmPageHandle page_handle = file_handle_->fetch_page_handle(i);
@@ -82,7 +74,4 @@ bool RmScan::is_end() const
 /**
  * @brief RmScan内部存放的rid
  */
-Rid RmScan::rid() const
-{
-    return rid_;
-}
+Rid RmScan::rid() const { return rid_; }
