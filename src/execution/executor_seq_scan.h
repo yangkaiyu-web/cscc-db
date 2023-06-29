@@ -102,3 +102,4 @@ class SeqScanExecutor : public AbstractExecutor {
 
     Rid &rid() override { return rid_; }
 };
+
