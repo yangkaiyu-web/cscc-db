@@ -149,6 +149,8 @@ RmPageHandle RmFileHandle::create_new_page_handle() {
 
     assert(page != nullptr);
     RmPageHandle page_hdl(&file_hdr_, page);
+    page_hdl.page_hdr->next_free_page_no = -1;
+    page_hdl.page_hdr->num_records = 0;
     file_hdr_.num_pages++;
     return page_hdl;
 }
@@ -167,11 +169,14 @@ RmPageHandle RmFileHandle::create_page_handle() {
     //     1.2 有空闲页：直接获取第一个空闲页
     // 2. 生成page handle并返回给上层
     int free_page_no = file_hdr_.first_free_page_no;
-    PageId page_id{fd_, INVALID_PAGE_ID};
+
     if (free_page_no == -1) {
+        PageId page_id{fd_, INVALID_PAGE_ID};
         Page *page = buffer_pool_manager_->new_page(&page_id);
         assert(page != nullptr);
         RmPageHandle page_hdl(&file_hdr_, page);
+        page_hdl.page_hdr->next_free_page_no = -1;
+        page_hdl.page_hdr->num_records = 0;
         file_hdr_.num_pages++;
         file_hdr_.first_free_page_no = page_id.page_no;
         return page_hdl;
@@ -180,7 +185,6 @@ RmPageHandle RmFileHandle::create_page_handle() {
     Page *page = buffer_pool_manager_->fetch_page({fd_, free_page_no});
     assert(page != nullptr);
     RmPageHandle page_hdl(&file_hdr_, page);
-    file_hdr_.num_pages++;
     return page_hdl;
 }
 
