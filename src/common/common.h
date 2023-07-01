@@ -113,13 +113,14 @@ struct Condition {
     Value rhs_val;    // right-hand side value
     //
     //
-    bool test_record(TabMeta& tab,std::unique_ptr<RmRecord> &record){
-        assert(lhs_col.tab_name == tab.name);
-        auto cond_lhs_col_meta = tab.get_col(lhs_col.col_name);
+    bool test_record(ColMeta& col,std::unique_ptr<RmRecord> &record){
+        
+        assert(lhs_col.tab_name == col.tab_name);
+        
 
-        auto lhs_val= Value::read_from_record(record,*cond_lhs_col_meta);
+        auto lhs_val= Value::read_from_record(record,col);
         Value real_rhs_val ;
-        if(is_rhs_val){
+        if(!is_rhs_val){
             auto cond_rhs_col_meta = tab.get_col(rhs_col.col_name);
             real_rhs_val = Value::read_from_record(record,*cond_rhs_col_meta);
         }
@@ -129,6 +130,27 @@ struct Condition {
 
         return real_rhs_val  == lhs_val;
         
+    }
+    bool test_join_record(TabMeta & left_tab,std::unique_ptr<RmRecord> &left_rec,TabMeta & right_tab,std::unique_ptr<RmRecord> &right_rec){
+        // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
+        // TabCol true_lhs_col,true_rhs_col;
+        // if(lhs_col.tab_name == right_tab.name){
+        //     true_lhs_col = left_tab.get_col(lhs_co)
+        // }
+
+        assert(lhs_col.tab_name ==left_tab.name);
+        if(is_rhs_val){
+            return test_record(left_tab, left_rec);
+        }
+        else {
+            auto cond_rhs_col_meta = right_tab.get_col(rhs_col.col_name);
+            auto real_rhs_val = Value::read_from_record(right_rec,*cond_rhs_col_meta);
+            auto cond_lhs_col_meta = left_tab.get_col(lhs_col.col_name);
+            auto real_lhs_val = Value::read_from_record(left_rec,*cond_lhs_col_meta);
+
+            return real_lhs_val==real_rhs_val;
+        }
+
     }
 };
 

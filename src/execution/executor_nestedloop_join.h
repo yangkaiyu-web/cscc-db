@@ -48,13 +48,18 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
     }
 
     void beginTuple() override {
+        // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
         for(left_->beginTuple();!left_->is_end();left_->nextTuple()){
           left_record_save_.push_back(left_->Next());
         }
         right_->beginTuple();
         if(!right_->is_end()){
             auto right_rec =  right_->Next();
-            
+            auto flag = true;
+            for(auto& cond: fed_conds_){
+
+                
+            }
 
             
         }
