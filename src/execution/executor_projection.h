@@ -23,8 +23,8 @@ class ProjectionExecutor : public AbstractExecutor {
    private:
     std::unique_ptr<AbstractExecutor> prev_;  // 投影节点的儿子节点
     std::vector<ColMeta> cols_;               // 需要投影的字段
-    size_t len_;                              // 字段总长度
-    std::vector<size_t> sel_idxs_;
+    ssize_t len_;                              // 字段总长度
+    std::vector<ssize_t> sel_idxs_;
     RmRecord rec_;
 
    public:
@@ -32,7 +32,7 @@ class ProjectionExecutor : public AbstractExecutor {
                        const std::vector<TabCol> &sel_cols) {
         prev_ = std::move(prev);
 
-        size_t curr_offset = 0;
+        ssize_t curr_offset = 0;
         auto &prev_cols = prev_->cols();
         for (auto &sel_col : sel_cols) {
             auto pos = get_col(prev_cols, sel_col);
@@ -51,7 +51,7 @@ class ProjectionExecutor : public AbstractExecutor {
         if (!prev_->is_end()) {
             auto record = prev_->Next();
 
-            for (size_t i = 0; i < sel_idxs_.size(); i++) {
+            for (ssize_t i = 0; i < sel_idxs_.size(); i++) {
                 auto prev_col = prev_->cols().at(sel_idxs_[i]);
                 auto this_col = cols_[i];
                 memcpy(rec_.data + this_col.offset,
@@ -65,7 +65,7 @@ class ProjectionExecutor : public AbstractExecutor {
         if (!prev_->is_end()) {
             auto record = prev_->Next();
 
-            for (size_t i = 0; i < sel_idxs_.size(); i++) {
+            for (ssize_t i = 0; i < sel_idxs_.size(); i++) {
                 auto prev_col = prev_->cols().at(sel_idxs_[i]);
                 auto this_col = cols_[i];
                 memcpy(rec_.data + this_col.offset,

@@ -113,16 +113,16 @@ struct Condition {
     Value rhs_val;    // right-hand side value
     //
     //
-    bool test_record(ColMeta& col,std::unique_ptr<RmRecord> &record){
+    bool test_record(std::vector<ColMeta>& cols,std::unique_ptr<RmRecord> &record){
         
-        assert(lhs_col.tab_name == col.tab_name);
-        
-
-        auto lhs_val= Value::read_from_record(record,col);
+        // assert(lhs_col.tab_name == col.tab_name);
+        auto lhs_col_meta = ColMeta::find_from_cols(cols, lhs_col.col_name);
+        auto lhs_val= Value::read_from_record(record,lhs_col_meta);
         Value real_rhs_val ;
         if(!is_rhs_val){
-            auto cond_rhs_col_meta = tab.get_col(rhs_col.col_name);
-            real_rhs_val = Value::read_from_record(record,*cond_rhs_col_meta);
+            // auto cond_rhs_col_meta = tab.get_col(rhs_col.col_name);
+        auto rhs_col_meta = ColMeta::find_from_cols(cols, rhs_col.col_name);
+            real_rhs_val = Value::read_from_record(record,rhs_col_meta);
         }
         else {
             real_rhs_val = rhs_val;
@@ -131,22 +131,22 @@ struct Condition {
         return real_rhs_val  == lhs_val;
         
     }
-    bool test_join_record(TabMeta & left_tab,std::unique_ptr<RmRecord> &left_rec,TabMeta & right_tab,std::unique_ptr<RmRecord> &right_rec){
+    bool test_join_record(const std::vector<ColMeta>& left_cols,std::unique_ptr<RmRecord> &left_rec,const std::vector<ColMeta>& right_cols,std::unique_ptr<RmRecord> &right_rec){
         // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
         // TabCol true_lhs_col,true_rhs_col;
         // if(lhs_col.tab_name == right_tab.name){
         //     true_lhs_col = left_tab.get_col(lhs_co)
         // }
 
-        assert(lhs_col.tab_name ==left_tab.name);
+        // assert(lhs_col.tab_name ==left_tab.name);
         if(is_rhs_val){
-            return test_record(left_tab, left_rec);
+            return test_record(left_cols, left_rec);
         }
         else {
-            auto cond_rhs_col_meta = right_tab.get_col(rhs_col.col_name);
-            auto real_rhs_val = Value::read_from_record(right_rec,*cond_rhs_col_meta);
-            auto cond_lhs_col_meta = left_tab.get_col(lhs_col.col_name);
-            auto real_lhs_val = Value::read_from_record(left_rec,*cond_lhs_col_meta);
+            auto cond_rhs_col_meta = ColMeta::find_from_cols(right_cols, rhs_col.col_name);
+            auto real_rhs_val = Value::read_from_record(right_rec,cond_rhs_col_meta);
+            auto cond_lhs_col_meta = ColMeta::find_from_cols(left_cols, lhs_col.col_name);
+            auto real_lhs_val = Value::read_from_record(left_rec,cond_lhs_col_meta);
 
             return real_lhs_val==real_rhs_val;
         }

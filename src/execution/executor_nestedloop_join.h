@@ -21,7 +21,7 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
    private:
     std::unique_ptr<AbstractExecutor> left_;    // 左儿子节点（需要join的表）
     std::unique_ptr<AbstractExecutor> right_;   // 右儿子节点（需要join的表）
-    size_t len_;                                // join后获得的每条记录的长度
+    ssize_t len_;                                // join后获得的每条记录的长度
     std::vector<ColMeta> cols_;                 // join后获得的记录的字段
 
     std::vector<Condition> fed_conds_;          // join条件
@@ -52,27 +52,59 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
         for(left_->beginTuple();!left_->is_end();left_->nextTuple()){
           left_record_save_.push_back(left_->Next());
         }
-        right_->beginTuple();
-        if(!right_->is_end()){
-            auto right_rec =  right_->Next();
-            auto flag = true;
-            for(auto& cond: fed_conds_){
+        if(!left_record_save_.empty()){
+            for(right_->beginTuple();!right_->is_end();right_->nextTuple()){
 
-                
+                auto right_rec =  right_->Next();
+                for(auto& left_record:left_record_save_){
+
+                    auto flag = true;
+                    for(auto& cond: fed_conds_){
+
+                        flag = flag && cond.test_join_record(left_->cols(),left_record,right_->cols(),right_rec);
+                    }
+                    if(flag){
+                        memcpy(rec_.data,left_record->data,left_->tupleLen());
+                        memcpy(rec_.data+left_->tupleLen(),right_rec->data,right_->tupleLen());
+                        return;
+                    }
+                }
             }
-
-            
         }
-        
-    
+
+
     }
 
     void nextTuple() override {
-        
+        right_->nextTuple();
+        while(!right_->is_end()){
+                auto right_rec =  right_->Next();
+                for(auto& left_record:left_record_save_){
+
+                    auto flag = true;
+                    for(auto& cond: fed_conds_){
+
+                        flag = flag && cond.test_join_record(left_->cols(),left_record,right_->cols(),right_rec);
+                    }
+                    if(flag){
+                        memcpy(rec_.data,left_record->data,left_->tupleLen());
+                        memcpy(rec_.data+left_->tupleLen(),right_rec->data,right_->tupleLen());
+                        return;
+                    }
+                }
+            right_->nextTuple();
+        }
     }
 
     std::unique_ptr<RmRecord> Next() override {
-        return nullptr;
+        auto ptr = std::make_unique<RmRecord>(len_);
+        ptr->SetData(rec_.data);
+        return ptr;
+    }
+    
+    bool is_end ()const  override {
+        bool ret = right_->is_end() || left_record_save_.empty();
+        return ret;
     }
 
     Rid &rid() override { return _abstract_rid; }

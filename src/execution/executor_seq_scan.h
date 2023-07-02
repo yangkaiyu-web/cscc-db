@@ -59,7 +59,7 @@ class SeqScanExecutor : public AbstractExecutor {
             bool cond_flag = true;
             // test conds
             for (auto &cond : conds_) {
-                cond_flag = cond_flag && cond.test_record(tab_, record);
+                cond_flag = cond_flag && cond.test_record(tab_.cols, record);
                 if (!cond_flag) {
                     break;
                 }
@@ -81,7 +81,7 @@ class SeqScanExecutor : public AbstractExecutor {
             bool cond_flag = true;
             // test conds
             for (auto &cond : conds_) {
-                cond_flag = cond_flag && cond.test_record(tab_, record);
+                cond_flag = cond_flag && cond.test_record(tab_.cols, record);
                 if (!cond_flag) {
                     break;
                 }
