@@ -1,8 +1,10 @@
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <readline/history.h>
 #include <readline/readline.h>
 #include <sys/socket.h>
+#include <sys/fcntl.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -12,6 +14,7 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <fstream>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -81,24 +84,6 @@ int init_tcp_sock(const char *server_host, int server_port) {
     }
     return sockfd;
 }
-int handle_source_command(std::string &command, int sockfd, char *recv_buf) {
-    int ret = 0;
-    std::stringstream ss(command);
-    std::string word;
-    std::vector<std::string> words;
-    while (getline(ss, word, ' ')) {
-        if(!word.empty()){
-            words.push_back(word);
-        }
-    }
-    
-    if (words.size() != 2) {
-        printf("usage: source <filename>\n");
-        return 0;
-    }
-    printf("get source %s\n",words[1].c_str());
-    return ret;
-}
 int handle_normal_command(std::string &command, int sockfd, char *recv_buf) {
     int send_bytes, ret = 0;
     if ((send_bytes = write(sockfd, command.c_str(), command.length() + 1)) ==
@@ -126,6 +111,34 @@ int handle_normal_command(std::string &command, int sockfd, char *recv_buf) {
         }
         memset(recv_buf, 0, MAX_MEM_BUFFER_SIZE);
     }
+    return ret;
+}
+int handle_source_command(std::string &command, int sockfd, char *recv_buf) {
+    int ret = 0;
+    std::stringstream ss(command);
+    std::string word;
+    std::vector<std::string> words;
+    while (getline(ss, word, ' ')) {
+        if(!word.empty()){
+            words.push_back(word);
+        }
+    }
+    
+    if (words.size() != 2) {
+        printf("usage: source <filename>\n");
+        return 0;
+    }
+    std::ifstream sql_file(words[1].c_str());
+    if(!sql_file){
+        std::cerr<<"close file failed"<<std::endl;
+    }
+    else {
+        std::string line;
+        while(std::getline(sql_file,line)){
+            handle_normal_command(line,sockfd,recv_buf);
+        }
+    }
+    sql_file.close();
     return ret;
 }
 
