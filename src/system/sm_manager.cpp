@@ -209,6 +209,7 @@ void SmManager::drop_table(const std::string& tab_name, Context* context) {
     // erase table meta
     db_.tabs_.erase(tab_name);
     // destroy record file
+    rm_manager_->close_file(fhs_[tab_name].get());
     rm_manager_->destroy_file(tab_name);
     fhs_.erase(tab_name);
     flush_meta();
