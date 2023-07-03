@@ -10,13 +10,6 @@ See the Mulan PSL v2 for more details. */
 
 #include "buffer_pool_manager.h"
 
-void BufferPoolManager::print() {
-    for (auto &item : page_table_) {
-        std::cout << item.first.toString() << " frame id:" << item.second
-                  << std::endl;
-    }
-}
-
 /**
  * @description: 从free_list或replacer中得到可淘汰帧页的
  * *frame_id,调用前需要加bpm锁
@@ -104,6 +97,7 @@ Page *BufferPoolManager::fetch_page(PageId page_id) {
         page_table_.erase(old_page_id);
         page_table_[page_id] = frame_id;
         page_latches_[frame_id].lock();
+        latch_.unlock();
         Page &page = pages_[frame_id];
         if (page.is_dirty()) {
             disk_manager_->write_page(old_page_id.fd, old_page_id.page_no,
@@ -116,7 +110,6 @@ Page *BufferPoolManager::fetch_page(PageId page_id) {
         disk_manager_->read_page(page_id.fd, page_id.page_no, page.data_,
                                  PAGE_SIZE);
         page_latches_[frame_id].unlock();
-        latch_.unlock();
         return &page;
     }
     latch_.unlock();
@@ -148,10 +141,10 @@ bool BufferPoolManager::unpin_page(PageId page_id, bool is_dirty) {
     frame_id_t frame_id = page_table_[page_id];
     Page &page = pages_[frame_id];
     page_latches_[frame_id].lock();
+    latch_.unlock();
 
     if (page.pin_count_ == 0) {
         page_latches_[frame_id].unlock();
-        latch_.unlock();
         return false;
     }
     --page.pin_count_;
@@ -163,7 +156,6 @@ bool BufferPoolManager::unpin_page(PageId page_id, bool is_dirty) {
         page.is_dirty_ = is_dirty;
     }
     page_latches_[frame_id].unlock();
-    latch_.unlock();
     return true;
 }
 
@@ -183,13 +175,13 @@ bool BufferPoolManager::flush_page(PageId page_id) {
     if (page_table_.count(page_id) > 0) {
         frame_id_t frame_id = page_table_[page_id];
         page_latches_[frame_id].lock();
+        latch_.unlock();
 
         Page &page = pages_[frame_id];
         page.is_dirty_ = false;
         disk_manager_->write_page(page.id_.fd, page.id_.page_no, page.data_,
                                   PAGE_SIZE);
         page_latches_[frame_id].unlock();
-        latch_.unlock();
         return true;
     }
     latch_.unlock();
@@ -212,6 +204,7 @@ Page *BufferPoolManager::new_page(PageId *page_id) {
     latch_.lock();
     if (find_victim_page(&new_frame_id)) {
         page_table_.erase(pages_[new_frame_id].get_page_id());
+        latch_.unlock();
     } else {
         latch_.unlock();
         return nullptr;
@@ -219,7 +212,7 @@ Page *BufferPoolManager::new_page(PageId *page_id) {
 
     page_id->page_no = disk_manager_->allocate_page(page_id->fd);
     auto &new_page = pages_[new_frame_id];
-
+    page_latches_[new_frame_id].lock();
     if (new_page.is_dirty()) {
         const auto &old_page_id = new_page.get_page_id();
         disk_manager_->write_page(old_page_id.fd, old_page_id.page_no,
@@ -231,7 +224,9 @@ Page *BufferPoolManager::new_page(PageId *page_id) {
     new_page.is_dirty_ = false;
     new_page.id_.fd = page_id->fd;
     new_page.id_.page_no = page_id->page_no;
+    page_latches_[new_frame_id].unlock();
 
+    latch_.lock();
     page_table_[new_page.id_] = new_frame_id;
     latch_.unlock();
 
@@ -266,6 +261,7 @@ bool BufferPoolManager::delete_page(PageId page_id) {
     replacer_->pin(frame_id);
     page_table_.erase(page_id);
     free_list_.push_back(frame_id);
+    latch_.unlock();
 
     disk_manager_->write_page(page.id_.fd, page.id_.page_no, page.data_,
                               PAGE_SIZE);
@@ -274,7 +270,8 @@ bool BufferPoolManager::delete_page(PageId page_id) {
     page.id_.fd = -1;
     page.id_.page_no = INVALID_PAGE_ID;
     page_latches_[frame_id].unlock();
-    latch_.unlock();
+
+    disk_manager_->deallocate_page(page.id_.page_no);
     return true;
 }
 
@@ -283,17 +280,15 @@ bool BufferPoolManager::delete_page(PageId page_id) {
  * @param {int} fd 文件句柄
  */
 void BufferPoolManager::flush_all_pages(int fd) {
-    latch_.lock();
     for (size_t i = 0; i < pool_size_; ++i) {
         page_latches_[i].lock();
         Page &page = pages_[i];
         const auto &page_id = page.get_page_id();
-        if (page_id.page_no != INVALID_PAGE_ID) {
+        if (page_id.page_no != INVALID_PAGE_ID && page_id.fd == fd) {
             page.is_dirty_ = false;
             disk_manager_->write_page(page_id.fd, page_id.page_no, page.data_,
                                       PAGE_SIZE);
         }
         page_latches_[i].unlock();
     }
-    latch_.unlock();
 }
