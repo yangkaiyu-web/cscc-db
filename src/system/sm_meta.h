@@ -37,7 +37,7 @@ struct ColMeta {
     friend std::istream &operator>>(std::istream &is, ColMeta &col) {
         return is >> col.tab_name >> col.name >> col.type >> col.len >> col.offset >> col.index;
     }
-    static ColMeta& find_from_cols(std::vector<ColMeta>& cols,std::string &col_name){
+    static const ColMeta& find_from_cols(const std::vector<ColMeta>& cols,std::string &col_name){
         
         auto pos = std::find_if(cols.begin(), cols.end(), [&](const ColMeta &col) { return col.name == col_name; });
         if (pos == cols.end()) {

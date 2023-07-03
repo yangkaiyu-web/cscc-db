@@ -113,7 +113,7 @@ struct Condition {
     Value rhs_val;    // right-hand side value
     //
     //
-    bool test_record(std::vector<ColMeta>& cols,std::unique_ptr<RmRecord> &record){
+    bool test_record(const std::vector<ColMeta>& cols,std::unique_ptr<RmRecord> &record){
         
         // assert(lhs_col.tab_name == col.tab_name);
         auto lhs_col_meta = ColMeta::find_from_cols(cols, lhs_col.col_name);
