@@ -131,6 +131,9 @@ void Analyze::check_clause(const std::vector<std::string> &tab_names, std::vecto
         ColType lhs_type = lhs_col->type;
         ColType rhs_type;
         if (cond.is_rhs_val) {
+            if(lhs_type !=cond.rhs_val.type){
+                cond.rhs_val.cast_to(lhs_type);
+            }
             cond.rhs_val.init_raw(lhs_col->len);
             rhs_type = cond.rhs_val.type;
         } else {
@@ -139,6 +142,7 @@ void Analyze::check_clause(const std::vector<std::string> &tab_names, std::vecto
             rhs_type = rhs_col->type;
         }
         if (lhs_type != rhs_type) {
+            
             throw IncompatibleTypeError(coltype2str(lhs_type), coltype2str(rhs_type));
         }
     }
