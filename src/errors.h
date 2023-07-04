@@ -149,6 +149,11 @@ class IncompatibleTypeError : public RMDBError {
         : RMDBError("Incompatible type error: lhs " + lhs + ", rhs " + rhs) {}
 };
 
+class CastTypeError : public RMDBError {
+   public:
+    CastTypeError(const std::string &src_type, const std::string &cast_to_type)
+        : RMDBError("Cast type error: can't cast " + src_type + " to " + cast_to_type) {}
+};
 class AmbiguousColumnError : public RMDBError {
    public:
     AmbiguousColumnError(const std::string &col_name) : RMDBError("Ambiguous column: " + col_name) {}

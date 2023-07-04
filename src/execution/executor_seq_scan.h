@@ -55,6 +55,7 @@ class SeqScanExecutor : public AbstractExecutor {
     void beginTuple() override {
         scan_ = std::make_unique<RmScan>(fh_);
         for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
+            rid = scan_->rid();
             auto record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
@@ -92,6 +93,7 @@ class SeqScanExecutor : public AbstractExecutor {
                 return ;
             }
             
+        scan_->next();
         }
     }
     bool is_end() const override {
