@@ -135,6 +135,7 @@ int handle_source_command(std::string &command, int sockfd, char *recv_buf) {
     else {
         std::string line;
         while(std::getline(sql_file,line)){
+            std::cout<<"runing ["<<line<<"]\n";
             handle_normal_command(line,sockfd,recv_buf);
         }
     }
