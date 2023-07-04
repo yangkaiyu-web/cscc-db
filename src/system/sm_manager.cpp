@@ -96,9 +96,8 @@ void SmManager::open_db(const std::string& db_name) {
     }
     std::ifstream ofs(DB_META_NAME);
     ofs >> db_;
-    for(auto & tab:db_.tabs_){
-        auto tab_name = tab.first;
-        fhs_.emplace(tab_name, rm_manager_->open_file(tab_name));
+    for(auto tab:db_.tabs_){
+        fhs_.emplace(tab.first,rm_manager_->open_file(tab.first));  
     }
 }
 
@@ -119,6 +118,9 @@ void SmManager::close_db() {
   
     if (chdir("..") < 0) {
         throw UnixError();
+    }
+    for(auto &table:fhs_){
+        rm_manager_->close_file(table.second.get());
     }
     
 }

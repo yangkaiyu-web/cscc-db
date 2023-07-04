@@ -66,7 +66,7 @@ class SeqScanExecutor : public AbstractExecutor {
             }
             if (cond_flag) {
                 rid_ = rid;
-                scan_->next();
+                
                 return ;
             }
         }
@@ -74,9 +74,10 @@ class SeqScanExecutor : public AbstractExecutor {
 
     void nextTuple() override {
         Rid rid;
+        scan_->next();
         while(!scan_->is_end()){
             rid = scan_->rid();
-            scan_->next();
+            
             auto record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
