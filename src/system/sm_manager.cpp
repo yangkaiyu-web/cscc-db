@@ -96,6 +96,10 @@ void SmManager::open_db(const std::string& db_name) {
     }
     std::ifstream ofs(DB_META_NAME);
     ofs >> db_;
+    for(auto & tab:db_.tabs_){
+        auto tab_name = tab.first;
+        fhs_.emplace(tab_name, rm_manager_->open_file(tab_name));
+    }
 }
 
 /**
