@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "analyze.h"
+#include "common/common.h"
 
 /**
  * @description: 分析器，进行语义分析和查询重写，需要检查不符合语义规定的部分
@@ -49,6 +50,31 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         check_clause(query->tables, query->conds);
     } else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(parse)) {
         /** TODO: */
+
+    // conds.clear();
+    // for (auto &expr : sv_conds) {
+    //     Condition cond;
+    //     cond.lhs_col = {.tab_name = expr->lhs->tab_name, .col_name = expr->lhs->col_name};
+    //     cond.op = convert_sv_comp_op(expr->op);
+    //     if (auto rhs_val = std::dynamic_pointer_cast<ast::Value>(expr->rhs)) {
+    //         cond.is_rhs_val = true;
+    //         cond.rhs_val = convert_sv_value(rhs_val);
+    //     } else if (auto rhs_col = std::dynamic_pointer_cast<ast::Col>(expr->rhs)) {
+    //         cond.is_rhs_val = false;
+    //         cond.rhs_col = {.tab_name = rhs_col->tab_name, .col_name = rhs_col->col_name};
+    //     }
+    //     conds.push_back(cond);
+    // }
+        query->set_clauses.clear();
+        for(auto& set_clause_ptr : x->set_clauses){
+            SetClause set_clause;
+            set_clause.lhs = {.tab_name=x->tab_name,.col_name=set_clause_ptr->col_name};
+            set_clause.rhs = convert_sv_value(set_clause_ptr->val);
+            query->set_clauses.push_back(set_clause);
+        }
+        
+        get_clause(x->conds, query->conds);
+        check_clause({x->tab_name}, query->conds);        
 
     } else if (auto x = std::dynamic_pointer_cast<ast::DeleteStmt>(parse)) {
         //处理where条件
