@@ -27,7 +27,16 @@ bool is_exit_command(std::string &cmd) {
     return cmd == "exit" || cmd == "exit;" || cmd == "bye" || cmd == "bye;";
 }
 bool is_source_command(std::string &cmd) {
-    return strcmp(cmd.c_str(), "source") >= 0;
+    
+    std::stringstream ss(cmd);
+    std::string word;
+    std::vector<std::string> words;
+    while (getline(ss, word, ' ')) {
+        if(!word.empty()){
+            words.push_back(word);
+        }
+    }
+    return strcmp(words[0].c_str(), "source") == 0;
 }
 
 int init_unix_sock(const char *unix_sock_path) {
