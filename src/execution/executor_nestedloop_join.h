@@ -104,8 +104,8 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
                 }
                 left_index_++;
             }
-        }
         right_->nextTuple();
+        }
     }
 
     std::unique_ptr<RmRecord> Next() override {
