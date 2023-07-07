@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "analyze.h"
+#include <iomanip>
 #include "common/common.h"
 
 /**
@@ -72,7 +73,31 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
             set_clause.rhs = convert_sv_value(set_clause_ptr->val);
             query->set_clauses.push_back(set_clause);
         }
-        
+        // check set_clause
+
+    std::vector<ColMeta> all_cols;
+    get_all_cols({x->tab_name}, all_cols);
+    // Get raw values in where clause
+    for (auto &set_clause : query->set_clauses ){
+        // Infer table name from column name
+        set_clause.lhs = check_column(all_cols, set_clause.lhs);
+            
+        TabMeta &lhs_tab = sm_manager_->db_.get_table(set_clause.lhs.tab_name);
+        auto lhs_col = lhs_tab.get_col(set_clause.lhs.col_name);
+        ColType lhs_type = lhs_col->type;
+        ColType rhs_type;
+            
+            if(lhs_type !=set_clause.rhs.type){
+                set_clause.rhs.cast_to(lhs_type);
+            }
+            rhs_type=set_clause.rhs.type;
+            
+        if (lhs_type != rhs_type) {
+            
+            throw IncompatibleTypeError(coltype2str(lhs_type), coltype2str(rhs_type));
+        }
+    }
+
         get_clause(x->conds, query->conds);
         check_clause({x->tab_name}, query->conds);        
 
@@ -160,7 +185,7 @@ void Analyze::check_clause(const std::vector<std::string> &tab_names, std::vecto
             if(lhs_type !=cond.rhs_val.type){
                 cond.rhs_val.cast_to(lhs_type);
             }
-            cond.rhs_val.init_raw(lhs_col->len);
+            // cond.rhs_val.init_raw(lhs_col->len);
             rhs_type = cond.rhs_val.type;
         } else {
             TabMeta &rhs_tab = sm_manager_->db_.get_table(cond.rhs_col.tab_name);
