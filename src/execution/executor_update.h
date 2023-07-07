@@ -54,7 +54,7 @@ class UpdateExecutor : public AbstractExecutor {
                 for (auto &set_clause : set_clauses_) {
                     assert(tab_name_ ==  set_clause.lhs.tab_name);
                     auto &col =  *tab_.get_col( set_clause.lhs.col_name);
-                    auto &val = set_clause.rhs;
+                    auto val = set_clause.rhs;
                     if (col.type != val.type) {
                         throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
                     }
