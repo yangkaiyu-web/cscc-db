@@ -93,8 +93,8 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
                 auto flag = true;
                 for (auto& cond : fed_conds_) {
                     flag = flag &&
-                           cond.test_join_record(left_->cols(), left_record,
-                                                 right_->cols(), right_rec);
+                        cond.test_join_record(left_->cols(), left_record,
+                                              right_->cols(), right_rec);
                 }
                 if (flag) {
                     memcpy(rec_.data, left_record->data, left_->tupleLen());
@@ -104,7 +104,8 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
                 }
                 left_index_++;
             }
-        right_->nextTuple();
+            left_index_ = 0;
+            right_->nextTuple();
         }
     }
 
