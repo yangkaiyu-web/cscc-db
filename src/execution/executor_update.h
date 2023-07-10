@@ -42,15 +42,15 @@ class UpdateExecutor : public AbstractExecutor {
         
         for( auto& rid : rids_){
             auto record = fh_->get_record(rid, context_);
-            bool cond_flag=true;
+            //bool cond_flag=true;
             // test conds
-            for(auto & cond : conds_){
-                cond_flag = cond_flag && cond.test_record(tab_.cols, record);
-                if(!cond_flag){
-                    break;
-                }
-            }
-            if(cond_flag){
+            //for(auto & cond : conds_){
+            //    cond_flag = cond_flag && cond.test_record(tab_.cols, record);
+            //    if(!cond_flag){
+            //        break;
+            //    }
+            //}
+            //if(cond_flag){
                 for (auto &set_clause : set_clauses_) {
                     assert(tab_name_ ==  set_clause.lhs.tab_name);
                     auto &col =  *tab_.get_col( set_clause.lhs.col_name);
@@ -62,7 +62,7 @@ class UpdateExecutor : public AbstractExecutor {
                     memcpy(record.get()->data + col.offset, val.raw->data, col.len);
                 }
                 fh_->update_record(rid,record.get()->data , context_);
-            }
+           // }
         }
 
         return nullptr;
