@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "executor_seq_scan.h"
 #include "executor_update.h"
 #include "index/ix.h"
+#include "optimizer/plan.h"
 #include "record_printer.h"
 
 const char *help_info = "Supported SQL syntax:\n"
@@ -66,6 +67,11 @@ void QlManager::run_mutli_query(std::shared_ptr<Plan> plan, Context *context){
             case T_DropIndex:
             {
                 sm_manager_->drop_index(x->tab_name_, x->tab_col_names_, context);
+                break;
+            }
+            case T_ShowIndex:
+            {
+                sm_manager_->show_indexes(x->tab_name_, context);
                 break;
             }
             default:

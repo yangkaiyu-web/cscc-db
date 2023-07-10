@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include <signal.h>
 #include <unistd.h>
 #include <atomic>
+#include <cstring>
 
 #include "errors.h"
 #include "optimizer/optimizer.h"
@@ -124,7 +125,6 @@ void *client_handler(void *sock_fd) {
         pthread_mutex_lock(buffer_mutex);
         YY_BUFFER_STATE buf = yy_scan_string(data_recv);
         if (yyparse() == 0) {
-            std::cout<< "finish parse" << std::endl;
             if (ast::parse_tree != nullptr) {
                 try {
                     // analyze and rewrite
@@ -171,6 +171,12 @@ void *client_handler(void *sock_fd) {
             }
         }
         else {
+            const char* errmsg = "Parser Error";
+            memcpy(data_send, errmsg, strlen(errmsg));
+            data_send[strlen(errmsg)] = '\n';
+            data_send[strlen(errmsg)+1] = '\0';
+            offset = strlen(errmsg)+1;
+
             std::fstream outfile;
             outfile.open("output.txt",std::ios::out | std::ios::app);
             outfile << "failure\n";

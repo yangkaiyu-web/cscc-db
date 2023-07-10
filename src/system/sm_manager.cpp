@@ -146,6 +146,10 @@ void SmManager::show_tables(Context* context) {
     outfile.close();
 }
 
+void SmManager::show_indexes(const std::string & tab_name,Context* context){
+
+}
+
 /**
  * @description: 显示表的元数据
  * @param {string&} tab_name 表名称

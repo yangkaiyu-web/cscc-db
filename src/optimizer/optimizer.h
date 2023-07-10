@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "errors.h"
 #include "execution/execution.h"
+#include "parser/ast.h"
 #include "parser/parser.h"
 #include "system/sm.h"
 #include "common/context.h"
@@ -38,6 +39,9 @@ class Optimizer {
         } else if (auto x = std::dynamic_pointer_cast<ast::ShowTables>(query->parse)) {
             // show tables;
             return std::make_shared<OtherPlan>(T_ShowTable, std::string());
+        } else if (auto x = std::dynamic_pointer_cast<ast::ShowIndexes>(query->parse)) {
+            // show tables;
+            return std::make_shared<OtherPlan>(T_ShowIndex, x->tab_name);
         } else if (auto x = std::dynamic_pointer_cast<ast::DescTable>(query->parse)) {
             // desc table;
             return std::make_shared<OtherPlan>(T_DescTable, x->tab_name);

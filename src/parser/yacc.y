@@ -106,6 +106,10 @@ dbStmt:
     {
         $$ = std::make_shared<ShowTables>();
     }
+    | SHOW INDEX  FROM tbName
+    {
+        $$ = std::make_shared<ShowIndexes>($4);
+    }
     ;
 
 ddl:

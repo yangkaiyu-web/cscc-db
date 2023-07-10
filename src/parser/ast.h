@@ -42,6 +42,10 @@ struct Help : public TreeNode {
 
 struct ShowTables : public TreeNode {
 };
+struct ShowIndexes : public TreeNode {
+    std::string tab_name;
+    ShowIndexes(std::string tabe_name_):tab_name(std::move(tabe_name_)){};
+};
 
 struct TxnBegin : public TreeNode {
 };
