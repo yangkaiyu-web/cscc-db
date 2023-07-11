@@ -342,6 +342,12 @@ std::shared_ptr<Plan> Planner::do_planner(std::shared_ptr<Query> query,
         plannerRoot = std::make_shared<DDLPlan>(
             T_DropIndex, x->tab_name, x->col_names, std::vector<ColDef>());
     } else if (auto x =
+                   std::dynamic_pointer_cast<ast::ShowIndexes>(query->parse)) {
+        // show tables;
+        return std::make_shared<DDLPlan>(T_ShowIndex, x->tab_name,
+                                         std::vector<std::string>(),
+                                         std::vector<ColDef>());
+    } else if (auto x =
                    std::dynamic_pointer_cast<ast::InsertStmt>(query->parse)) {
         // insert;
         plannerRoot = std::make_shared<DMLPlan>(
