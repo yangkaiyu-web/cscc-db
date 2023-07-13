@@ -14,6 +14,8 @@
 #include "ast.h"
 #include "yacc.tab.h"
 #include <iostream>
+#include "errors.h"
+#include <stdio.h>
 
 int64_t S64(const char *s);
 // automatically update location
@@ -39,6 +41,7 @@ sign "+"|"-"
 identifier {alpha}(_|{alpha}|{digit})*
 value_int_bigint {sign}?{digit}+
 value_float {sign}?{digit}+\.({digit}+)?
+value_datetime '[0-9]{4}-[0-9]{2}-[0-9]{2}[\s][0-9]{2}:[0-9]{2}:[0-9]{2}'
 value_string '[^']*'
 single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 
@@ -78,6 +81,7 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 "INT" { return INT; }
 "CHAR" { return CHAR; }
 "FLOAT" { return FLOAT; }
+"DATETIME" { return DATETIME; }
 "INDEX" { return INDEX; }
 "AND" { return AND; }
 "JOIN" {return JOIN;}
@@ -105,6 +109,11 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 {value_float} {
     yylval->sv_float = atof(yytext);
     return VALUE_FLOAT;
+}
+{value_datetime} {
+    yylval->sv_str = std::string(yytext + 1, strlen(yytext) - 2);
+    throw StringOverflowError();
+    return VALUE_DATETIME;
 }
 {value_string} {
     yylval->sv_str = std::string(yytext + 1, strlen(yytext) - 2);

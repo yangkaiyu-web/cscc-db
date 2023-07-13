@@ -48,7 +48,7 @@ struct Value {
                 ret = x.int_val == y.int_val;
             } else if (x.type == TYPE_FLOAT) {
                 ret = x.float_val == y.float_val;
-            } else if (x.type == TYPE_STRING) {
+            } else if (x.type == TYPE_STRING || x.type == TYPE_DATETIME) {
                 ret = x.str_val == y.str_val;
             } else if (x.type == TYPE_BIGINT) {
                 ret = x.bigint_val == y.bigint_val;
@@ -67,7 +67,7 @@ struct Value {
                 ret = x.bigint_val > y.bigint_val;
             } else if (x.type == TYPE_FLOAT) {
                 ret = x.float_val > y.float_val;
-            } else if (x.type == TYPE_STRING) {
+            } else if (x.type == TYPE_STRING|| x.type == TYPE_DATETIME) {
                 ret = x.str_val > y.str_val;
             }
         }
@@ -82,7 +82,7 @@ struct Value {
                 ret = x.bigint_val < y.bigint_val;
             } else if (x.type == TYPE_FLOAT) {
                 ret = x.float_val < y.float_val;
-            } else if (x.type == TYPE_STRING) {
+            } else if (x.type == TYPE_STRING|| x.type == TYPE_DATETIME) {
                 ret = x.str_val < y.str_val;
             }
         }
@@ -110,6 +110,12 @@ struct Value {
 
             std::string str_val = std::string(raw_str_val, str_len);
             ret.set_str(str_val);
+        } else if (col.type == TYPE_DATETIME) {
+            char *raw_str_val = record->data + col.offset;
+            int str_len = (strlen(raw_str_val)>col.len)? col.len : strlen(raw_str_val);
+            
+            std::string str_val = std::string(raw_str_val,str_len);
+            ret.set_datetime_str(str_val);
         }
         return ret;
     }
@@ -144,6 +150,18 @@ struct Value {
         str_val = std::move(str_val_);
     }
 
+    void set_datetime_str(std::string str_val_) {
+        type = TYPE_DATETIME;
+        str_val = std::move(str_val_);
+    }
+
+    // ADD ZXS
+    bool datetime_check(std::string str_val_) {
+        bool ret = false;
+        
+        return ret;
+    }
+
     void init_raw(int len) {
         assert(raw == nullptr);
         raw = std::make_shared<RmRecord>(len);
@@ -162,7 +180,13 @@ struct Value {
             }
             memset(raw->data, 0, len);
             memcpy(raw->data, str_val.c_str(), str_val.size());
-        }
+        } else if (type == TYPE_DATETIME) {
+            if (len < (int)str_val.size()) {
+                throw StringOverflowError();
+            }
+            memset(raw->data, 0, len);
+            memcpy(raw->data, str_val.c_str(), str_val.size());
+        } 
     }
 };
 

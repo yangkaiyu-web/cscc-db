@@ -43,11 +43,11 @@ class TreePrinter {
     }
 
     static std::string type2str(SvType type) {
-        static std::map<SvType, std::string> m{
-            {SV_TYPE_INT, "INT"},
-            {SV_TYPE_FLOAT, "FLOAT"},
-            {SV_TYPE_STRING, "STRING"},
-        };
+        static std::map<SvType, std::string> m{{SV_TYPE_INT, "INT"},
+                                               {SV_TYPE_FLOAT, "FLOAT"},
+                                               {SV_TYPE_STRING, "STRING"},
+                                               {SV_TYPE_BIGINT, "BIGINT"},
+                                               {SV_TYPE_DATETIME, "DATETIME"}};
         return m.at(type);
     }
 
@@ -116,6 +116,9 @@ class TreePrinter {
             print_val(x->val, offset);
         } else if (auto x = std::dynamic_pointer_cast<StringLit>(node)) {
             std::cout << "STRING_LIT\n";
+            print_val(x->val, offset);
+        } else if (auto x = std::dynamic_pointer_cast<DatetimeLit>(node)) {
+            std::cout << "DateTime_LIT\n";
             print_val(x->val, offset);
         } else if (auto x = std::dynamic_pointer_cast<SetClause>(node)) {
             std::cout << "SET_CLAUSE\n";
