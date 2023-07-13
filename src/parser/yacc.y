@@ -3,6 +3,7 @@
 #include "yacc.tab.h"
 #include <iostream>
 #include <memory>
+#include "errors.h"
 
 int yylex(YYSTYPE *yylval, YYLTYPE *yylloc);
 
@@ -22,12 +23,12 @@ using namespace ast;
 
 // keywords
 %token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY
-WHERE UPDATE SET SELECT INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY
+WHERE UPDATE SET SELECT INT CHAR FLOAT DATETIME INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY
 // non-keywords
 %token LEQ NEQ GEQ T_EOF
 
 // type-specific tokens
-%token <sv_str> IDENTIFIER VALUE_STRING
+%token <sv_str> IDENTIFIER VALUE_STRING VALUE_DATETIME 
 %token <sv_int> VALUE_INT
 %token <sv_float> VALUE_FLOAT
 
@@ -196,6 +197,10 @@ type:
     {
         $$ = std::make_shared<TypeLen>(SV_TYPE_FLOAT, sizeof(float));
     }
+    |  DATETIME
+    {
+        $$ = std::make_shared<TypeLen>(SV_TYPE_DATETIME, 8*sizeof(char));
+    }
     ;
 
 valueList:
@@ -221,6 +226,10 @@ value:
     |   VALUE_STRING
     {
         $$ = std::make_shared<StringLit>($1);
+    }
+    |   VALUE_DATETIME
+    {
+        $$ = std::make_shared<DatetimeLit>($1);
     }
     ;
 

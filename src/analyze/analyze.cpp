@@ -91,7 +91,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
                 set_clause.rhs.cast_to(lhs_type);
             }
             rhs_type=set_clause.rhs.type;
-            
+
         if (lhs_type != rhs_type) {
             
             throw IncompatibleTypeError(coltype2str(lhs_type), coltype2str(rhs_type));
@@ -136,7 +136,17 @@ TabCol Analyze::check_column(const std::vector<ColMeta> &all_cols, TabCol target
         target.tab_name = tab_name;
     } else {
         /** TODO: Make sure target column exists */
-        
+        // ADD ZXS
+        bool columnExists = false;
+        for (auto &col : all_cols) {
+            if (col.tab_name == target.tab_name && col.name == target.col_name) {
+                columnExists = true;
+                break;
+            }
+        }
+        if (!columnExists) {
+            throw ColumnNotFoundError(target.col_name);
+        }
     }
     return target;
 }
@@ -208,6 +218,8 @@ Value Analyze::convert_sv_value(const std::shared_ptr<ast::Value> &sv_val) {
         val.set_float(float_lit->val);
     } else if (auto str_lit = std::dynamic_pointer_cast<ast::StringLit>(sv_val)) {
         val.set_str(str_lit->val);
+    } else if (auto datetimestr_lit = std::dynamic_pointer_cast<ast::DatetimeLit>(sv_val)) {
+        val.set_datetime_str(datetimestr_lit->val);
     } else {
         throw InternalError("Unexpected sv value type");
     }

@@ -19,7 +19,7 @@ enum JoinType {
 namespace ast {
 
 enum SvType {
-    SV_TYPE_INT, SV_TYPE_FLOAT, SV_TYPE_STRING
+    SV_TYPE_INT, SV_TYPE_FLOAT, SV_TYPE_STRING, SV_TYPE_DATETIME
 };
 
 enum SvCompOp {
@@ -135,6 +135,12 @@ struct StringLit : public Value {
     std::string val;
 
     StringLit(std::string val_) : val(std::move(val_)) {}
+};
+
+struct DatetimeLit : public Value {
+    std::string val;
+
+    DatetimeLit(std::string val_) : val(std::move(val_)) {}
 };
 
 struct Col : public Expr {
