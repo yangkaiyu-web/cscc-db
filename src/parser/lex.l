@@ -13,8 +13,10 @@
 %{
 #include "ast.h"
 #include "yacc.tab.h"
+#include <inttypes.h>
 #include <iostream>
 
+int64_t S64(const char *s);
 // automatically update location
 #define YY_USER_ACTION \
     yylloc->first_line = yylloc->last_line; \
@@ -36,7 +38,7 @@ white_space [ \t]+
 new_line "\r"|"\n"|"\r\n"
 sign "+"|"-"
 identifier {alpha}(_|{alpha}|{digit})*
-value_int {sign}?{digit}+
+value_int_bigint {sign}?{digit}+
 value_float {sign}?{digit}+\.({digit}+)?
 value_string '[^']*'
 single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
@@ -85,6 +87,7 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 "ORDER" { return ORDER; }
 "BY" {  return BY;  }
 "ASC" { return ASC; }
+"BIGINT" { return BIGINT; }
     /* operators */
 ">=" { return GEQ; }
 "<=" { return LEQ; }
@@ -96,9 +99,9 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
     return IDENTIFIER;
 }
     /* literals */
-{value_int} {
-    yylval->sv_int = atoi(yytext);
-    return VALUE_INT;
+{value_int_bigint} {
+    yylval->sv_int_bigint = S64(yytext);
+    return VALUE_INT_BIGINT;
 }
 {value_float} {
     yylval->sv_float = atof(yytext);
@@ -113,3 +116,16 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
     /* unexpected char */
 . { std::cerr << "Lexer Error: unexpected character " << yytext[0] << std::endl; }
 %%
+
+int64_t S64(const char *s) {
+  int64_t i;
+  char c ;
+  int scanned = sscanf(s, "%" SCNd64 "%c", &i, &c);
+  if (scanned == 1) return i;
+  if (scanned > 1) {
+    // TBD about extra data found
+    return i;
+    }
+  // TBD failed to scan;  
+  return 0;  
+}

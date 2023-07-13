@@ -1,4 +1,4 @@
-/* A Bison parser, made by GNU Bison 3.8.2.  */
+/* A Bison parser, made by GNU Bison 3.7.6.  */
 
 /* Bison interface for Yacc-like parsers in C
 
@@ -35,8 +35,8 @@
    especially those whose name start with YY_ or yy_.  They are
    private implementation details that can be changed or removed.  */
 
-#ifndef YY_YY_HOME_YONCHICY_RMDB_SRC_PARSER_YACC_TAB_H_INCLUDED
-# define YY_YY_HOME_YONCHICY_RMDB_SRC_PARSER_YACC_TAB_H_INCLUDED
+#ifndef YY_YY_HOME_ONE_DB2023_SRC_PARSER_YACC_TAB_H_INCLUDED
+# define YY_YY_HOME_ONE_DB2023_SRC_PARSER_YACC_TAB_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -85,14 +85,15 @@ extern int yydebug;
     TXN_ABORT = 286,               /* TXN_ABORT  */
     TXN_ROLLBACK = 287,            /* TXN_ROLLBACK  */
     ORDER_BY = 288,                /* ORDER_BY  */
-    LEQ = 289,                     /* LEQ  */
-    NEQ = 290,                     /* NEQ  */
-    GEQ = 291,                     /* GEQ  */
-    T_EOF = 292,                   /* T_EOF  */
-    IDENTIFIER = 293,              /* IDENTIFIER  */
-    VALUE_STRING = 294,            /* VALUE_STRING  */
-    VALUE_INT = 295,               /* VALUE_INT  */
-    VALUE_FLOAT = 296              /* VALUE_FLOAT  */
+    BIGINT = 289,                  /* BIGINT  */
+    LEQ = 290,                     /* LEQ  */
+    NEQ = 291,                     /* NEQ  */
+    GEQ = 292,                     /* GEQ  */
+    T_EOF = 293,                   /* T_EOF  */
+    IDENTIFIER = 294,              /* IDENTIFIER  */
+    VALUE_STRING = 295,            /* VALUE_STRING  */
+    VALUE_INT_BIGINT = 296,        /* VALUE_INT_BIGINT  */
+    VALUE_FLOAT = 297              /* VALUE_FLOAT  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -115,8 +116,6 @@ struct YYLTYPE
 
 
 
-
 int yyparse (void);
 
-
-#endif /* !YY_YY_HOME_YONCHICY_RMDB_SRC_PARSER_YACC_TAB_H_INCLUDED  */
+#endif /* !YY_YY_HOME_ONE_DB2023_SRC_PARSER_YACC_TAB_H_INCLUDED  */

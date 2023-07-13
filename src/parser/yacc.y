@@ -22,13 +22,13 @@ using namespace ast;
 
 // keywords
 %token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY
-WHERE UPDATE SET SELECT INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY
+WHERE UPDATE SET SELECT INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY BIGINT
 // non-keywords
 %token LEQ NEQ GEQ T_EOF
 
 // type-specific tokens
 %token <sv_str> IDENTIFIER VALUE_STRING
-%token <sv_int> VALUE_INT
+%token <sv_int_bigint> VALUE_INT_BIGINT
 %token <sv_float> VALUE_FLOAT
 
 // specify types for non-terminal symbol
@@ -188,13 +188,18 @@ type:
     {
         $$ = std::make_shared<TypeLen>(SV_TYPE_INT, sizeof(int));
     }
-    |   CHAR '(' VALUE_INT ')'
+    |   CHAR '(' VALUE_INT_BIGINT ')'
     {
-        $$ = std::make_shared<TypeLen>(SV_TYPE_STRING, $3);
+        // 这里应该检查精度
+        $$ = std::make_shared<TypeLen>(SV_TYPE_STRING, (int)$3);
     }
     |   FLOAT
     {
         $$ = std::make_shared<TypeLen>(SV_TYPE_FLOAT, sizeof(float));
+    }
+    |   BIGINT
+    {
+        $$ = std::make_shared<TypeLen>(SV_TYPE_BIGINT, 8);
     }
     ;
 
@@ -210,9 +215,9 @@ valueList:
     ;
 
 value:
-        VALUE_INT
+        VALUE_INT_BIGINT
     {
-        $$ = std::make_shared<IntLit>($1);
+        $$ = std::make_shared<Int_Bint_Lit>($1);
     }
     |   VALUE_FLOAT
     {

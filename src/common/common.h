@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <cassert>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -32,12 +33,13 @@ struct TabCol {
 };
 
 struct Value {
-    ColType type;  // type of value
+    ColType type;            // type of value
     union {
-        int int_val;      // int value
-        float float_val;  // float value
+        int int_val;         // int value
+        int64_t bigint_val;  // bigint value
+        float float_val;     // float value
     };
-    std::string str_val;  // string value
+    std::string str_val;     // string value
 
     friend bool operator==(const Value &x, const Value &y) {
         bool ret = false;
@@ -48,6 +50,8 @@ struct Value {
                 ret = x.float_val == y.float_val;
             } else if (x.type == TYPE_STRING) {
                 ret = x.str_val == y.str_val;
+            } else if (x.type == TYPE_BIGINT) {
+                ret = x.bigint_val == y.bigint_val;
             }
         }
         return ret;
@@ -59,6 +63,8 @@ struct Value {
         if (x.type == y.type) {
             if (x.type == TYPE_INT) {
                 ret = x.int_val > y.int_val;
+            } else if (x.type == TYPE_BIGINT) {
+                ret = x.bigint_val > y.bigint_val;
             } else if (x.type == TYPE_FLOAT) {
                 ret = x.float_val > y.float_val;
             } else if (x.type == TYPE_STRING) {
@@ -72,6 +78,8 @@ struct Value {
         if (x.type == y.type) {
             if (x.type == TYPE_INT) {
                 ret = x.int_val < y.int_val;
+            } else if (x.type == TYPE_BIGINT) {
+                ret = x.bigint_val < y.bigint_val;
             } else if (x.type == TYPE_FLOAT) {
                 ret = x.float_val < y.float_val;
             } else if (x.type == TYPE_STRING) {
@@ -80,14 +88,8 @@ struct Value {
         }
         return ret;
     }
-    friend bool operator<=(const Value &x, const Value &y) {
-        
-        return !(x > y);
-    }
-    friend bool operator>=(const Value &x, const Value &y) {
-        
-        return !(x < y);
-    }
+    friend bool operator<=(const Value &x, const Value &y) { return !(x > y); }
+    friend bool operator>=(const Value &x, const Value &y) { return !(x < y); }
     std::shared_ptr<RmRecord> raw;  // raw record buffer
     static Value read_from_record(std::unique_ptr<RmRecord> &record,
                                   ColMeta &col) {
@@ -95,14 +97,18 @@ struct Value {
         if (col.type == TYPE_INT) {
             int int_val = *(int *)(record->data + col.offset);
             ret.set_int(int_val);
+        } else if (col.type == TYPE_BIGINT) {
+            int64_t bigint_val = *(int64_t *)(record->data + col.offset);
+            ret.set_bigint(bigint_val);
         } else if (col.type == TYPE_FLOAT) {
             float float_val = *(float *)(record->data + col.offset);
             ret.set_float(float_val);
         } else if (col.type == TYPE_STRING) {
             char *raw_str_val = record->data + col.offset;
-            int str_len = (strlen(raw_str_val)>col.len)? col.len : strlen(raw_str_val);
-            
-            std::string str_val = std::string(raw_str_val,str_len);
+            int str_len =
+                (strlen(raw_str_val) > col.len) ? col.len : strlen(raw_str_val);
+
+            std::string str_val = std::string(raw_str_val, str_len);
             ret.set_str(str_val);
         }
         return ret;
@@ -111,6 +117,12 @@ struct Value {
         type = TYPE_INT;
         int_val = int_val_;
     }
+    void set_bigint(int64_t bigint_val_) {
+        type = TYPE_BIGINT;
+        bigint_val = bigint_val_;
+    }
+
+    /*
     void cast_to(ColType type_to) {
         if (type_to == TYPE_STRING || type == TYPE_STRING) {
             throw CastTypeError(coltype2str(type), coltype2str(type_to));
@@ -120,7 +132,7 @@ struct Value {
         } else if (type_to == TYPE_FLOAT && type == TYPE_INT) {
             set_float((float)int_val);
         }
-    }
+    }*/
 
     void set_float(float float_val_) {
         type = TYPE_FLOAT;
@@ -138,6 +150,9 @@ struct Value {
         if (type == TYPE_INT) {
             assert(len == sizeof(int));
             *(int *)(raw->data) = int_val;
+        } else if (type == TYPE_BIGINT) {
+            assert(len == sizeof(int64_t));
+            *(int64_t *)(raw->data) = bigint_val;
         } else if (type == TYPE_FLOAT) {
             assert(len == sizeof(float));
             *(float *)(raw->data) = float_val;
@@ -222,3 +237,16 @@ struct SetClause {
     TabCol lhs;
     Value rhs;
 };
+
+inline bool no_overflow(int64_t bigint) {
+    return (bigint <= static_cast<int64_t>(std::numeric_limits<int>::max())) &&
+           (bigint >= static_cast<int64_t>(std::numeric_limits<int>::min()));
+}
+
+inline bool type_compatible(ColType type1, ColType type2) {
+    if ((type1 == TYPE_INT || type1 == TYPE_FLOAT || type1 == TYPE_BIGINT) &&
+        (type2 == TYPE_INT || type2 == TYPE_FLOAT || type2 == TYPE_BIGINT)) {
+        return true;
+    }
+    return false;
+}
