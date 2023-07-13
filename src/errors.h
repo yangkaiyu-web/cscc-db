@@ -159,7 +159,20 @@ class StringOverflowError : public RMDBError {
 
 class IntOverflowError : public RMDBError {
    public:
-    IntOverflowError() : RMDBError("Int literal overflow") {}
+    IntOverflowError(std::string &val)
+        : RMDBError("Int literal " + val + " overflow") {}
+};
+
+class FloatOverflowError : public RMDBError {
+   public:
+    FloatOverflowError(std::string &val)
+        : RMDBError("Float literal " + val + " overflow") {}
+};
+
+class BigIntOverflowError : public RMDBError {
+   public:
+    BigIntOverflowError(std::string &val)
+        : RMDBError("BigInt literal " + val + " overflow") {}
 };
 
 class IncompatibleTypeError : public RMDBError {

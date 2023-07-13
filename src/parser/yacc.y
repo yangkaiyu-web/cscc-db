@@ -28,7 +28,7 @@ WHERE UPDATE SET SELECT INT CHAR FLOAT INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_CO
 
 // type-specific tokens
 %token <sv_str> IDENTIFIER VALUE_STRING
-%token <sv_int_bigint> VALUE_INT_BIGINT
+%token <sv_str> VALUE_INT_BIGINT
 %token <sv_float> VALUE_FLOAT
 
 // specify types for non-terminal symbol
@@ -191,7 +191,7 @@ type:
     |   CHAR '(' VALUE_INT_BIGINT ')'
     {
         // 这里应该检查精度
-        $$ = std::make_shared<TypeLen>(SV_TYPE_STRING, (int)$3);
+        $$ = std::make_shared<TypeLen>(SV_TYPE_STRING, atoi($3.c_str()));
     }
     |   FLOAT
     {

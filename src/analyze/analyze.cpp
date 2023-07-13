@@ -13,9 +13,14 @@ See the Mulan PSL v2 for more details. */
 #include <iomanip>
 
 #include "common/common.h"
+template <typename type>
+inline bool no_overflow(const std::string &value);
+int compare_int_string(const std::string &val1, const std::string &val2);
+int compare_pos_int_string(const std::string &val1, const std::string &val2);
 
 /**
- * @description: 分析器，进行语义分析和查询重写，需要检查不符合语义规定的部分
+ * @description:
+ * 分析器，进行语义分析和查询重写，需要检查不符合语义规定的部分
  * @param {shared_ptr<ast::TreeNode>} parse parser生成的结果集
  * @return {shared_ptr<Query>} Query
  */
@@ -278,17 +283,26 @@ Value Analyze::convert_sv_value(const std::shared_ptr<ast::Value> &sv_val,
     Value val;
     if (auto int_bint_lit =
             std::dynamic_pointer_cast<ast::Int_Bint_Lit>(sv_val)) {
+        const std::string &int_bint = int_bint_lit->val;
         if (sv_cast_to_type == TYPE_BIGINT) {
-            val.set_bigint(int_bint_lit->val);
+            if (no_overflow<int64_t>(int_bint)) {
+                val.set_bigint(std::stoll(int_bint));
+            } else {
+                throw BigIntOverflowError(int_bint_lit->val);
+            }
         } else if (sv_cast_to_type == TYPE_INT) {
             // 检查范围防止溢出
-            if (no_overflow(int_bint_lit->val)) {
-                val.set_int(static_cast<int>(int_bint_lit->val));
+            if (no_overflow<int>(int_bint)) {
+                val.set_int(static_cast<int>(std::stoi(int_bint)));
             } else {
-                throw IntOverflowError();
+                throw IntOverflowError(int_bint_lit->val);
             }
         } else if (sv_cast_to_type == TYPE_FLOAT) {
-            val.set_float((static_cast<float>(int_bint_lit->val)));
+            if (no_overflow<float>(int_bint)) {
+                val.set_float((static_cast<float>(std::stof(int_bint))));
+            } else {
+                throw FloatOverflowError(int_bint_lit->val);
+            }
         } else {
             throw CastTypeError("int_bigint", coltype2str(sv_cast_to_type));
         }
@@ -322,4 +336,49 @@ CompOp Analyze::convert_sv_comp_op(ast::SvCompOp op) {
         {ast::SV_OP_GT, OP_GT}, {ast::SV_OP_LE, OP_LE}, {ast::SV_OP_GE, OP_GE},
     };
     return m.at(op);
+}
+
+// util functtion
+// 相等返回0，val1大于val2返回1，小于返回-1
+int compare_pos_int_string(const std::string &val1, const std::string &val2) {
+    int len1 = val1.size(), len2 = val2.size();
+    if (len1 > len2) {
+        return 1;
+    } else if (len1 < len2) {
+        return -1;
+    } else {
+        for (int i = 0; i < val1.size(); ++i) {
+            if (val1[i] > val2[i]) {
+                return 1;
+            } else if (val1[i] < val2[i]) {
+                return -1;
+            }
+        }
+        return 0;
+    }
+}
+
+// 相等返回0，val1大于val2返回1，小于返回-1
+int compare_int_string(const std::string &val1, const std::string &val2) {
+    assert(!val1.empty() && !val2.empty());
+
+    if (val2[0] == '-' && val1[0] != '-') {
+        return 1;
+    } else if (val1[0] == '-' && val2[0] != '-') {
+        return -1;
+    } else if (val1[0] == '-' && val2[0] == '-') {
+        return -compare_pos_int_string(val1.substr(1), val2.substr(1));
+    } else {
+        return compare_pos_int_string(val1[0] == '+' ? val1.substr(1) : val1,
+                                      val2[0] == '+' ? val2.substr(1) : val2);
+    }
+}
+
+template <typename type>
+inline bool no_overflow(const std::string &value) {
+    return (compare_int_string(
+                value, std::to_string(std::numeric_limits<type>::max())) <=
+            0) &&
+           (compare_int_string(
+                value, std::to_string(std::numeric_limits<type>::min())) >= 0);
 }

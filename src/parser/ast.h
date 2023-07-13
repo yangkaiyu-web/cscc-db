@@ -102,9 +102,9 @@ struct Expr : public TreeNode {};
 struct Value : public Expr {};
 
 struct Int_Bint_Lit : public Value {
-    int64_t val;
+    std::string val;
 
-    Int_Bint_Lit(int64_t val_) : val(val_) {}
+    Int_Bint_Lit(std::string val_) : val(std::move(val_)) {}
 };
 
 struct FloatLit : public Value {
@@ -220,7 +220,6 @@ struct SelectStmt : public TreeNode {
 // Semantic value
 struct SemValue {
     float sv_float;
-    int64_t sv_int_bigint;
     std::string sv_str;
     OrderByDir sv_orderby_dir;
     std::vector<std::string> sv_strs;

@@ -13,7 +13,6 @@
 %{
 #include "ast.h"
 #include "yacc.tab.h"
-#include <inttypes.h>
 #include <iostream>
 
 int64_t S64(const char *s);
@@ -100,7 +99,7 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 }
     /* literals */
 {value_int_bigint} {
-    yylval->sv_int_bigint = S64(yytext);
+    yylval->sv_str = std::string(yytext);
     return VALUE_INT_BIGINT;
 }
 {value_float} {
@@ -116,16 +115,3 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
     /* unexpected char */
 . { std::cerr << "Lexer Error: unexpected character " << yytext[0] << std::endl; }
 %%
-
-int64_t S64(const char *s) {
-  int64_t i;
-  char c ;
-  int scanned = sscanf(s, "%" SCNd64 "%c", &i, &c);
-  if (scanned == 1) return i;
-  if (scanned > 1) {
-    // TBD about extra data found
-    return i;
-    }
-  // TBD failed to scan;  
-  return 0;  
-}

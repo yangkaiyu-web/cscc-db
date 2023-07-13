@@ -238,11 +238,6 @@ struct SetClause {
     Value rhs;
 };
 
-inline bool no_overflow(int64_t bigint) {
-    return (bigint <= static_cast<int64_t>(std::numeric_limits<int>::max())) &&
-           (bigint >= static_cast<int64_t>(std::numeric_limits<int>::min()));
-}
-
 inline bool type_compatible(ColType type1, ColType type2) {
     if ((type1 == TYPE_INT || type1 == TYPE_FLOAT || type1 == TYPE_BIGINT) &&
         (type2 == TYPE_INT || type2 == TYPE_FLOAT || type2 == TYPE_BIGINT)) {
@@ -250,3 +245,18 @@ inline bool type_compatible(ColType type1, ColType type2) {
     }
     return false;
 }
+
+/*
+inline int64_t S64(const char *s) {
+    int64_t i;
+    char c;
+    int scanned = sscanf(s, "%" SCNd64 "%c", &i, &c);
+    if (scanned == 1) return i;
+    if (scanned > 1) {
+        // TBD about extra data found
+        return i;
+    }
+    // TBD failed to scan;
+    return 0;
+}
+*/

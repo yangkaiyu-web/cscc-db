@@ -1829,7 +1829,7 @@ yyreduce:
 #line 192 "/home/one/db2023/src/parser/yacc.y"
     {
         // 这里应该检查精度
-        (yyval.sv_type_len) = std::make_shared<TypeLen>(SV_TYPE_STRING, (int)(yyvsp[-1].sv_int_bigint));
+        (yyval.sv_type_len) = std::make_shared<TypeLen>(SV_TYPE_STRING, atoi((yyvsp[-1].sv_str).c_str()));
     }
 #line 1835 "/home/one/db2023/src/parser/yacc.tab.cpp"
     break;
@@ -1869,7 +1869,7 @@ yyreduce:
   case 36: /* value: VALUE_INT_BIGINT  */
 #line 219 "/home/one/db2023/src/parser/yacc.y"
     {
-        (yyval.sv_val) = std::make_shared<Int_Bint_Lit>((yyvsp[0].sv_int_bigint));
+        (yyval.sv_val) = std::make_shared<Int_Bint_Lit>((yyvsp[0].sv_str));
     }
 #line 1875 "/home/one/db2023/src/parser/yacc.tab.cpp"
     break;
