@@ -33,13 +33,15 @@ struct TabCol {
 };
 
 struct Value {
-    ColType type;            // type of value
+    ColType type;        // type of value
     union {
-        int int_val;         // int value
-        int64_t bigint_val;  // bigint value
-        float float_val;     // float value
+        int int_val;     // int value
+        int64_t
+            bigint_val;  // bigint or datatime value,
+                         // datatime时，40~56位年，32~40位月，24~32位日，16~24位时，8~16位分，0~8位秒
+        float float_val;  // float value
     };
-    std::string str_val;     // string value
+    std::string str_val;  // string value
 
     friend bool operator==(const Value &x, const Value &y) {
         bool ret = false;
@@ -48,9 +50,9 @@ struct Value {
                 ret = x.int_val == y.int_val;
             } else if (x.type == TYPE_FLOAT) {
                 ret = x.float_val == y.float_val;
-            } else if (x.type == TYPE_STRING || x.type == TYPE_DATETIME) {
+            } else if (x.type == TYPE_STRING) {
                 ret = x.str_val == y.str_val;
-            } else if (x.type == TYPE_BIGINT) {
+            } else if (x.type == TYPE_BIGINT || x.type == TYPE_DATETIME) {
                 ret = x.bigint_val == y.bigint_val;
             }
         }
@@ -67,8 +69,11 @@ struct Value {
                 ret = x.bigint_val > y.bigint_val;
             } else if (x.type == TYPE_FLOAT) {
                 ret = x.float_val > y.float_val;
-            } else if (x.type == TYPE_STRING|| x.type == TYPE_DATETIME) {
+            } else if (x.type == TYPE_STRING) {
                 ret = x.str_val > y.str_val;
+            } else if (x.type == TYPE_DATETIME) {
+                ret = static_cast<uint64_t>(x.bigint_val) >
+                      static_cast<uint64_t>(y.bigint_val);
             }
         }
         return ret;
@@ -82,8 +87,11 @@ struct Value {
                 ret = x.bigint_val < y.bigint_val;
             } else if (x.type == TYPE_FLOAT) {
                 ret = x.float_val < y.float_val;
-            } else if (x.type == TYPE_STRING|| x.type == TYPE_DATETIME) {
+            } else if (x.type == TYPE_STRING) {
                 ret = x.str_val < y.str_val;
+            } else if (x.type == TYPE_DATETIME) {
+                ret = static_cast<uint64_t>(x.bigint_val) <
+                      static_cast<uint64_t>(y.bigint_val);
             }
         }
         return ret;
@@ -97,7 +105,7 @@ struct Value {
         if (col.type == TYPE_INT) {
             int int_val = *(int *)(record->data + col.offset);
             ret.set_int(int_val);
-        } else if (col.type == TYPE_BIGINT) {
+        } else if (col.type == TYPE_BIGINT || col.type == TYPE_DATETIME) {
             int64_t bigint_val = *(int64_t *)(record->data + col.offset);
             ret.set_bigint(bigint_val);
         } else if (col.type == TYPE_FLOAT) {
@@ -111,11 +119,8 @@ struct Value {
             std::string str_val = std::string(raw_str_val, str_len);
             ret.set_str(str_val);
         } else if (col.type == TYPE_DATETIME) {
-            char *raw_str_val = record->data + col.offset;
-            int str_len = (strlen(raw_str_val)>col.len)? col.len : strlen(raw_str_val);
-            
-            std::string str_val = std::string(raw_str_val,str_len);
-            ret.set_datetime_str(str_val);
+            int64_t bigint_val = *(int64_t *)(record->data + col.offset);
+            ret.set_datetime(bigint_val);
         }
         return ret;
     }
@@ -150,16 +155,61 @@ struct Value {
         str_val = std::move(str_val_);
     }
 
-    void set_datetime_str(std::string str_val_) {
+    void set_datetime(int64_t date_val_) {
         type = TYPE_DATETIME;
-        str_val = std::move(str_val_);
+        bigint_val = date_val_;
     }
 
-    // ADD ZXS
-    bool datetime_check(std::string str_val_) {
-        bool ret = false;
-        
-        return ret;
+    bool IsDayValid(int year, int month, int day) {
+        if (month == 4 || month == 6 || month == 9 || month == 11) {
+            return day <= 30;
+        }
+
+        if (month == 2) {
+            if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0))
+                return day <= 29;
+            else
+                return day <= 28;
+        }
+
+        if (month == 1 || month == 3 || month == 5 || month == 7 ||
+            month == 8 || month == 10 || month == 12)
+            return day <= 31;
+
+        return false;
+    }
+
+    // 格式为YYYY-MM-DD HH:MM:SS
+    void check_set_datetime(const std::string &str_val_) {
+        if (str_val_.size() == 19 && str_val_[4] == '-' && str_val_[7] == '-' &&
+            str_val_[10] == ' ' && str_val_[13] == ':' && str_val_[16] == ':') {
+            const std::string &syear = str_val_.substr(0, 4);
+            const std::string &smonth = str_val_.substr(5, 2);
+            const std::string &sday = str_val_.substr(8, 2);
+            const std::string &shour = str_val_.substr(11, 2);
+            const std::string &sminute = str_val_.substr(14, 2);
+            const std::string &ssec = str_val_.substr(17, 2);
+
+            int year = std::stoi(syear);
+            int month = std::stoi(smonth);
+            int day = std::stoi(sday);
+
+            if (syear >= "1000" && syear <= "9999" && smonth >= "01" &&
+                smonth <= "12" && sday >= "01" && sday <= "31" &&
+                shour >= "00" && shour <= "23" && sminute >= "00" &&
+                sminute <= "59" && ssec >= "00" && ssec <= "59" &&
+                IsDayValid(year, month, day)) {
+                bigint_val = (static_cast<int64_t>(year) << 40) +
+                             (static_cast<int64_t>(month) << 32) +
+                             (static_cast<int64_t>(day) << 24) +
+                             (std::stoll(shour) << 16) +
+                             (std::stoll(sminute) << 8) + (std::stoll(ssec));
+                type = TYPE_DATETIME;
+                return;
+            }
+        }
+
+        throw DateTimeFormatError(str_val_);
     }
 
     void init_raw(int len) {
@@ -168,7 +218,7 @@ struct Value {
         if (type == TYPE_INT) {
             assert(len == sizeof(int));
             *(int *)(raw->data) = int_val;
-        } else if (type == TYPE_BIGINT) {
+        } else if (type == TYPE_BIGINT || type == TYPE_DATETIME) {
             assert(len == sizeof(int64_t));
             *(int64_t *)(raw->data) = bigint_val;
         } else if (type == TYPE_FLOAT) {
@@ -180,13 +230,7 @@ struct Value {
             }
             memset(raw->data, 0, len);
             memcpy(raw->data, str_val.c_str(), str_val.size());
-        } else if (type == TYPE_DATETIME) {
-            if (len < (int)str_val.size()) {
-                throw StringOverflowError();
-            }
-            memset(raw->data, 0, len);
-            memcpy(raw->data, str_val.c_str(), str_val.size());
-        } 
+        }
     }
 };
 
@@ -265,6 +309,9 @@ struct SetClause {
 inline bool type_compatible(ColType type1, ColType type2) {
     if ((type1 == TYPE_INT || type1 == TYPE_FLOAT || type1 == TYPE_BIGINT) &&
         (type2 == TYPE_INT || type2 == TYPE_FLOAT || type2 == TYPE_BIGINT)) {
+        return true;
+    } else if ((type1 == TYPE_STRING || type1 == TYPE_DATETIME) &&
+               (type2 == TYPE_STRING || type2 == TYPE_DATETIME)) {
         return true;
     }
     return false;

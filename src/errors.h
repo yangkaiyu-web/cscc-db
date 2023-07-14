@@ -159,20 +159,26 @@ class StringOverflowError : public RMDBError {
 
 class IntOverflowError : public RMDBError {
    public:
-    IntOverflowError(std::string &val)
+    IntOverflowError(const std::string &val)
         : RMDBError("Int literal " + val + " overflow") {}
 };
 
 class FloatOverflowError : public RMDBError {
    public:
-    FloatOverflowError(std::string &val)
+    FloatOverflowError(const std::string &val)
         : RMDBError("Float literal " + val + " overflow") {}
 };
 
 class BigIntOverflowError : public RMDBError {
    public:
-    BigIntOverflowError(std::string &val)
+    BigIntOverflowError(const std::string &val)
         : RMDBError("BigInt literal " + val + " overflow") {}
+};
+
+class DateTimeFormatError : public RMDBError {
+   public:
+    DateTimeFormatError(const std::string &val)
+        : RMDBError("Datetime literal " + val + " format error") {}
 };
 
 class IncompatibleTypeError : public RMDBError {

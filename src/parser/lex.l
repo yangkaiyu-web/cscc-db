@@ -41,7 +41,6 @@ sign "+"|"-"
 identifier {alpha}(_|{alpha}|{digit})*
 value_int_bigint {sign}?{digit}+
 value_float {sign}?{digit}+\.({digit}+)?
-value_datetime '[0-9]{4}-[0-9]{2}-[0-9]{2}[\s][0-9]{2}:[0-9]{2}:[0-9]{2}'
 value_string '[^']*'
 single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 
@@ -109,11 +108,6 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 {value_float} {
     yylval->sv_float = atof(yytext);
     return VALUE_FLOAT;
-}
-{value_datetime} {
-    yylval->sv_str = std::string(yytext + 1, strlen(yytext) - 2);
-    throw StringOverflowError();
-    return VALUE_DATETIME;
 }
 {value_string} {
     yylval->sv_str = std::string(yytext + 1, strlen(yytext) - 2);

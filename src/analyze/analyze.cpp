@@ -340,12 +340,11 @@ Value Analyze::convert_sv_value(const std::shared_ptr<ast::Value> &sv_val,
                    std::dynamic_pointer_cast<ast::StringLit>(sv_val)) {
         if (sv_cast_to_type == TYPE_STRING) {
             val.set_str(str_lit->val);
+        } else if (sv_cast_to_type == TYPE_DATETIME) {
+            val.check_set_datetime(str_lit->val);
         } else {
             throw CastTypeError("string", coltype2str(sv_cast_to_type));
         }
-    } else if (auto datetimestr_lit =
-                   std::dynamic_pointer_cast<ast::DatetimeLit>(sv_val)) {
-        val.set_datetime_str(datetimestr_lit->val);
     } else {
         throw InternalError("Unexpected sv value type");
     }

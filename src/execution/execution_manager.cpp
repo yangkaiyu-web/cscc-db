@@ -35,7 +35,7 @@ const char *help_info =
     "[WHERE where_clause]\n"
     "  SELECT selector FROM table_name [WHERE where_clause]\n"
     "type:\n"
-    "  {INT | FLOAT | CHAR(n)}\n"
+    "  {INT | FLOAT | CHAR(n) | BIGINT | DATETIME}\n"
     "where_clause:\n"
     "  condition [AND condition ...]\n"
     "condition:\n"
@@ -168,6 +168,40 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
             } else if (col.type == TYPE_STRING) {
                 col_str = std::string((char *)rec_buf, col.len);
                 col_str.resize(strlen(col_str.c_str()));
+            } else if (col.type == TYPE_DATETIME) {
+                int64_t tmp = *(int64_t *)rec_buf;
+                const std::string &year =
+                    std::to_string((tmp >> 40) & 0b1111111111111111);
+                const std::string &fyear =
+                    std::string(4 - year.size(), '0') + year;
+
+                const std::string &month =
+                    std::to_string((tmp >> 32) & 0b11111111);
+                const std::string &fmonth =
+                    std::string(2 - month.size(), '0') + month;
+
+                const std::string &day =
+                    std::to_string((tmp >> 24) & 0b11111111);
+                const std::string &fday =
+                    std::string(2 - day.size(), '0') + day;
+
+                const std::string &hour =
+                    std::to_string((tmp >> 16) & 0b11111111);
+                const std::string &fhour =
+                    std::string(2 - hour.size(), '0') + hour;
+
+                const std::string &minute =
+                    std::to_string((tmp >> 8) & 0b11111111);
+                const std::string &fminute =
+                    std::string(2 - minute.size(), '0') + minute;
+
+                const std::string &sec = std::to_string(tmp & 0b11111111);
+                const std::string &fsec =
+                    std::string(2 - sec.size(), '0') + sec;
+
+                // YYYY-MM-DD HH:MM:SS
+                col_str = fyear + "-" + fmonth + "-" + fday + " " + fhour +
+                          ":" + fminute + ":" + fsec;
             }
             columns.push_back(col_str);
         }

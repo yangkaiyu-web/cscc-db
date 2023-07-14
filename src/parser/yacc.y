@@ -28,7 +28,7 @@ WHERE UPDATE SET SELECT INT CHAR FLOAT DATETIME INDEX AND JOIN EXIT HELP TXN_BEG
 %token LEQ NEQ GEQ T_EOF
 
 // type-specific tokens
-%token <sv_str> IDENTIFIER VALUE_STRING VALUE_DATETIME
+%token <sv_str> IDENTIFIER VALUE_STRING
 %token <sv_str> VALUE_INT_BIGINT
 %token <sv_float> VALUE_FLOAT
 
@@ -231,10 +231,6 @@ value:
     |   VALUE_STRING
     {
         $$ = std::make_shared<StringLit>($1);
-    }
-    |   VALUE_DATETIME
-    {
-        $$ = std::make_shared<DatetimeLit>($1);
     }
     ;
 

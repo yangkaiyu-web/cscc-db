@@ -125,12 +125,6 @@ struct StringLit : public Value {
     StringLit(std::string val_) : val(std::move(val_)) {}
 };
 
-struct DatetimeLit : public Value {
-    std::string val;
-
-    DatetimeLit(std::string val_) : val(std::move(val_)) {}
-};
-
 struct Col : public Expr {
     std::string tab_name;
     std::string col_name;
