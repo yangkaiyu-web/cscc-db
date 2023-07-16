@@ -92,22 +92,9 @@ extern int yydebug;
     GEQ = 293,                     /* GEQ  */
     T_EOF = 294,                   /* T_EOF  */
     IDENTIFIER = 295,              /* IDENTIFIER  */
-<<<<<<< HEAD
     VALUE_STRING = 296,            /* VALUE_STRING  */
     VALUE_INT_BIGINT = 297,        /* VALUE_INT_BIGINT  */
     VALUE_FLOAT = 298              /* VALUE_FLOAT  */
-=======
-<<<<<<< HEAD
-    VALUE_DATETIME = 296,          /* VALUE_DATETIME  */
-    VALUE_STRING = 297,            /* VALUE_STRING  */
-    VALUE_INT_BIGINT = 298,        /* VALUE_INT_BIGINT  */
-    VALUE_FLOAT = 299              /* VALUE_FLOAT  */
-=======
-    VALUE_STRING = 296,            /* VALUE_STRING  */
-    VALUE_INT_BIGINT = 297,        /* VALUE_INT_BIGINT  */
-    VALUE_FLOAT = 298              /* VALUE_FLOAT  */
->>>>>>> f4d1731 (tmp)
->>>>>>> origin/p4
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
