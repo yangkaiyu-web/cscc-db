@@ -244,7 +244,7 @@ std::pair<IxNodeHandle *, bool> IxIndexHandle::find_leaf_page(
     while (!tnode->is_leaf_page()) {
         page_id_t page_id = tnode->internal_lookup(key);
         tnode->page->RUnLatch();
-        buffer_pool_manager_->unpin_page({fd_, page_id}, false);
+        buffer_pool_manager_->unpin_page(tnode->page->get_page_id(), false);
         tnode = fetch_node(page_id);
         tnode->page->RLatch();
     }
@@ -496,7 +496,12 @@ Rid IxIndexHandle::get_rid(const Iid &iid) const {
  * @note 上层传入的key本来是int类型，通过(const char *)&key进行了转换
  * 可用*(int *)key转换回去
  */
-Iid IxIndexHandle::lower_bound(const char *key) { return Iid{-1, -1}; }
+Iid IxIndexHandle::lower_bound(const char *key) {
+    auto pr = find_leaf_page(key, Operation::FIND, nullptr);
+    IxNodeHandle *leaf_hdl = pr.first;
+    int slot_no = leaf_hdl->lower_bound(key);
+    return {leaf_hdl->get_page_no(), slot_no};
+}
 
 /**
  * @brief FindLeafPage + upper_bound
@@ -504,7 +509,12 @@ Iid IxIndexHandle::lower_bound(const char *key) { return Iid{-1, -1}; }
  * @param key
  * @return Iid
  */
-Iid IxIndexHandle::upper_bound(const char *key) { return Iid{-1, -1}; }
+Iid IxIndexHandle::upper_bound(const char *key) {
+    auto pr = find_leaf_page(key, Operation::FIND, nullptr);
+    IxNodeHandle *leaf_hdl = pr.first;
+    int slot_no = leaf_hdl->upper_bound(key);
+    return {leaf_hdl->get_page_no(), slot_no};
+}
 
 /**
  * @brief 指向最后一个叶子的最后一个结点的后一个

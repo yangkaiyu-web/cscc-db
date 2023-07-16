@@ -218,6 +218,7 @@ void Analyze::get_check_clause(
         if (auto rhs_val = std::dynamic_pointer_cast<ast::Value>(expr->rhs)) {
             cond.is_rhs_val = true;
             cond.rhs_val = convert_sv_value(rhs_val, lhs_type);
+            cond.rhs_val.init_raw(lhs_col->len);
         } else if (auto rhs_col =
                        std::dynamic_pointer_cast<ast::Col>(expr->rhs)) {
             cond.is_rhs_val = false;

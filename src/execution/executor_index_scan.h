@@ -18,19 +18,22 @@ See the Mulan PSL v2 for more details. */
 
 class IndexScanExecutor : public AbstractExecutor {
    private:
-    std::string tab_name_;              // 表名称
-    TabMeta tab_;                       // 表的元数据
-    std::vector<Condition> conds_;      // 扫描条件
-    RmFileHandle *fh_;                  // 表的数据文件句柄
-    std::vector<ColMeta> cols_;         // 需要读取的字段
-    size_t len_;                        // 选取出来的一条记录的长度
-    std::vector<Condition> fed_conds_;  // 扫描条件，和conds_字段相同
+    std::string tab_name_;  // 表名称
+    TabMeta tab_;           // 表的元数据
+    std::vector<Condition>
+        conds_;  // 扫描条件，所有conds的左、右列中都必有一列是表tab_name_中的索引，要保证conds中的顺序符合索引的顺序，目前只支持其中一列是value，要保证cond均被完全初始化(init_raw)
+    RmFileHandle *fh_;           // 表的数据文件句柄
+    std::vector<ColMeta> cols_;  // 需要读取的字段
+    size_t len_;                 // 选取出来的一条记录的长度
+    std::vector<Condition>
+        fed_conds_;  // 扫描条件，和conds_字段相同，所有的conds列都是有索引的
 
     std::vector<std::string>
         index_col_names_;   // index scan涉及到的索引包含的字段
     IndexMeta index_meta_;  // index scan涉及到的索引元数据
 
     Rid rid_;
+    char *key_;
     std::unique_ptr<RecScan> scan_;
 
     SmManager *sm_manager_;
@@ -66,18 +69,51 @@ class IndexScanExecutor : public AbstractExecutor {
             }
         }
         fed_conds_ = conds_;
+
+        key_ = new char[index_meta_.col_tot_len];
+        int offset = 0;
+        // 目前只支持右边是value的情况
+        for (auto &cond : conds_) {
+            std::shared_ptr<RmRecord> raw_data = cond.rhs_val.raw;
+            memcpy(key_ + offset, raw_data->data, raw_data->size);
+            offset += raw_data->size;
+        }
     }
 
     void beginTuple() override {
-        auto ix_manager = sm_manager_->get_ix_manager();
-        scan_ = std::make_unique<IxScan>(
-            sm_manager_->ihs_.at(
-                ix_manager->get_index_name(tab_name_, index_col_names_)), );
-        for (auto) }
+        IxManager *ix_manager = sm_manager_->get_ix_manager();
+        IxIndexHandle *ix_hdl =
+            sm_manager_->ihs_
+                .at(ix_manager->get_index_name(tab_name_, index_col_names_))
+                .get();
+
+        scan_ = std::make_unique<IxScan>(ix_hdl, ix_hdl->lower_bound(key_),
+                                         ix_hdl->upper_bound(key_),
+                                         sm_manager_->get_bpm());
+        for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
+            rid = scan_->rid();
+            auto record = fh_->get_record(rid, context_);
+            bool cond_flag = true;
+            // test conds
+            for (auto &cond : conds_) {
+                cond_flag = cond_flag && cond.test_record(tab_.cols, record);
+                if (!cond_flag) {
+                    break;
+                }
+            }
+            if (cond_flag) {
+                rid_ = rid;
+                
+                return ;
+            }
+        }
+    }
 
     void nextTuple() override {}
 
     std::unique_ptr<RmRecord> Next() override { return nullptr; }
 
     Rid &rid() override { return rid_; }
+
+    ~IndexScanExecutor() { delete[] key_; }
 };

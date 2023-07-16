@@ -39,9 +39,10 @@ struct Value {
         int64_t
             bigint_val;  // bigint or datatime value,
                          // datatime时，40~56位年，32~40位月，24~32位日，16~24位时，8~16位分，0~8位秒
-        float float_val;  // float value
+        float float_val;            // float value
     };
-    std::string str_val;  // string value
+    std::string str_val;            // string value
+    std::shared_ptr<RmRecord> raw;  // raw record buffer
 
     friend bool operator==(const Value &x, const Value &y) {
         bool ret = false;
@@ -98,7 +99,6 @@ struct Value {
     }
     friend bool operator<=(const Value &x, const Value &y) { return !(x > y); }
     friend bool operator>=(const Value &x, const Value &y) { return !(x < y); }
-    std::shared_ptr<RmRecord> raw;  // raw record buffer
     static Value read_from_record(std::unique_ptr<RmRecord> &record,
                                   ColMeta &col) {
         Value ret;
