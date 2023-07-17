@@ -67,7 +67,6 @@ class SeqScanExecutor : public AbstractExecutor {
             }
             if (cond_flag) {
                 rid_ = rid;
-                
                 return ;
             }
         }

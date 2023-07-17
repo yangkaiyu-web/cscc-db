@@ -23,7 +23,7 @@ class ProjectionExecutor : public AbstractExecutor {
    private:
     std::unique_ptr<AbstractExecutor> prev_;  // 投影节点的儿子节点
     std::vector<ColMeta> cols_;               // 需要投影的字段
-    ssize_t len_;                              // 字段总长度
+    ssize_t len_;                             // 字段总长度
     std::vector<ssize_t> sel_idxs_;
     RmRecord rec_;
 
@@ -51,7 +51,7 @@ class ProjectionExecutor : public AbstractExecutor {
         if (!prev_->is_end()) {
             auto record = prev_->Next();
 
-            for (ssize_t i = 0; i < sel_idxs_.size(); i++) {
+            for (size_t i = 0; i < sel_idxs_.size(); i++) {
                 auto prev_col = prev_->cols().at(sel_idxs_[i]);
                 auto this_col = cols_[i];
                 memcpy(rec_.data + this_col.offset,
@@ -65,7 +65,7 @@ class ProjectionExecutor : public AbstractExecutor {
         if (!prev_->is_end()) {
             auto record = prev_->Next();
 
-            for (ssize_t i = 0; i < sel_idxs_.size(); i++) {
+            for (size_t i = 0; i < sel_idxs_.size(); i++) {
                 auto prev_col = prev_->cols().at(sel_idxs_[i]);
                 auto this_col = cols_[i];
                 memcpy(rec_.data + this_col.offset,
@@ -79,17 +79,15 @@ class ProjectionExecutor : public AbstractExecutor {
         ptr->SetData(rec_.data);
         return ptr;
     }
-    bool is_end ()const  override {
+    bool is_end() const override {
         bool ret = prev_->is_end();
         return ret;
     }
 
-    size_t tupleLen() const override{ return len_; };
+    size_t tupleLen() const override { return len_; };
 
-    const std::vector<ColMeta> &cols() const override{
-        return cols_;
-    };
+    const std::vector<ColMeta> &cols() const override { return cols_; };
 
-    std::string getType() override{ return "ProjectionExecutor"; };
+    std::string getType() override { return "ProjectionExecutor"; };
     Rid &rid() override { return _abstract_rid; }
 };

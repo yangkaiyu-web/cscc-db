@@ -11,6 +11,7 @@ See the Mulan PSL v2 for more details. */
 #include "analyze.h"
 
 #include <iomanip>
+#include <limits>
 
 #include "common/common.h"
 template <typename type>
@@ -369,7 +370,7 @@ int compare_pos_int_string(const std::string &val1, const std::string &val2) {
     } else if (len1 < len2) {
         return -1;
     } else {
-        for (int i = 0; i < val1.size(); ++i) {
+        for (size_t i = 0; i < val1.size(); ++i) {
             if (val1[i] > val2[i]) {
                 return 1;
             } else if (val1[i] < val2[i]) {

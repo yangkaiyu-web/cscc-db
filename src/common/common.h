@@ -12,7 +12,6 @@ See the Mulan PSL v2 for more details. */
 
 #include <cassert>
 #include <cstring>
-#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -113,8 +112,9 @@ struct Value {
             ret.set_float(float_val);
         } else if (col.type == TYPE_STRING) {
             char *raw_str_val = record->data + col.offset;
-            int str_len =
-                (strlen(raw_str_val) > col.len) ? col.len : strlen(raw_str_val);
+            int str_len = (static_cast<int>(strlen(raw_str_val)) > col.len)
+                              ? col.len
+                              : strlen(raw_str_val);
 
             std::string str_val = std::string(raw_str_val, str_len);
             ret.set_str(str_val);
