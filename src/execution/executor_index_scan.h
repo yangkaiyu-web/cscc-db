@@ -87,9 +87,36 @@ class IndexScanExecutor : public AbstractExecutor {
                 .at(ix_manager->get_index_name(tab_name_, index_col_names_))
                 .get();
 
-        scan_ = std::make_unique<IxScan>(ix_hdl, ix_hdl->lower_bound(key_),
-                                         ix_hdl->upper_bound(key_),
-                                         sm_manager_->get_bpm());
+        Iid def_lower_bound = ix_hdl->leaf_begin(),
+            def_upper_bound = ix_hdl->leaf_end();
+
+        for (size_t i = 0; i < conds_.size(); ++i) {
+            if (conds_[i].op == OP_EQ) {
+                def_lower_bound = ix_hdl->lower_bound(key_, i);
+                def_upper_bound = ix_hdl->upper_bound(key_, i);
+            } else if (conds_[i].op == OP_GE) {
+                scan_ = std::make_unique<IxScan>(
+                    ix_hdl, ix_hdl->lower_bound(key_, i), def_upper_bound,
+                    sm_manager_->get_bpm());
+            } else if (conds_[i].op == OP_GT) {
+                scan_ = std::make_unique<IxScan>(
+                    ix_hdl, ix_hdl->upper_bound(key_, i), def_upper_bound,
+                    sm_manager_->get_bpm());
+            } else if (conds_[i].op == OP_LE) {
+                scan_ = std::make_unique<IxScan>(ix_hdl, def_lower_bound,
+                                                 ix_hdl->upper_bound(key_, i),
+                                                 sm_manager_->get_bpm());
+            } else if (conds_[i].op == OP_LT) {
+                scan_ = std::make_unique<IxScan>(ix_hdl, def_lower_bound,
+                                                 ix_hdl->lower_bound(key_, i),
+                                                 sm_manager_->get_bpm());
+            } else if (conds_[i].op == OP_NE) {
+                scan_ = std::make_unique<IxScan>(ix_hdl, def_lower_bound,
+                                                 def_upper_bound,
+                                                 sm_manager_->get_bpm());
+            }
+        }
+
         for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
             rid = scan_->rid();
             auto record = fh_->get_record(rid, context_);
@@ -103,13 +130,35 @@ class IndexScanExecutor : public AbstractExecutor {
             }
             if (cond_flag) {
                 rid_ = rid;
-                
-                return ;
+
+                return;
             }
         }
     }
 
-    void nextTuple() override {}
+    void nextTuple() override {
+        Rid rid;
+        scan_->next();
+        while (!scan_->is_end()) {
+            rid = scan_->rid();
+
+            auto record = fh_->get_record(rid, context_);
+            bool cond_flag = true;
+            // test conds
+            for (auto &cond : conds_) {
+                cond_flag = cond_flag && cond.test_record(tab_.cols, record);
+                if (!cond_flag) {
+                    break;
+                }
+            }
+            if (cond_flag) {
+                rid_ = rid;
+                return;
+            }
+
+            scan_->next();
+        }
+    }
 
     std::unique_ptr<RmRecord> Next() override { return nullptr; }
 

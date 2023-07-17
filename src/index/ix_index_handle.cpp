@@ -21,25 +21,26 @@ See the Mulan PSL v2 for more details. */
  * key_idx，范围为[0,num_key]，如果返回的idx=num_key，则表示target大于最后一个key
  * @note 返回val/rid index，作为slot no
  */
-int IxNodeHandle::lower_bound(const char *target) const {
+int IxNodeHandle::lower_bound(const char *target, size_t pre) const {
     // Todo:
     // 查找当前节点中第一个大于等于target的key，并返回val/rid的位置给上层
     // 提示:
     // 可以采用多种查找方式，如顺序遍历、二分查找等；使用ix_compare()函数进行比较
     const std::vector<ColType> &col_types = file_hdr->col_types_;
     const std::vector<int> &col_lens = file_hdr->col_lens_;
+    pre = (pre == 0 ? static_cast<size_t>(file_hdr->col_num_) : pre);
     int l = 0, r = page_hdr->num_key - 1;
     while (l < r) {
         int mid = (l + r) >> 1;
         if (ix_compare(keys + (mid * file_hdr->col_tot_len_), target, col_types,
-                       col_lens) < 0) {
+                       col_lens, pre) < 0) {
             l = mid + 1;
         } else {
             r = mid;
         }
     }
     if (ix_compare(keys + (r * file_hdr->col_tot_len_), target, col_types,
-                   col_lens) >= 0) {
+                   col_lens, pre) >= 0) {
         return r;
     }
     return page_hdr->num_key;
@@ -55,25 +56,26 @@ int IxNodeHandle::lower_bound(const char *target) const {
  * @note 注意此处的范围从1开始
  * YKY: 我的实现范围从0开始
  */
-int IxNodeHandle::upper_bound(const char *target) const {
+int IxNodeHandle::upper_bound(const char *target, size_t pre) const {
     // Todo:
     // 查找当前节点中第一个大于target的key，并返回key的位置给上层
     // 提示:
     // 可以采用多种查找方式：顺序遍历、二分查找等；使用ix_compare()函数进行比较
     const std::vector<ColType> &col_types = file_hdr->col_types_;
     const std::vector<int> &col_lens = file_hdr->col_lens_;
+    pre = (pre == 0 ? static_cast<size_t>(file_hdr->col_num_) : pre);
     int l = 0, r = page_hdr->num_key - 1;
     while (l < r) {
         int mid = (l + r) >> 1;
         if (ix_compare(keys + (mid * file_hdr->col_tot_len_), target, col_types,
-                       col_lens) <= 0) {
+                       col_lens, pre) <= 0) {
             l = mid + 1;
         } else {
             r = mid;
         }
     }
     if (ix_compare(keys + (r * file_hdr->col_tot_len_), target, col_types,
-                   col_lens) > 0) {
+                   col_lens, pre) > 0) {
         return r;
     }
     return page_hdr->num_key;
@@ -98,17 +100,18 @@ bool IxNodeHandle::leaf_lookup(const char *key, Rid **value) {
     const std::vector<ColType> &col_types = file_hdr->col_types_;
     const std::vector<int> &col_lens = file_hdr->col_lens_;
     int l = 0, r = page_hdr->num_key - 1;
+    size_t pre = static_cast<size_t>(file_hdr->col_num_);
     while (l < r) {
         int mid = (l + r) >> 1;
         if (ix_compare(keys + (mid * file_hdr->col_tot_len_), key, col_types,
-                       col_lens) < 0) {
+                       col_lens, pre) < 0) {
             l = mid + 1;
         } else {
             r = mid;
         }
     }
     if (ix_compare(keys + (r * file_hdr->col_tot_len_), key, col_types,
-                   col_lens) == 0) {
+                   col_lens, pre) == 0) {
         *value = get_rid(r);
         return true;
     }
@@ -121,12 +124,12 @@ bool IxNodeHandle::leaf_lookup(const char *key, Rid **value) {
  * @param key 目标key
  * @return page_id_t 目标key所在的孩子节点（子树）的存储页面编号
  */
-page_id_t IxNodeHandle::internal_lookup(const char *key) {
+page_id_t IxNodeHandle::internal_lookup(const char *key, size_t pre) {
     // Todo:
     // 1. 查找当前非叶子节点中目标key所在孩子节点（子树）的位置
     // 2. 获取该孩子节点（子树）所在页面的编号
     // 3. 返回页面编号
-    int slot_no = upper_bound(key);
+    int slot_no = upper_bound(key, pre);
     return rids[slot_no].page_no;
 }
 
@@ -496,10 +499,10 @@ Rid IxIndexHandle::get_rid(const Iid &iid) const {
  * @note 上层传入的key本来是int类型，通过(const char *)&key进行了转换
  * 可用*(int *)key转换回去
  */
-Iid IxIndexHandle::lower_bound(const char *key) {
+Iid IxIndexHandle::lower_bound(const char *key, size_t pre) {
     auto pr = find_leaf_page(key, Operation::FIND, nullptr);
     IxNodeHandle *leaf_hdl = pr.first;
-    int slot_no = leaf_hdl->lower_bound(key);
+    int slot_no = leaf_hdl->lower_bound(key, pre);
     return {leaf_hdl->get_page_no(), slot_no};
 }
 
@@ -509,10 +512,10 @@ Iid IxIndexHandle::lower_bound(const char *key) {
  * @param key
  * @return Iid
  */
-Iid IxIndexHandle::upper_bound(const char *key) {
+Iid IxIndexHandle::upper_bound(const char *key, size_t pre) {
     auto pr = find_leaf_page(key, Operation::FIND, nullptr);
     IxNodeHandle *leaf_hdl = pr.first;
-    int slot_no = leaf_hdl->upper_bound(key);
+    int slot_no = leaf_hdl->upper_bound(key, pre);
     return {leaf_hdl->get_page_no(), slot_no};
 }
 

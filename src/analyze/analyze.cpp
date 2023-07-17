@@ -402,5 +402,6 @@ inline bool no_overflow(const std::string &value) {
                 value, std::to_string(std::numeric_limits<type>::max())) <=
             0) &&
            (compare_int_string(
-                value, std::to_string(std::numeric_limits<type>::min())) >= 0);
+                value, std::to_string(std::numeric_limits<type>::lowest())) >=
+            0);
 }
