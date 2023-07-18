@@ -42,7 +42,8 @@ inline int ix_compare(const char *a, const char *b, ColType type, int col_len) {
 
 inline int ix_compare(const char *a, const char *b,
                       const std::vector<ColType> &col_types,
-                      const std::vector<int> &col_lens, size_t pre) {
+                      const std::vector<int> &col_lens, size_t pre = 0) {
+    pre = (pre > 0 ? pre : col_lens.size());
     int offset = 0;
     for (size_t i = 0; i < pre; ++i) {
         int res = ix_compare(a + offset, b + offset, col_types[i], col_lens[i]);
@@ -80,11 +81,13 @@ class IxNodeHandle {
 
     void set_size(int size) { page_hdr->num_key = size; }
 
+    // 必须满足小于get_max_size
     int get_max_size() { return file_hdr->btree_order_ + 1; }
 
+    // 必须满足大于等于get_min_size
     int get_min_size() { return get_max_size() / 2; }
 
-    int key_at(int i) { return *(int *)get_key(i); }
+    // int key_at(int i) { return *(int *)get_key(i); }
 
     /* 得到第i个孩子结点的page_no */
     page_id_t value_at(int i) { return get_rid(i)->page_no; }
@@ -101,7 +104,7 @@ class IxNodeHandle {
 
     bool is_leaf_page() { return page_hdr->is_leaf; }
 
-    bool is_root_page() { return get_parent_page_no() == INVALID_PAGE_ID; }
+    bool is_root_page() { return get_parent_page_no() == IX_NO_PAGE; }
 
     void set_next_leaf(page_id_t page_no) { page_hdr->next_leaf = page_no; }
 
@@ -126,7 +129,8 @@ class IxNodeHandle {
 
     int upper_bound(const char *target, size_t pre = 0) const;
 
-    void insert_pairs(int pos, const char *key, const Rid *rid, int n);
+    // YKY：感觉不会用到
+    // void insert_pairs(int pos, const char *key, const Rid *rid, int n);
 
     page_id_t internal_lookup(const char *key, size_t pre = 0);
 
@@ -134,14 +138,26 @@ class IxNodeHandle {
 
     int insert(const char *key, const Rid &value);
 
-    // 用于在结点中的指定位置插入单个键值对
+    // 仅用于在叶子结点中的指定位置插入单个键值对
     void insert_pair(int pos, const char *key, const Rid &rid) {
-        insert_pairs(pos, key, &rid, 1);
+        assert(pos <= page_hdr->num_key);
+        for (size_t i = page_hdr->num_key; i > pos; --i) {
+            memcpy(get_key(i), get_key(i - 1), file_hdr->col_tot_len_);
+            *get_rid(i) = *get_rid(i - 1);
+        }
+        memcpy(get_key(pos), key, file_hdr->col_tot_len_);
+        *get_rid(pos) = rid;
+        ++page_hdr->num_key;
     }
 
     void erase_pair(int pos);
 
     int remove(const char *key);
+
+    inline void RLatch() { page->RLatch(); }
+    inline void RUnLatch() { page->RUnLatch(); }
+    inline void WLatch() { page->WLatch(); }
+    inline void WUnLatch() { page->WUnLatch(); }
 
     /**
      * @brief used in internal node to remove the last key in root node, and
@@ -165,12 +181,12 @@ class IxNodeHandle {
      */
     int find_child(IxNodeHandle *child) {
         int rid_idx;
-        for (rid_idx = 0; rid_idx < page_hdr->num_key; rid_idx++) {
+        for (rid_idx = 0; rid_idx <= page_hdr->num_key; rid_idx++) {
             if (get_rid(rid_idx)->page_no == child->get_page_no()) {
                 break;
             }
         }
-        assert(rid_idx < page_hdr->num_key);
+        assert(rid_idx <= page_hdr->num_key);
         return rid_idx;
     }
 };
@@ -186,7 +202,7 @@ class IxIndexHandle {
     int fd_;        // 存储B+树的文件
     IxFileHdr *
         file_hdr_;  // 存了root_page，但其初始化为2（第0页存FILE_HDR_PAGE，第1页存LEAF_HEADER_PAGE）
-    std::mutex root_latch_;
+    std::shared_mutex root_latch_;  // 保护file_hdr_
 
    public:
     IxIndexHandle(DiskManager *disk_manager,
@@ -196,10 +212,9 @@ class IxIndexHandle {
     bool get_value(const char *key, std::vector<Rid> *result,
                    Transaction *transaction);
 
-    std::pair<IxNodeHandle *, bool> find_leaf_page(const char *key,
-                                                   Operation operation,
-                                                   Transaction *transaction,
-                                                   bool find_first = false);
+    IxNodeHandle *find_leaf_page(const char *key, Operation operation,
+                                 Transaction *transaction,
+                                 bool find_first = false);
 
     // for insert
     page_id_t insert_entry(const char *key, const Rid &value,

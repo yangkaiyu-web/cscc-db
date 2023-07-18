@@ -29,7 +29,7 @@ See the Mulan PSL v2 for more details. */
 typedef enum portalTag {
     PORTAL_Invalid_Query = 0,
     PORTAL_ONE_SELECT,
-    PORTAL_DML_WITHOUT_SELECT,
+    PORTAL_DML_WITHOUT_SELECT,  // T_Update T_Insert T_Delete
     // create index tablename (id);
     PORTAL_MULTI_QUERY,
     PORTAL_CMD_UTILITY

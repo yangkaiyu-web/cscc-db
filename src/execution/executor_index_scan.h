@@ -71,6 +71,7 @@ class IndexScanExecutor : public AbstractExecutor {
         fed_conds_ = conds_;
 
         key_ = new char[index_meta_.col_tot_len];
+        // make key
         int offset = 0;
         // 目前只支持右边是value的情况
         for (auto &cond : conds_) {
