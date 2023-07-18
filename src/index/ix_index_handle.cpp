@@ -302,7 +302,7 @@ bool IxIndexHandle::get_value(const char *key, std::vector<Rid> *result,
 /**
  * @brief  将传入的一个node拆分(Split)成两个结点，在node的右边生成一个新结点new
  * node
- * @param node 需要拆分的结点
+ * @param node 需要拆分的结点，要在调用前加锁
  * @return 拆分得到的new_node
  * @note need to unpin the new node outside
  * 注意：本函数执行完毕后，原node和new node都需要在函数外面进行unpin
@@ -346,8 +346,12 @@ IxNodeHandle *IxIndexHandle::split(IxNodeHandle *node) {
         };
 
         node->set_size(split_from);
-        IxNodeHandle *old_next_node = fetch_node(node->get_next_leaf());
-        old_next_node->set_prev_leaf(new_node->get_page_no());
+        if (node->get_next_leaf() != IX_NO_PAGE) {
+            IxNodeHandle *old_next_node = fetch_node(node->get_next_leaf());
+            old_next_node->WLatch();
+            old_next_node->set_prev_leaf(new_node->get_page_no());
+            old_next_node->WUnLatch();
+        }
         node->set_next_leaf(new_node->get_page_no());
     } else {
         memcpy(new_node->get_key(0), node->get_key(split_from + 1),
@@ -449,7 +453,7 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value,
     int pair_count = old_ix_hdl->insert(key, value);
     if (pair_count >= old_ix_hdl->get_max_size()) {
         IxNodeHandle *prev_node = nullptr;
-        if (old_ix_hdl->get_prev_leaf() != IX_LEAF_HEADER_PAGE) {
+        if (old_ix_hdl->get_prev_leaf() != IX_NO_PAGE) {
             prev_node = fetch_node(old_ix_hdl->get_prev_leaf());
             if (prev_node->get_size() < prev_node->get_max_size() - 1) {
                 redistribute();
@@ -460,7 +464,7 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value,
         }
 
         IxNodeHandle *next_node = nullptr;
-        if (old_ix_hdl->get_next_leaf() != IX_LEAF_HEADER_PAGE) {
+        if (old_ix_hdl->get_next_leaf() != IX_NO_PAGE) {
             next_node = fetch_node(old_ix_hdl->get_next_leaf());
             if (next_node->get_size() < next_node->get_max_size() - 1) {
                 redistribute();

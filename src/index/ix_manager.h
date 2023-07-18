@@ -108,23 +108,7 @@ class IxManager {
         char page_buf
             [PAGE_SIZE];  // 在内存中初始化page_buf中的内容，然后将其写入磁盘
         memset(page_buf, 0, PAGE_SIZE);
-        // 注意leaf
-        // header页号为1，也标记为叶子结点，其前一个/后一个叶子均指向root node
-        // Create leaf list header page and write to file
-        {
-            memset(page_buf, 0, PAGE_SIZE);
-            auto phdr = reinterpret_cast<IxPageHdr *>(page_buf);
-            *phdr = {
-                .next_free_page_no = IX_NO_PAGE,
-                .parent = IX_NO_PAGE,
-                .num_key = 0,
-                .is_leaf = true,
-                .prev_leaf = IX_INIT_ROOT_PAGE,
-                .next_leaf = IX_INIT_ROOT_PAGE,
-            };
-            disk_manager_->write_page(fd, IX_LEAF_HEADER_PAGE, page_buf,
-                                      PAGE_SIZE);
-        }
+
         // 注意root node页号为2，也标记为叶子结点，其前一个/后一个叶子均指向leaf
         // header Create root node and write to file
         {
@@ -135,15 +119,16 @@ class IxManager {
                 .parent = IX_NO_PAGE,
                 .num_key = 0,
                 .is_leaf = true,
-                .prev_leaf = IX_LEAF_HEADER_PAGE,
-                .next_leaf = IX_LEAF_HEADER_PAGE,
+                .prev_leaf = IX_NO_PAGE,
+                .next_leaf = IX_NO_PAGE,
             };
             // Must write PAGE_SIZE here in case of future fetch_node()
             disk_manager_->write_page(fd, IX_INIT_ROOT_PAGE, page_buf,
                                       PAGE_SIZE);
         }
 
-        disk_manager_->set_fd2pageno(fd, IX_INIT_NUM_PAGES - 1);  // DEBUG
+        // disk_manager_->set_fd2pageno(fd, IX_INIT_NUM_PAGES - 1);
+        disk_manager_->set_fd2pageno(fd, IX_INIT_NUM_PAGES);  // TRY
 
         // Close index file
         disk_manager_->close_file(fd);
