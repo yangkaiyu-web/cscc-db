@@ -88,6 +88,7 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 "HELP" { return HELP; }
 "ORDER" { return ORDER; }
 "BY" {  return BY;  }
+"LIMIT" {  return LIMIT;  }
 "ASC" { return ASC; }
 "BIGINT" { return BIGINT; }
     /* operators */
