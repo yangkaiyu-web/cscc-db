@@ -18,11 +18,6 @@ See the Mulan PSL v2 for more details. */
 
 #include "defs.h"
 
-DiskManager::DiskManager() {
-    memset(fd2pageno_, 0,
-           MAX_FD * (sizeof(std::atomic<page_id_t>) / sizeof(char)));
-}
-
 /**
  * @description: 将数据写入文件的指定磁盘页面中
  * @param {int} fd 磁盘文件的文件句柄

@@ -81,11 +81,23 @@ class IxNodeHandle {
 
     void set_size(int size) { page_hdr->num_key = size; }
 
-    // 必须满足小于get_max_size
-    int get_max_size() { return file_hdr->btree_order_ + 1; }
+    // rid数量必须满足小于等于
+    inline int get_max_rid_size() { return file_hdr->btree_order_ + 1; }
 
-    // 必须满足大于等于get_min_size
-    int get_min_size() { return get_max_size() / 2; }
+    // rid数量必须满足大于等于
+    inline int get_min_rid_size() {
+        return is_root_page() ? (is_leaf_page() ? 0 : 2)
+                              : (get_max_rid_size() + 1) >> 1;
+    }
+
+    // key数量必须满足小于等于
+    inline int get_max_key_size() {
+        return is_leaf_page() ? get_max_rid_size() : get_max_rid_size() - 1;
+    }
+
+    inline int get_min_key_size() {
+        return is_leaf_page() ? get_min_rid_size() : get_min_rid_size() - 1;
+    }
 
     // int key_at(int i) { return *(int *)get_key(i); }
 
@@ -141,7 +153,7 @@ class IxNodeHandle {
     // 仅用于在叶子结点中的指定位置插入单个键值对
     void insert_pair(int pos, const char *key, const Rid &rid) {
         assert(pos <= page_hdr->num_key);
-        for (size_t i = page_hdr->num_key; i > pos; --i) {
+        for (int i = page_hdr->num_key; i > pos; --i) {
             memcpy(get_key(i), get_key(i - 1), file_hdr->col_tot_len_);
             *get_rid(i) = *get_rid(i - 1);
         }
@@ -233,12 +245,17 @@ class IxIndexHandle {
                                   bool *root_is_latched = nullptr);
     bool adjust_root(IxNodeHandle *old_root_node);
 
-    void redistribute(IxNodeHandle *neighbor_node, IxNodeHandle *node,
-                      IxNodeHandle *parent, int index);
+    // TRY:不需要parent参数，函数内部可以获得
+    // void redistribute(IxNodeHandle *neighbor_node, IxNodeHandle *node,
+    //                  IxNodeHandle *parent, int index);
+    void redistribute(IxNodeHandle *neighbor_node, IxNodeHandle *node);
 
-    bool coalesce(IxNodeHandle **neighbor_node, IxNodeHandle **node,
-                  IxNodeHandle **parent, int index, Transaction *transaction,
-                  bool *root_is_latched);
+    void coalesce(IxNodeHandle *left_node, IxNodeHandle *right_node,
+                  Transaction *transaction = nullptr,
+                  bool *root_is_latched = nullptr);
+
+    // 删除右节点页，更新右节点的父节点的kv，删去其中和右节点相关的kv，可能需要进一步更新祖先节点
+    void update_right_parent(IxNodeHandle *right_node);
 
     Iid lower_bound(const char *key, size_t pre = 0);
 
@@ -250,7 +267,22 @@ class IxIndexHandle {
 
    private:
     // 辅助函数
-    void update_root_page_no(page_id_t root) { file_hdr_->root_page_ = root; }
+    // @brief:找到node的所有叶子节点中最小key值所在的节点，记得在外面unpin返回的leaf_node，因此不能直接返回char*
+    IxNodeHandle *get_min_leafnode(IxNodeHandle *node) {
+        if (node->is_leaf_page()) {
+            return node;
+        }
+
+        page_id_t page_id = node->get_rid(0)->page_no;
+        while (true) {
+            node = fetch_node(page_id);
+            if (node->is_leaf_page()) {
+                return node;
+            }
+            page_id = node->get_rid(0)->page_no;
+            buffer_pool_manager_->unpin_page(node->get_page_id(), false);
+        }
+    }
 
     bool is_empty() const { return file_hdr_->root_page_ == IX_NO_PAGE; }
 
