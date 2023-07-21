@@ -104,14 +104,13 @@ class IxManager {
         fhdr->serialize(data);
 
         disk_manager_->write_page(fd, IX_FILE_HDR_PAGE, data, fhdr->tot_len_);
+        delete[] data;
 
-        char page_buf
-            [PAGE_SIZE];  // 在内存中初始化page_buf中的内容，然后将其写入磁盘
-        memset(page_buf, 0, PAGE_SIZE);
-
-        // 注意root node页号为2，也标记为叶子结点，其前一个/后一个叶子均指向leaf
+        // 注意root node页号为1，也标记为叶子结点，其前一个/后一个叶子均指向leaf
         // header Create root node and write to file
         {
+            char page_buf
+                [PAGE_SIZE];  // 在内存中初始化page_buf中的内容，然后将其写入磁盘
             memset(page_buf, 0, PAGE_SIZE);
             auto phdr = reinterpret_cast<IxPageHdr *>(page_buf);
             *phdr = {
@@ -160,6 +159,12 @@ class IxManager {
         const std::vector<std::string> &index_cols) {
         std::string ix_name = get_index_name(filename, index_cols);
         int fd = disk_manager_->open_file(ix_name);
+        return std::make_unique<IxIndexHandle>(disk_manager_,
+                                               buffer_pool_manager_, fd);
+    }
+
+    std::unique_ptr<IxIndexHandle> open_index(const std::string &index_name) {
+        int fd = disk_manager_->open_file(index_name);
         return std::make_unique<IxIndexHandle>(disk_manager_,
                                                buffer_pool_manager_, fd);
     }

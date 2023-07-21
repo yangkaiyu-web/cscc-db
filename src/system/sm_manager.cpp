@@ -96,8 +96,12 @@ void SmManager::open_db(const std::string& db_name) {
     }
     std::ifstream ofs(DB_META_NAME);
     ofs >> db_;
-    for (auto tab : db_.tabs_) {
+    for (auto& tab : db_.tabs_) {
         fhs_.emplace(tab.first, rm_manager_->open_file(tab.first));
+        for (auto& index : tab.second.indexes) {
+            const std::string& index_name = index.get_index_name();
+            ihs_.emplace(index_name, ix_manager_->open_index(index_name));
+        }
     }
 }
 
@@ -149,16 +153,23 @@ void SmManager::show_tables(Context* context) {
 void SmManager::show_indexes(const std::string& tab_name, Context* context) {
     std::fstream outfile;
     outfile.open("output.txt", std::ios::out | std::ios::app);
-
+    RecordPrinter printer(1);
+    printer.print_separator(context);
+    printer.print_record({"Indexes"}, context);
+    printer.print_separator(context);
     std::vector<IndexMeta> indexes = db_.get_table(tab_name).indexes;
     for (auto& idx : indexes) {
-        outfile << "| " << tab_name << " | unique | (";
+        outfile << "| " << tab_name << " | unique | ";
         const std::vector<ColMeta>& cols_meta = idx.cols;
+        std::string idx_cols = "(";
         for (size_t i = 0; i < cols_meta.size(); ++i) {
-            outfile << cols_meta[i].name
-                    << (i == cols_meta.size() - 1 ? ")\n" : ",");
+            idx_cols += cols_meta[i].name;
+            idx_cols += (i == cols_meta.size() - 1 ? ")" : ",");
         }
+        outfile << idx_cols + " |\n";
+        printer.print_record({idx_cols}, context);
     }
+    printer.print_separator(context);
     outfile.close();
 }
 
@@ -280,8 +291,10 @@ void SmManager::create_index(const std::string& tab_name,
     db_.get_table(tab_name).indexes.push_back(idx);
 
     ix_manager_->create_index(tab_name, col_meta_vec);
-    ihs_.emplace(ix_manager_->get_index_name(tab_name, col_names),
-                 ix_manager_->open_index(tab_name, col_names));
+    const std::string& index_name =
+        ix_manager_->get_index_name(tab_name, col_names);
+    ihs_.emplace(index_name, ix_manager_->open_index(index_name));
+    flush_meta();
 }
 
 /**
@@ -296,8 +309,10 @@ void SmManager::drop_index(const std::string& tab_name,
     if (!db_.is_table(tab_name)) {
         throw TableNotFoundError(tab_name);
     }
-    if (ix_manager_->exists(tab_name, col_names)) {
-        throw IndexExistsError(tab_name, col_names);
+    const std::string& index_name =
+        ix_manager_->get_index_name(tab_name, col_names);
+    if (!disk_manager_->is_file(index_name)) {
+        throw FileNotFoundError(index_name);
     }
 
     std::vector<IndexMeta>& table_indexes = db_.get_table(tab_name).indexes;
@@ -323,8 +338,9 @@ void SmManager::drop_index(const std::string& tab_name,
     if (!found) {
         throw IndexNotFoundError(tab_name, col_names);
     }
-    ix_manager_->destroy_index(tab_name, col_names);
-    ihs_.erase(ix_manager_->get_index_name(tab_name, col_names));
+    disk_manager_->destroy_file(index_name);
+    ihs_.erase(index_name);
+    flush_meta();
 }
 
 /**
