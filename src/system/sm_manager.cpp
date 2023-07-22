@@ -120,11 +120,12 @@ void SmManager::flush_meta() {
 void SmManager::close_db() {
     flush_meta();
 
-    if (chdir("..") < 0) {
-        throw UnixError();
-    }
     for (auto& table : fhs_) {
         rm_manager_->close_file(table.second.get());
+    }
+
+    for (auto& index : ihs_) {
+        ix_manager_->close_index(index.second.get());
     }
 }
 
@@ -338,6 +339,8 @@ void SmManager::drop_index(const std::string& tab_name,
     if (!found) {
         throw IndexNotFoundError(tab_name, col_names);
     }
+    ix_manager_->close_index(ihs_[index_name].get());
+    // 没有调用ix_manager->destroy_index,减少再次得到index_name的花销
     disk_manager_->destroy_file(index_name);
     ihs_.erase(index_name);
     flush_meta();

@@ -180,8 +180,8 @@ class Portal {
                     sm_manager_, x->tab_name_, x->conds_, context);
             } else {
                 return std::make_unique<IndexScanExecutor>(
-                    sm_manager_, x->tab_name_, x->conds_, x->index_col_names_,
-                    context);
+                    sm_manager_, x->tab_name_, x->conds_, x->idx_conds_,
+                    x->index_col_names_, context);
             }
         } else if (auto x = std::dynamic_pointer_cast<JoinPlan>(plan)) {
             std::unique_ptr<AbstractExecutor> left =

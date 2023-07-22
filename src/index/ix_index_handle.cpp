@@ -25,6 +25,7 @@ int IxNodeHandle::lower_bound(const char *target, size_t pre) const {
     // 查找当前节点中第一个大于等于target的key，并返回val/rid的位置给上层
     // 提示:
     // 可以采用多种查找方式，如顺序遍历、二分查找等；使用ix_compare()函数进行比较
+    if (page_hdr->num_key == 0) return 0;
     const std::vector<ColType> &col_types = file_hdr->col_types_;
     const std::vector<int> &col_lens = file_hdr->col_lens_;
     pre = (pre == 0 ? static_cast<size_t>(file_hdr->col_num_) : pre);
@@ -51,13 +52,14 @@ int IxNodeHandle::lower_bound(const char *target, size_t pre) const {
  * @return
  * key_idx，范围为[0,num_key]，如果返回的key_idx=num_key，则表示target大于等于最后一个key
  * @note 注意此处的范围从1开始
- * YKY: 我的实现范围从0开始
+ * YKY: 我的实现范围从0开始，假定key_no为num_key处的key大于任何有限的key
  */
 int IxNodeHandle::upper_bound(const char *target, size_t pre) const {
     // Todo:
     // 查找当前节点中第一个大于target的key，并返回key的位置给上层
     // 提示:
     // 可以采用多种查找方式：顺序遍历、二分查找等；使用ix_compare()函数进行比较
+    if (page_hdr->num_key == 0) return 0;
     const std::vector<ColType> &col_types = file_hdr->col_types_;
     const std::vector<int> &col_lens = file_hdr->col_lens_;
     pre = (pre == 0 ? static_cast<size_t>(file_hdr->col_num_) : pre);
@@ -168,7 +170,8 @@ int IxNodeHandle::insert(const char *key, const Rid &value) {
     // 4. 返回完成插入操作之后的键值对数量
     assert(is_leaf_page());
     int key_idx = lower_bound(key);
-    if (ix_compare(get_key(key_idx), key, file_hdr->col_types_,
+    if (key_idx == page_hdr->num_key ||
+        ix_compare(get_key(key_idx), key, file_hdr->col_types_,
                    file_hdr->col_lens_) > 0) {
         insert_pair(key_idx, key, value);
     }
@@ -260,9 +263,14 @@ IxNodeHandle *IxIndexHandle::find_leaf_page(const char *key,
     // 2. 从根节点开始不断向下查找目标key
     // 3. 找到包含该key值的叶子结点停止查找，并返回叶子节点
     IxNodeHandle *tnode = fetch_node(file_hdr_->root_page_);
+    if (tnode->is_leaf_page()) {
+        return tnode;
+    }
+
     while (true) {
         page_id_t page_id = tnode->internal_lookup(key);
         buffer_pool_manager_->unpin_page(tnode->page->get_page_id(), false);
+
         tnode = fetch_node(page_id);
         if (tnode->is_leaf_page()) {
             break;
@@ -279,7 +287,8 @@ IxNodeHandle *IxIndexHandle::find_leaf_page(const char *key,
  * @param transaction 事务指针
  * @return bool 返回目标键值对是否存在
  */
-bool IxIndexHandle::get_value(const char *key, std::vector<Rid> *result,
+bool IxIndexHandle::get_value(const char *key,
+                              std::vector<std::pair<const char *, Rid>> *result,
                               Transaction *transaction) {
     // Todo:
     // 1. 获取目标key值所在的叶子结点
@@ -294,7 +303,8 @@ bool IxIndexHandle::get_value(const char *key, std::vector<Rid> *result,
     while (key_idx < ix_hdl->get_size() &&
            ix_compare(key, ix_hdl->get_key(key_idx), file_hdr_->col_types_,
                       file_hdr_->col_lens_) == 0) {
-        result->push_back(*(ix_hdl->get_rid(key_idx)));
+        result->push_back(std::make_pair(ix_hdl->get_key(key_idx),
+                                         *(ix_hdl->get_rid(key_idx))));
         ++key_idx;
     }
 

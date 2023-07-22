@@ -22,7 +22,7 @@ See the Mulan PSL v2 for more details. */
 
 class SeqScanExecutor : public AbstractExecutor {
    private:
-    std::string tab_name_;  // 表的名称
+    std::string tab_name_;              // 表的名称
     TabMeta tab_;
     std::vector<Condition> conds_;      // scan的条件
     RmFileHandle *fh_;                  // 表的数据文件句柄
@@ -67,7 +67,7 @@ class SeqScanExecutor : public AbstractExecutor {
             }
             if (cond_flag) {
                 rid_ = rid;
-                return ;
+                return;
             }
         }
     }
@@ -75,9 +75,9 @@ class SeqScanExecutor : public AbstractExecutor {
     void nextTuple() override {
         Rid rid;
         scan_->next();
-        while(!scan_->is_end()){
+        while (!scan_->is_end()) {
             rid = scan_->rid();
-            
+
             auto record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
@@ -89,10 +89,10 @@ class SeqScanExecutor : public AbstractExecutor {
             }
             if (cond_flag) {
                 rid_ = rid;
-                return ;
+                return;
             }
-            
-        scan_->next();
+
+            scan_->next();
         }
     }
     bool is_end() const override {
@@ -100,13 +100,12 @@ class SeqScanExecutor : public AbstractExecutor {
         return ret;
     }
 
-    std::unique_ptr<RmRecord> Next() override { return fh_->get_record(rid_, context_); }
-
-    virtual const std::vector<ColMeta> &cols() const {
-        return cols_;
+    std::unique_ptr<RmRecord> Next() override {
+        return fh_->get_record(rid_, context_);
     }
+
+    virtual const std::vector<ColMeta> &cols() const { return cols_; }
     size_t tupleLen() const { return len_; };
-    std::string getType()override{return "SeqScanExecutor";}
+    std::string getType() override { return "SeqScanExecutor"; }
     Rid &rid() override { return rid_; }
 };
-

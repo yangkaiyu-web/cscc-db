@@ -51,7 +51,9 @@ class Planner {
                                                Context *context);
 
     // int get_indexNo(std::string tab_name, std::vector<Condition> curr_conds);
-    bool get_index_cols(std::string tab_name, std::vector<Condition> curr_conds,
+    bool get_index_cols(std::string tab_name,
+                        std::vector<Condition> &curr_conds,
+                        std::vector<Condition> &fed_conds,
                         std::vector<std::string> &index_col_names);
 
     ColType interp_sv_type(ast::SvType sv_type) {
