@@ -12,6 +12,8 @@ See the Mulan PSL v2 for more details. */
 
 #include <memory>
 
+#include "defs.h"
+#include "errors.h"
 #include "execution/executor_delete.h"
 #include "execution/executor_index_scan.h"
 #include "execution/executor_insert.h"
@@ -278,9 +280,20 @@ std::shared_ptr<Plan> Planner::generate_sort_plan(std::shared_ptr<Query> query,
         if (col.name.compare(x->order->cols->col_name) == 0)
             sel_col = {.tab_name = col.tab_name, .col_name = col.name};
     }
+    int limit_num = -1;
+    if(x->has_limit){
+        if(query->limit.val.type == TYPE_BIGINT ){
+            limit_num = query->limit.val.bigint_val;
+        }else if(query->limit.val.type == TYPE_INT){
+            limit_num = query->limit.val.int_val;
+        }else {
+            throw InternalError("error limit val type");
+        }
+    }
+
     return std::make_shared<SortPlan>(
         T_Sort, std::move(plan), sel_col,
-        x->order->orderby_dir == ast::OrderBy_DESC);
+        x->order->orderby_dir == ast::OrderBy_DESC,limit_num);
 }
 
 /**
