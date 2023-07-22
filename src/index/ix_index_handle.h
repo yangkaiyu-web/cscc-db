@@ -281,7 +281,7 @@ class IxIndexHandle {
                 return node;
             }
             page_id = node->get_rid(0)->page_no;
-            buffer_pool_manager_->unpin_page(node->get_page_id(), false);
+            release_node_handle(node, false);
         }
     }
 
@@ -297,7 +297,7 @@ class IxIndexHandle {
 
     void erase_leaf(IxNodeHandle *leaf);
 
-    void release_node_handle(IxNodeHandle &node);
+    void release_node_handle(IxNodeHandle *node, bool is_dirty) const;
 
     void maintain_child(IxNodeHandle *node, int child_idx);
 
