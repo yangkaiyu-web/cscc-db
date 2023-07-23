@@ -103,10 +103,10 @@ class SeqScanExecutor : public AbstractExecutor {
 
     std::unique_ptr<RmRecord> Next() override { return fh_->get_record(rid_, context_); }
 
-    virtual const std::vector<ColMeta> &cols() const {
+    virtual const std::vector<ColMeta> &cols() const override{
         return cols_;
     }
-    size_t tupleLen() const { return len_; };
+    size_t tupleLen() const override { return len_; };
     std::string getType()override{return "SeqScanExecutor";}
     Rid &rid() override { return rid_; }
 };
