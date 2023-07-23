@@ -119,7 +119,7 @@ class ProjectionPlan : public Plan
 class SortPlan : public Plan
 {
     public:
-        SortPlan(PlanTag tag, std::shared_ptr<Plan> subplan, TabCol sel_col, bool is_desc)
+        SortPlan(PlanTag tag, std::shared_ptr<Plan> subplan, TabCol sel_col, bool is_desc,int limit_num)
         {
             Plan::tag = tag;
             subplan_ = std::move(subplan);
