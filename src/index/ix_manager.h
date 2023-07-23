@@ -15,6 +15,8 @@ See the Mulan PSL v2 for more details. */
 
 #include "ix_defs.h"
 #include "ix_index_handle.h"
+#include "record/rm_file_handle.h"
+#include "record/rm_scan.h"
 #include "system/sm_meta.h"
 
 class IxManager {
@@ -106,13 +108,16 @@ class IxManager {
         disk_manager_->write_page(fd, IX_FILE_HDR_PAGE, data, fhdr->tot_len_);
         delete[] data;
 
+        disk_manager_->set_fd2pageno(fd, IX_INIT_ROOT_PAGE);
         // 注意root node页号为1，也标记为叶子结点，其前一个/后一个叶子均指向leaf
         // header Create root node and write to file
         {
-            char page_buf
-                [PAGE_SIZE];  // 在内存中初始化page_buf中的内容，然后将其写入磁盘
-            memset(page_buf, 0, PAGE_SIZE);
-            auto phdr = reinterpret_cast<IxPageHdr *>(page_buf);
+            // 无需++file_hdr的num page，因为上面已经设置为2
+            PageId new_page_id = {.fd = fd, .page_no = INVALID_PAGE_ID};
+            // 从1开始分配page_no
+            Page *page = buffer_pool_manager_->new_page(&new_page_id);
+            assert(page->get_page_id().page_no == IX_INIT_ROOT_PAGE);
+            auto phdr = reinterpret_cast<IxPageHdr *>(page->get_data());
             *phdr = {
                 .next_free_page_no = IX_NO_PAGE,
                 .parent = IX_NO_PAGE,
@@ -121,16 +126,31 @@ class IxManager {
                 .prev_leaf = IX_NO_PAGE,
                 .next_leaf = IX_NO_PAGE,
             };
-            // Must write PAGE_SIZE here in case of future fetch_node()
-            disk_manager_->write_page(fd, IX_INIT_ROOT_PAGE, page_buf,
-                                      PAGE_SIZE);
+            buffer_pool_manager_->flush_page(page->get_page_id());
         }
-
-        // disk_manager_->set_fd2pageno(fd, IX_INIT_NUM_PAGES - 1);
-        disk_manager_->set_fd2pageno(fd, IX_INIT_NUM_PAGES);  // TRY
 
         // Close index file
         disk_manager_->close_file(fd);
+    }
+
+    // 创建索引时初始化b+树
+    void init_tree(IxIndexHandle *ih, RmFileHandle *fh,
+                   std::vector<ColMeta> &col_meta_vec) {
+        std::unique_ptr<RmScan> scan_ = std::make_unique<RmScan>(fh);
+        char *key = new char[ih->file_hdr_->col_tot_len_];
+        for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
+            rid = scan_->rid();
+            auto record = fh->get_record(rid, nullptr);
+            int offset = 0;
+            for (auto &col_meta : col_meta_vec) {
+                memcpy(key + offset, record->data + col_meta.offset,
+                       col_meta.len);
+                offset += col_meta.len;
+            }
+            assert(offset == ih->file_hdr_->col_tot_len_);
+            ih->insert_entry(key, rid, nullptr);
+        }
+        delete[] key;
     }
 
     void destroy_index(const std::string &filename,
@@ -174,6 +194,7 @@ class IxManager {
         ih->file_hdr_->serialize(data);
         disk_manager_->write_page(ih->fd_, IX_FILE_HDR_PAGE, data,
                                   ih->file_hdr_->tot_len_);
+        delete[] data;
         // 缓冲区的所有页刷到磁盘，注意这句话必须写在close_file前面
         buffer_pool_manager_->flush_all_pages(ih->fd_);
         disk_manager_->close_file(ih->fd_);

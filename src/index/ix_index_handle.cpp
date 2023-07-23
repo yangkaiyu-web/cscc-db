@@ -894,7 +894,11 @@ void IxIndexHandle::update_right_parent(IxNodeHandle *right_node) {
  */
 Rid IxIndexHandle::get_rid(const Iid &iid) const {
     IxNodeHandle *node = fetch_node(iid.page_no);
-    if (iid.slot_no >= node->get_size()) {
+    if (iid.slot_no == node->get_size()) {
+        // 当upper/lower
+        // bound返回key_num时（大于所有key）会出现这种情况，不能报异常
+        return {-1, -1};
+    } else if (iid.slot_no > node->get_size()) {
         throw IndexEntryNotFoundError();
     }
 
@@ -984,7 +988,14 @@ IxNodeHandle *IxIndexHandle::create_node() {
     file_hdr_->num_pages_++;
 
     PageId new_page_id = {.fd = fd_, .page_no = INVALID_PAGE_ID};
-    // 从3开始分配page_no，第一次分配之后，new_page_id.page_no=3，file_hdr_.num_pages=4
+    if (file_hdr_->first_free_page_no_ != IX_NO_PAGE) {
+        new_page_id.page_no = file_hdr_->first_free_page_no_;
+        Page *page = buffer_pool_manager_->fetch_page(new_page_id);
+        // 先不处理page_hdr，由调用函数处理
+        node = new IxNodeHandle(file_hdr_, page);
+        file_hdr_->first_free_page_no_ = node->page_hdr->next_free_page_no;
+        return node;
+    }
     Page *page = buffer_pool_manager_->new_page(&new_page_id);
     node = new IxNodeHandle(file_hdr_, page);
     return node;

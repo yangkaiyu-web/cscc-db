@@ -181,6 +181,9 @@ bool BufferPoolManager::flush_page(PageId page_id) {
         page.is_dirty_ = false;
         disk_manager_->write_page(page.id_.fd, page.id_.page_no, page.data_,
                                   PAGE_SIZE);
+        replacer_->pin(frame_id);
+        page_table_.erase(page_id);
+        free_list_.push_back(frame_id);
         page_latches_[frame_id].unlock();
         return true;
     }
@@ -288,6 +291,9 @@ void BufferPoolManager::flush_all_pages(int fd) {
             page.is_dirty_ = false;
             disk_manager_->write_page(page_id.fd, page_id.page_no, page.data_,
                                       PAGE_SIZE);
+            replacer_->pin(i);
+            page_table_.erase(page_id);
+            free_list_.push_back(i);
         }
         page_latches_[i].unlock();
     }

@@ -48,7 +48,8 @@ bool Planner::get_index_cols(std::string tab_name,
             // conds中是否有与index中第i列相匹配的列
             bool flag = false;
             for (size_t j = 0; j < idx_conds.size(); ++j) {
-                if (idx_conds[j].lhs_col.col_name.compare(index.cols[i].name)) {
+                if (idx_conds[j].lhs_col.col_name.compare(index.cols[i].name) ==
+                    0) {
                     flag = true;
                     tmp_conds.push_back(idx_conds[j]);
                 }

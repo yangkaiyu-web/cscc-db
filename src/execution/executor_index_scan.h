@@ -85,6 +85,7 @@ class IndexScanExecutor : public AbstractExecutor {
     }
 
     void beginTuple() override {
+        std::cout << "index" << std::endl;
         IxManager *ix_manager = sm_manager_->get_ix_manager();
         IxIndexHandle *ix_hdl =
             sm_manager_->ihs_
@@ -118,23 +119,23 @@ class IndexScanExecutor : public AbstractExecutor {
                    idx_conds_[i].lhs_col.col_name.compare(col_name) == 0) {
                 if (idx_conds_[i].op == CompOp::OP_GE ||
                     idx_conds_[i].op == CompOp::OP_GT) {
-                    has_lower = true;
                     // 当存在更高的下限时，更新旧的下限
-                    if (idx_conds_[i].rhs_val > lower_val ||
+                    if (!has_lower || idx_conds_[i].rhs_val > lower_val ||
                         (idx_conds_[i].rhs_val == lower_val && be &&
                          idx_conds_[i].op == CompOp::OP_GT)) {
                         lower_val = idx_conds_[i].rhs_val;
                         be = (idx_conds_[i].op == CompOp::OP_GE);
                     }
+                    has_lower = true;
                 } else if (idx_conds_[i].op == CompOp::OP_LE ||
                            idx_conds_[i].op == CompOp::OP_LT) {
-                    has_upper = true;
-                    if (idx_conds_[i].rhs_val < upper_val ||
+                    if (!has_upper || idx_conds_[i].rhs_val < upper_val ||
                         (idx_conds_[i].rhs_val == upper_val && le &&
                          idx_conds_[i].op == CompOp::OP_LT)) {
                         upper_val = idx_conds_[i].rhs_val;
                         le = (idx_conds_[i].op == CompOp::OP_LE);
                     }
+                    has_upper = true;
                 }
                 ++i;
             }
@@ -163,34 +164,31 @@ class IndexScanExecutor : public AbstractExecutor {
                     def_upper_bound =
                         le ? ix_hdl->upper_bound(key_, first_range_cond + 1)
                            : ix_hdl->lower_bound(key_, first_range_cond + 1);
-                } else {
+                } else if (first_range_cond != 0) {
                     // 没有上界且前面有等于条件时，按照前面的等于条件设置上界
                     def_upper_bound =
                         ix_hdl->upper_bound(key_, first_range_cond);
                 }  // 否则上界设置为初始值(leaf_end)}
             }
+        }
+        scan_ = std::make_unique<IxScan>(
+            ix_hdl, def_lower_bound, def_upper_bound, sm_manager_->get_bpm());
 
-            scan_ = std::make_unique<IxScan>(ix_hdl, def_lower_bound,
-                                             def_upper_bound,
-                                             sm_manager_->get_bpm());
-
-            for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
-                rid = scan_->rid();
-                auto record = fh_->get_record(rid, context_);
-                bool cond_flag = true;
-                // test conds
-                for (auto &cond : conds_) {
-                    cond_flag =
-                        cond_flag && cond.test_record(tab_.cols, record);
-                    if (!cond_flag) {
-                        break;
-                    }
+        for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
+            rid = scan_->rid();
+            auto record = fh_->get_record(rid, context_);
+            bool cond_flag = true;
+            // test conds
+            for (auto &cond : conds_) {
+                cond_flag = cond_flag && cond.test_record(tab_.cols, record);
+                if (!cond_flag) {
+                    break;
                 }
-                if (cond_flag) {
-                    rid_ = rid;
+            }
+            if (cond_flag) {
+                rid_ = rid;
 
-                    return;
-                }
+                return;
             }
         }
     }
@@ -219,9 +217,16 @@ class IndexScanExecutor : public AbstractExecutor {
         }
     }
 
+    bool is_end() const override {
+        bool ret = scan_->is_end();
+        return ret;
+    }
+
     virtual const std::vector<ColMeta> &cols() const { return cols_; }
 
-    std::unique_ptr<RmRecord> Next() override { return nullptr; }
+    std::unique_ptr<RmRecord> Next() override {
+        return fh_->get_record(rid_, context_);
+    }
 
     Rid &rid() override { return rid_; }
 

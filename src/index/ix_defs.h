@@ -24,7 +24,8 @@ constexpr int IX_MAX_COL_LEN = 512;
 class IxFileHdr {
    public:
     page_id_t first_free_page_no_;  // 文件中第一个空闲的磁盘页面的页面号
-    int num_pages_;                 // 磁盘文件中页面的数量
+    // 不一定等于fd2pageno，first_free_page_no_链上的page不算在num_pages_中，但算在fd2pageno中
+    int num_pages_;                   // 磁盘文件中页面的数量
     page_id_t root_page_;             // B+树根节点对应的页面号
     int col_num_;                     // 索引包含的字段数量
     std::vector<ColType> col_types_;  // 字段的类型
@@ -33,10 +34,11 @@ class IxFileHdr {
     int btree_order_;  // # children per page 每个结点最多可插入的键值对数量
     int keys_size_;  // keys_size = (btree_order + 1) * col_tot_len
     // first_leaf初始化之后没有进行修改，只不过是在测试文件中遍历叶子结点的时候用了
-    page_id_t first_leaf_;  // 首叶节点对应的页号，在上层IxManager的open函数进行初始化，初始化为root
-                            // page_no
-    page_id_t last_leaf_;   // 尾叶节点对应的页号
-    int tot_len_;           // 记录结构体的整体长度
+    page_id_t
+        first_leaf_;  // 首叶节点对应的页号，在上层IxManager的open函数进行初始化，初始化为root
+                      // page_no
+    page_id_t last_leaf_;  // 尾叶节点对应的页号
+    int tot_len_;          // 记录结构体的整体长度
 
     IxFileHdr() { tot_len_ = col_num_ = 0; }
 

@@ -295,6 +295,8 @@ void SmManager::create_index(const std::string& tab_name,
     const std::string& index_name =
         ix_manager_->get_index_name(tab_name, col_names);
     ihs_.emplace(index_name, ix_manager_->open_index(index_name));
+    ix_manager_->init_tree(ihs_.at(index_name).get(), fhs_.at(tab_name).get(),
+                           col_meta_vec);
     flush_meta();
 }
 
