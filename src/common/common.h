@@ -98,7 +98,7 @@ struct Value {
     friend bool operator<=(const Value &x, const Value &y) { return !(x > y); }
     friend bool operator>=(const Value &x, const Value &y) { return !(x < y); }
     std::shared_ptr<RmRecord> raw;  // raw record buffer
-    static Value read_from_record(std::unique_ptr<RmRecord> &record,
+    static Value read_from_record(std::shared_ptr<RmRecord> &record,
                                   ColMeta &col) {
         Value ret;
         if (col.type == TYPE_INT) {
@@ -245,7 +245,7 @@ struct Condition {
     //
     //
     bool test_record(const std::vector<ColMeta> &cols,
-                     std::unique_ptr<RmRecord> &record) {
+                     std::shared_ptr<RmRecord> &record) {
         // assert(lhs_col.tab_name == col.tab_name);
         auto lhs_col_meta = ColMeta::find_from_cols(cols, lhs_col.col_name);
         auto lhs_val = Value::read_from_record(record, lhs_col_meta);
@@ -274,9 +274,9 @@ struct Condition {
         return ret;
     }
     bool test_join_record(const std::vector<ColMeta> &left_cols,
-                          std::unique_ptr<RmRecord> &left_rec,
+                          std::shared_ptr<RmRecord> &left_rec,
                           const std::vector<ColMeta> &right_cols,
-                          std::unique_ptr<RmRecord> &right_rec) {
+                          std::shared_ptr<RmRecord> &right_rec) {
         // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
         // TabCol true_lhs_col,true_rhs_col;
         // if(lhs_col.tab_name == right_tab.name){
