@@ -14,6 +14,9 @@ See the Mulan PSL v2 for more details. */
 #include <limits>
 
 #include "common/common.h"
+#include "defs.h"
+#include "errors.h"
+#include "parser/ast.h"
 template <typename type>
 inline bool no_overflow(const std::string &value);
 int compare_int_string(const std::string &val1, const std::string &val2);
@@ -57,6 +60,11 @@ std::shared_ptr<Query> Analyze::do_analyze(
         }
         // 处理where条件
         get_check_clause(x->conds, query->tables, query->conds);
+        if (x->has_sort) {
+            get_orderby_clause(x->order, query->tables, query->oder_by);
+            get_limit_clause(x->limit, query->limit);
+        }
+
     } else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(parse)) {
         /** TODO: */
 
@@ -236,6 +244,32 @@ void Analyze::get_check_clause(
         }
         conds.push_back(cond);
     }
+}
+
+void Analyze::get_orderby_clause(const std::shared_ptr<ast::OrderBy> x_orderby,
+                                 const std::vector<std::string> &tab_names,
+                                 OrderByCaluse &orderby) {
+    std::vector<ColMeta> all_cols;
+    get_all_cols(tab_names, all_cols);
+
+    orderby.col = {.tab_name = x_orderby->cols->tab_name,
+                   .col_name = x_orderby->cols->col_name};
+
+    orderby.col = check_column(all_cols, orderby.col);
+
+    if (x_orderby->orderby_dir == ast::OrderByDir::OrderBy_ASC ||
+        x_orderby->orderby_dir == ast::OrderByDir::OrderBy_DEFAULT) {
+        orderby.dir = OrderByDir::OrderBy_ASC;
+    } else if (x_orderby->orderby_dir == ast::OrderByDir::OrderBy_DESC) {
+        orderby.dir = OrderByDir::OrderBy_DESC;
+    } else {
+        throw InternalError("unknown orderby type");
+    }
+}
+
+void Analyze::get_limit_clause(const std::shared_ptr<ast::Limit> x_limit,
+                               LimitClause &limit) {
+    limit.val = convert_sv_value(x_limit->val, ColType::TYPE_INT);
 }
 /*
 // 处理二元关系表达式
