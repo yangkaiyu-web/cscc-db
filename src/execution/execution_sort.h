@@ -9,23 +9,17 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #pragma once
-#include <algorithm>
-#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <fstream>
-#include <ios>
 #include <memory>
 #include <string>
 
 #include "common/config.h"
 #include "errors.h"
-#include <cstring>
-#include <string>
 #include "execution_defs.h"
 #include "execution_manager.h"
 #include "executor_abstract.h"
-#include "common/config.h"
 #include "index/ix.h"
 #include "record/rm_defs.h"
 #include "storage/disk_manager.h"
@@ -33,7 +27,6 @@ See the Mulan PSL v2 for more details. */
 #include "system/sm_manager.h"
 
 class SortExecutor : public AbstractExecutor {
-
    private:
     // TODO: 直接申请内存还是从bufferpool里获取？
 
@@ -48,9 +41,10 @@ class SortExecutor : public AbstractExecutor {
     std::unique_ptr<RmRecord> current_tuple;
 
    public:
-    SortExecutor(SmManager* sm_manager,std::unique_ptr<AbstractExecutor> prev, std::vector<TabCol> sel_cols, bool is_desc,int limit_num) {
+    SortExecutor(SmManager* sm_manager, std::unique_ptr<AbstractExecutor> prev, std::vector<TabCol> sel_cols,
+                 bool is_desc, int limit_num) {
         prev_ = std::move(prev);
-        for(auto& col : sel_cols){
+        for (auto& col : sel_cols) {
             cols_.push_back(prev_->get_col_offset(col));
         }
         is_desc_ = is_desc;
@@ -246,19 +240,19 @@ void mergeBlocks(const vector<string>& blockFiles, const string& outputFilename)
         return true;
     }
 
+    void nextTuple() override {}
 
-    size_t tupleLen() const override{throw UnreachableCodeError();}
+    std::unique_ptr<RmRecord> Next() override { return nullptr; }
 
-    const std::vector<ColMeta> &cols() const override{throw UnreachableCodeError();}
-    std::string getType() override{return "SortExecutor";}
+    size_t tupleLen() const override { throw UnreachableCodeError(); }
 
+    const std::vector<ColMeta>& cols() const override { throw UnreachableCodeError(); }
+    std::string getType() override { return "SortExecutor"; }
 
-    bool is_end() const override{
-        //TODO: implement this
+    bool is_end() const override {
+        // TODO: implement this
         return true;
     }
 
-
-
-    Rid &rid() override { return _abstract_rid; }
+    Rid& rid() override { return _abstract_rid; }
 };
