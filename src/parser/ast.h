@@ -106,6 +106,11 @@ struct DropIndex : public TreeNode {
 struct Expr : public TreeNode {};
 
 struct Value : public Expr {};
+struct Limit : public TreeNode {
+    std::shared_ptr<Value> val;
+    Limit( std::shared_ptr<Value> val_)
+        :  val(std::move(val_)) {}
+};
 
 struct Int_Bint_Lit : public Value {
     std::string val;
@@ -211,15 +216,21 @@ struct SelectStmt : public TreeNode {
     bool has_sort;
     std::shared_ptr<OrderBy> order;
 
+    bool has_limit;
+    std::shared_ptr<Limit> limit;
+
     SelectStmt(std::vector<std::shared_ptr<Col>> cols_,
                std::vector<std::string> tabs_,
                std::vector<std::shared_ptr<BinaryExpr>> conds_,
-               std::shared_ptr<OrderBy> order_)
+               std::shared_ptr<OrderBy> order_,
+               std::shared_ptr<Limit> limit_)
         : cols(std::move(cols_)),
           tabs(std::move(tabs_)),
           conds(std::move(conds_)),
-          order(std::move(order_)) {
+          order(std::move(order_)) ,
+          limit(std::move(limit_)) {
         has_sort = (bool)order;
+        has_limit = (bool)limit;
     }
 };
 
@@ -228,6 +239,7 @@ struct SemValue {
     float sv_float;
     std::string sv_str;
     OrderByDir sv_orderby_dir;
+
     std::vector<std::string> sv_strs;
 
     std::shared_ptr<TreeNode> sv_node;
@@ -254,6 +266,7 @@ struct SemValue {
     std::vector<std::shared_ptr<BinaryExpr>> sv_conds;
 
     std::shared_ptr<OrderBy> sv_orderby;
+    std::shared_ptr<Limit> sv_limit;
 };
 
 extern std::shared_ptr<ast::TreeNode> parse_tree;
