@@ -9,12 +9,9 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #pragma once
-#include <algorithm>
-#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <fstream>
-#include <ios>
 #include <memory>
 #include <string>
 
@@ -191,6 +188,33 @@ class SortExecutor : public AbstractExecutor {
             }
         }
     }
+    // TODO: 缓存一下排序结果，防止反复 begin
+    void beginTuple() override {
+        std::vector<std::string> temp_file_names;
+        int tmp_file_count = 0;
+        auto tuple_num_per_page = PAGE_SIZE / prev_->tupleLen();
+        auto tuple_len = prev_->tupleLen();
+        prev_->beginTuple();
+        int tuple_num_on_page = 0;
+        char read_buf[PAGE_SIZE];
+        while (!prev_->is_end()) {
+            auto tuple = prev_->Next();
+            memcpy(read_buf + tuple_len * tuple_num_on_page, tuple->data, tuple_len);
+            tuple_num_on_page++;
+            if (tuple_num_on_page == tuple_num_per_page) {
+                sort(read_buf, tuple_num_on_page);
+                writeTmpData(read_buf, tmp_file_count++, temp_file_names);
+                tuple_num_on_page = 0;
+            }
+            prev_->nextTuple();
+        }
+        if (tuple_num_on_page != 0) {
+            sort(read_buf, tuple_num_on_page);
+            writeTmpData(read_buf, tmp_file_count++, temp_file_names);
+            tuple_num_on_page = 0;
+        }
+        std::string res_file_name = "sort.res"+getTime();
+
 
 void mergeBlocks(const vector<string>& blockFiles, const string& outputFilename) {
     
