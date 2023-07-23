@@ -243,5 +243,19 @@ void mergeBlocks(const vector<string>& blockFiles, const string& outputFilename)
         return true;
     }
 
-    Rid& rid() override { return _abstract_rid; }
+
+    size_t tupleLen() const override{throw UnreachableCodeError();}
+
+    const std::vector<ColMeta> &cols() const override{throw UnreachableCodeError();}
+    std::string getType() override{return "SortExecutor";}
+
+
+    bool is_end() const override{
+        //TODO: implement this
+        return true;
+    }
+
+
+
+    Rid &rid() override { return _abstract_rid; }
 };
