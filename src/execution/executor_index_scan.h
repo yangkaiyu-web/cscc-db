@@ -10,6 +10,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include "errors.h"
 #include "execution_defs.h"
 #include "execution_manager.h"
 #include "executor_abstract.h"
@@ -64,17 +65,17 @@ class IndexScanExecutor : public AbstractExecutor {
         fed_conds_ = conds_;
     }
 
-    void beginTuple() override {
-        
-    }
-
-    void nextTuple() override {
-        
-    }
-
     std::unique_ptr<RmRecord> Next() override {
         return nullptr;
     }
+    void beginTuple()  override{throw UnreachableCodeError();}
+    void nextTuple() override {throw UnreachableCodeError();}
+    bool is_end() const override {throw UnreachableCodeError();}
+    std::string getType() override{return "IndexScanExecutor";}
+        
+    size_t tupleLen() const  override{throw UnreachableCodeError();}
+    const std::vector<ColMeta> &cols() const  override {throw UnreachableCodeError();}
+
 
     Rid &rid() override { return rid_; }
 };

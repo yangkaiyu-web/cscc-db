@@ -23,26 +23,29 @@ class AbstractExecutor {
 
     virtual ~AbstractExecutor() = default;
 
-    virtual size_t tupleLen() const { return 0; };
+    virtual size_t tupleLen() const =0;
 
-    virtual const std::vector<ColMeta> &cols() const {
-        std::vector<ColMeta> *_cols = nullptr;
-        return *_cols;
-    };
+    virtual const std::vector<ColMeta> &cols() const =0;
+    // virtual const std::vector<ColMeta> &cols() const {
+    //     std::vector<ColMeta> *_cols = nullptr;
+    //     return *_cols;
+    // };
 
-    virtual std::string getType() { return "AbstractExecutor"; };
+    virtual std::string getType() = 0;
+    // virtual std::string getType() {return "AbstractExecutor";}
 
-    virtual void beginTuple(){};
+    virtual void beginTuple() = 0;
 
-    virtual void nextTuple(){};
+    virtual void nextTuple()=0;
 
-    virtual bool is_end() const { return true; };
+    virtual bool is_end() const=0;
 
     virtual Rid &rid() = 0;
 
     virtual std::unique_ptr<RmRecord> Next() = 0;
 
-    virtual ColMeta get_col_offset(const TabCol &target) { return ColMeta();};
+     virtual ColMeta get_col_offset(const TabCol &target) {return ColMeta();}
+    // virtual ColMeta get_col_offset(const TabCol &target) =0;
 
     std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target) {
         auto pos = std::find_if(rec_cols.begin(), rec_cols.end(), [&](const ColMeta &col) {

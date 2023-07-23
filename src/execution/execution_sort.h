@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #pragma once
+#include "errors.h"
 #include "execution_defs.h"
 #include "execution_manager.h"
 #include "executor_abstract.h"
@@ -44,6 +45,20 @@ class SortExecutor : public AbstractExecutor {
     std::unique_ptr<RmRecord> Next() override {
         return nullptr;
     }
+
+
+    size_t tupleLen() const override{throw UnreachableCodeError();}
+
+    const std::vector<ColMeta> &cols() const override{throw UnreachableCodeError();}
+    std::string getType() override{return "SortExecutor";}
+
+
+    bool is_end() const override{
+        //TODO: implement this
+        return true;
+    }
+
+
 
     Rid &rid() override { return _abstract_rid; }
 };

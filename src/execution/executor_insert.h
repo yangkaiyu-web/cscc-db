@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #pragma once
+#include "errors.h"
 #include "execution_defs.h"
 #include "execution_manager.h"
 #include "executor_abstract.h"
@@ -74,4 +75,15 @@ class InsertExecutor : public AbstractExecutor {
         return nullptr;
     }
     Rid &rid() override { return rid_; }
+
+    void beginTuple() override{throw UnreachableCodeError();}
+
+    void nextTuple()override{throw UnreachableCodeError();}
+
+    bool is_end() const override{throw UnreachableCodeError();}
+    size_t tupleLen() const override{throw UnreachableCodeError();}
+    std::string getType() override {return "InsertExecutor";}
+
+    const std::vector<ColMeta> &cols() const override{throw UnreachableCodeError();}
+
 };
