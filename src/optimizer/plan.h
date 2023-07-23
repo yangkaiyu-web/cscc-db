@@ -119,17 +119,19 @@ class ProjectionPlan : public Plan
 class SortPlan : public Plan
 {
     public:
-        SortPlan(PlanTag tag, std::shared_ptr<Plan> subplan, TabCol sel_col, bool is_desc,int limit_num)
+        SortPlan(PlanTag tag, std::shared_ptr<Plan> subplan,std::vector< TabCol> sel_cols, bool is_desc,int limit_num)
         {
             Plan::tag = tag;
             subplan_ = std::move(subplan);
-            sel_col_ = sel_col;
+            sel_cols_ = sel_cols;
             is_desc_ = is_desc;
+            limit_num_ = limit_num;
         }
         ~SortPlan(){}
         std::shared_ptr<Plan> subplan_;
-        TabCol sel_col_;
+        std::vector<TabCol> sel_cols_;
         bool is_desc_;
+        int limit_num_;
         
 };
 

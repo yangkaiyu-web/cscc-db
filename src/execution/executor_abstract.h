@@ -46,6 +46,10 @@ class AbstractExecutor {
 
      virtual ColMeta get_col_offset(const TabCol &target) {return ColMeta();}
     // virtual ColMeta get_col_offset(const TabCol &target) =0;
+    /**
+    * @description: 获取 tabcol 对应的 ColMeta
+    */
+    virtual ColMeta get_col_offset(const TabCol &target) { return ColMeta();};
 
     std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target) {
         auto pos = std::find_if(rec_cols.begin(), rec_cols.end(), [&](const ColMeta &col) {
