@@ -44,6 +44,8 @@ class AbstractExecutor {
 
     virtual std::unique_ptr<RmRecord> Next() = 0;
 
+
+    // virtual ColMeta get_col_offset(const TabCol &target) =0;
     /**
     * @description: 获取 tabcol 对应的 ColMeta
     */
