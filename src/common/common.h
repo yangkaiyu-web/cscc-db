@@ -307,7 +307,7 @@ struct SetClause {
 };
 enum OrderByDir { OrderBy_ASC, OrderBy_DESC };
 struct OrderByCaluse {
-    TabCol col;
+    std::vector<TabCol> cols;
     OrderByDir dir;
 };
 struct LimitClause {

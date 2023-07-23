@@ -378,7 +378,7 @@ opt_limit_clause:
     ;
 
 order_clause:
-      col  opt_asc_desc 
+      colList  opt_asc_desc 
     { 
         $$ = std::make_shared<OrderBy>($1, $2);
     }
