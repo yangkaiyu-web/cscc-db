@@ -1,7 +1,7 @@
 /* Copyright (c) 2023 Renmin University of China
 RMDB is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
+You can use this software according to the terms and conditions of the Mulan PSL
+v2. You may obtain a copy of Mulan PSL v2 at:
         http://license.coscl.org.cn/MulanPSL2
 THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -10,6 +10,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 #include <cassert>
+
+#include "errors.h"
 #include "execution_defs.h"
 #include "execution_manager.h"
 #include "executor_abstract.h"
@@ -27,8 +29,10 @@ class UpdateExecutor : public AbstractExecutor {
     SmManager *sm_manager_;
 
    public:
-    UpdateExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<SetClause> set_clauses,
-                   std::vector<Condition> conds, std::vector<Rid> rids, Context *context) {
+    UpdateExecutor(SmManager *sm_manager, const std::string &tab_name,
+                   std::vector<SetClause> set_clauses,
+                   std::vector<Condition> conds, std::vector<Rid> rids,
+                   Context *context) {
         sm_manager_ = sm_manager;
         tab_name_ = tab_name;
         set_clauses_ = set_clauses;
@@ -39,34 +43,48 @@ class UpdateExecutor : public AbstractExecutor {
         context_ = context;
     }
     std::unique_ptr<RmRecord> Next() override {
-        
-        for( auto& rid : rids_){
+        for (auto &rid : rids_) {
             auto record = fh_->get_record(rid, context_);
-            //bool cond_flag=true;
-            // test conds
-            //for(auto & cond : conds_){
-            //    cond_flag = cond_flag && cond.test_record(tab_.cols, record);
-            //    if(!cond_flag){
-            //        break;
-            //    }
-            //}
-            //if(cond_flag){
-                for (auto &set_clause : set_clauses_) {
-                    assert(tab_name_ ==  set_clause.lhs.tab_name);
-                    auto &col =  *tab_.get_col( set_clause.lhs.col_name);
-                    auto val = set_clause.rhs;
-                    if (col.type != val.type) {
-                        throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
-                    }
-                    val.init_raw(col.len);
-                    memcpy(record.get()->data + col.offset, val.raw->data, col.len);
+            // bool cond_flag=true;
+            //  test conds
+            // for(auto & cond : conds_){
+            //     cond_flag = cond_flag && cond.test_record(tab_.cols, record);
+            //     if(!cond_flag){
+            //         break;
+            //     }
+            // }
+            // if(cond_flag){
+            for (auto &set_clause : set_clauses_) {
+                assert(tab_name_ == set_clause.lhs.tab_name);
+                auto &col = *tab_.get_col(set_clause.lhs.col_name);
+                auto val = set_clause.rhs;
+                if (col.type != val.type) {
+                    throw IncompatibleTypeError(coltype2str(col.type),
+                                                coltype2str(val.type));
                 }
-                fh_->update_record(rid,record.get()->data , context_);
-           // }
+                val.init_raw(col.len);
+                memcpy(record.get()->data + col.offset, val.raw->data, col.len);
+            }
+            fh_->update_record(rid, record.get()->data, context_);
+            // }
         }
 
         return nullptr;
     }
+
+    size_t tupleLen() const override { throw UnreachableCodeError(); }
+
+    const std::vector<ColMeta> &cols() const override {
+        throw UnreachableCodeError();
+    }
+
+    std::string getType() override { return "UpdateExecutor"; }
+
+    void beginTuple() override { throw UnreachableCodeError(); }
+
+    void nextTuple() override { throw UnreachableCodeError(); }
+
+    bool is_end() const override { throw UnreachableCodeError(); }
 
     Rid &rid() override { return _abstract_rid; }
 };
