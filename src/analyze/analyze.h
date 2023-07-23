@@ -58,7 +58,7 @@ class Analyze {
         const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv_conds,
         const std::vector<std::string> &tab_names,
         std::vector<Condition> &conds);
-    void get_orderby_clause(const std::shared_ptr<ast::OrderBy> x_orderby,
+    void get_check_orderby_clause(const std::shared_ptr<ast::OrderBy> &x_orderby,
                             const std::vector<std::string> &tab_names,
                             OrderByCaluse &orderby);
 

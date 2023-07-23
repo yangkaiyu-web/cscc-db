@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "sm_defs.h"
 #include "sm_meta.h"
 #include "common/context.h"
+#include "storage/disk_manager.h"
 
 class Context;
 
@@ -47,6 +48,7 @@ class SmManager {
     ~SmManager() {}
 
     BufferPoolManager* get_bpm() { return buffer_pool_manager_; }
+    DiskManager* get_disk_manager() { return disk_manager_; }
 
     RmManager* get_rm_manager() { return rm_manager_; }  
 

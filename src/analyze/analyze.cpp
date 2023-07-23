@@ -60,7 +60,7 @@ std::shared_ptr<Query> Analyze::do_analyze(
         // 处理where条件
         get_check_clause(x->conds, query->tables, query->conds);
         if (x->has_sort) {
-            get_orderby_clause(x->order, query->tables, query->oder_by);
+            get_check_orderby_clause(x->order, query->tables, query->oder_by);
             get_limit_clause(x->limit, query->limit);
         }
 
@@ -245,16 +245,16 @@ void Analyze::get_check_clause(
     }
 }
 
-void Analyze::get_orderby_clause(const std::shared_ptr<ast::OrderBy> x_orderby,
+void Analyze::get_check_orderby_clause(const std::shared_ptr<ast::OrderBy>& x_orderby,
                                  const std::vector<std::string> &tab_names,
                                  OrderByCaluse &orderby) {
     std::vector<ColMeta> all_cols;
     get_all_cols(tab_names, all_cols);
-
-    orderby.col = {.tab_name = x_orderby->cols->tab_name,
-                   .col_name = x_orderby->cols->col_name};
-
-    orderby.col = check_column(all_cols, orderby.col);
+    for(auto& col : x_orderby->cols){
+        TabCol sel_col  = {.tab_name=col->tab_name,.col_name=col->col_name};
+        sel_col = check_column(all_cols, sel_col);
+        orderby.cols.push_back(sel_col);
+    }
 
     if (x_orderby->orderby_dir == ast::OrderByDir::OrderBy_ASC ||
         x_orderby->orderby_dir == ast::OrderByDir::OrderBy_DEFAULT) {
