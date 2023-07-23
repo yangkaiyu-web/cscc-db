@@ -73,8 +73,8 @@ class SortExecutor : public AbstractExecutor {
         // TODO:低效，反复申请新内存，如何利用起来已经获取的 page
         for (int i = 0; i < tuple_num - 1; i++) {
             for (int j = 0; j < tuple_num - i - 1; j++) {
-                auto rec1 = std::make_unique<RmRecord>(prev_->tupleLen(), buf + (j)*tuple_len);
-                auto rec2 = std::make_unique<RmRecord>(prev_->tupleLen(), buf + (j + 1) * tuple_len);
+                auto rec1 = std::make_shared<RmRecord>(prev_->tupleLen(), buf + (j)*tuple_len);
+                auto rec2 = std::make_shared<RmRecord>(prev_->tupleLen(), buf + (j + 1) * tuple_len);
                 auto ret = cmp(rec1, rec2, cols_);
                 if (is_desc_) ret = -ret;
                 if (ret > 0) {  // more bigger more  backer
@@ -144,28 +144,30 @@ class SortExecutor : public AbstractExecutor {
                 if(streams.back().good()){
                     datas.push_back(rec);
                 }
+
                 if(streams.size()==tuple_num_on_page){
                     std::string output_file_name = "sort.tmp" + getTime();
                     std::ofstream output_file (output_file_name,std::ios::binary);
                     res_file_names.push_back(output_file_name);
 
                     while (!datas.empty()) {
-                        auto minLineIt = find_element(datas);
-                        int minLineIndex = minLineIt - currentLines.begin();
-                        outputFile << currentLines[minLineIndex] << "\n";
+                        auto index = find_element(datas);
+
+                        output_file.write(datas[index]->data, prev_->tupleLen());
 
                         // 读取对应块文件的下一行
-                        if (getline(streams[minLineIndex], currentLines[minLineIndex])) {
+
+                        streams[index].read(datas[index]->data, prev_->tupleLen());
+                        if(streams.back().good()){
                             continue;
                         }
 
                         // 当前块文件已经读取完，关闭文件并从内存中移除
-                        streams[minLineIndex].close();
-                        currentLines.erase(currentLines.begin() + minLineIndex);
-                        streams.erase(streams.begin() + minLineIndex);
+                        streams[index].close();
+                        datas.erase(datas.begin() + index);
+                        streams.erase(streams.begin() + index);
                     }
-
-                    outputFile.close();
+                    output_file.close();
 
                 }
 
@@ -187,6 +189,7 @@ class SortExecutor : public AbstractExecutor {
                 index = i;
             }
         }
+        return index;
     }
 
 void mergeBlocks(const vector<string>& blockFiles, const string& outputFilename) {

@@ -56,10 +56,10 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
         // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
 
         for(left_->beginTuple();!left_->is_end();left_->nextTuple()){
-            auto left_record = left_->Next();
+            std::shared_ptr<RmRecord> left_record = left_->Next();
             for(right_->beginTuple();!right_->is_end();right_->nextTuple()){
-                auto right_rec = right_->Next()  ;
-                    auto flag = true;
+                std::shared_ptr<RmRecord> right_rec = right_->Next()  ;
+                    bool flag = true;
                     for (auto& cond : fed_conds_) {
                         flag = flag &&
                                cond.test_join_record(left_->cols(), left_record,
@@ -80,9 +80,9 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
     void nextTuple() override {
         right_->nextTuple();
         while(!left_->is_end()){
-            auto left_record = left_->Next();
+            std::shared_ptr<RmRecord> left_record = left_->Next();
             while(!right_->is_end()){
-                auto right_rec = right_->Next();
+                std::shared_ptr<RmRecord> right_rec = right_->Next();
                 auto flag = true;
                 for (auto& cond : fed_conds_) {
                     flag = flag &&
