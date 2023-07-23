@@ -305,6 +305,14 @@ struct SetClause {
     TabCol lhs;
     Value rhs;
 };
+enum OrderByDir { OrderBy_ASC, OrderBy_DESC };
+struct OrderByCaluse {
+    TabCol col;
+    OrderByDir dir;
+};
+struct LimitClause {
+    Value val;
+};
 
 inline bool type_compatible(ColType type1, ColType type2) {
     if ((type1 == TYPE_INT || type1 == TYPE_FLOAT || type1 == TYPE_BIGINT) &&
