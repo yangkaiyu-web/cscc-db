@@ -192,7 +192,7 @@ type:
     |   CHAR '(' VALUE_INT_BIGINT ')'
     {
         // 这里应该检查精度
-        $$ = std::make_shared<TypeLen>(SV_TYPE_STRING, atoi($3.c_str()));
+        $$ = std::make_shared<TypeLen>(SV_TYPE_STRING, std::stoi($3.c_str()));
     }
     |   FLOAT
     {
