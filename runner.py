@@ -1,4 +1,5 @@
 import argparse
+import shutil
 import os
 import subprocess
 import time
@@ -38,7 +39,7 @@ def my_run():
     print("running rmdb")
     os.chdir('build')
     if os.path.exists('testdb'):
-        os.rmdir("testdb")
+        shutil.rmtree('testdb')
     svr = "./bin/rmdb testdb"
     p1 = subprocess.Popen(svr.split(),preexec_fn=os.setsid)
     time.sleep(1)
@@ -84,6 +85,7 @@ def build():
 
 
 
+# 根目录执行， 自动运行 rmdb_client/build/a.sql
 
 
 
@@ -94,12 +96,17 @@ def main():
     parser.add_argument("-b","--build",help = '编译项目',action='store_true')
     parser.add_argument("-r","--run",help = '运行测试',action='store_true')
 
+
     args = parser.parse_args()
+
     if args.build:
         build()
     if args.run:
         bench_run()
         my_run()
+        print("std out : ./rmdb_client/build/a.txt")
+        print("my out : ./build/testdb/output.txt")
+
     return 0
 
 
