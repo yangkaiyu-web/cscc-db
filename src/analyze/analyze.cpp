@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <iomanip>
 #include <limits>
+#include <utility>
 
 #include "common/common.h"
 #include "defs.h"
@@ -61,7 +62,7 @@ std::shared_ptr<Query> Analyze::do_analyze(
         // 处理where条件
         get_check_clause(x->conds, query->tables, query->conds);
         if (x->has_sort) {
-            get_check_orderby_clause(x->order, query->tables, query->oder_by);
+            get_check_orderby_clause(x->orderbys, query->tables, query->oder_by);
         }
         if(x->has_limit){
             get_limit_clause(x->limit, query->limit);
@@ -248,25 +249,20 @@ void Analyze::get_check_clause(
     }
 }
 
-void Analyze::get_check_orderby_clause(const std::shared_ptr<ast::OrderBy>& x_orderby,
+void Analyze::get_check_orderby_clause(const std::shared_ptr<ast::OrderBys>& x_orderbys,
                                  const std::vector<std::string> &tab_names,
                                  OrderByCaluse &orderby) {
     std::vector<ColMeta> all_cols;
+
     get_all_cols(tab_names, all_cols);
-    for(auto& col : x_orderby->cols){
-        TabCol sel_col  = {.tab_name=col->tab_name,.col_name=col->col_name};
+
+    for(auto & ast_orderby : x_orderbys->order_bys){
+        TabCol sel_col  = {.tab_name=ast_orderby->col->tab_name,.col_name=ast_orderby->col->col_name};
         sel_col = check_column(all_cols, sel_col);
-        orderby.cols.push_back(sel_col);
+        bool is_desc = ast_orderby->orderby_dir == ast::OrderBy_DESC;
+        orderby.orderby_pair.push_back(std::make_pair(sel_col, is_desc));
     }
 
-    if (x_orderby->orderby_dir == ast::OrderByDir::OrderBy_ASC ||
-        x_orderby->orderby_dir == ast::OrderByDir::OrderBy_DEFAULT) {
-        orderby.dir = OrderByDir::OrderBy_ASC;
-    } else if (x_orderby->orderby_dir == ast::OrderByDir::OrderBy_DESC) {
-        orderby.dir = OrderByDir::OrderBy_DESC;
-    } else {
-        throw InternalError("unknown orderby type");
-    }
 }
 
 void Analyze::get_limit_clause(const std::shared_ptr<ast::Limit> x_limit,

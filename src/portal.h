@@ -171,8 +171,8 @@ class Portal
                                 std::move(right), std::move(x->conds_));
             return join;
         } else if(auto x = std::dynamic_pointer_cast<SortPlan>(plan)) {
-            return std::make_unique<SortExecutor>(sm_manager_,convert_plan_executor(x->subplan_, context), 
-                                            x->sel_cols_, x->is_desc_,x->limit_num_);
+            return std::make_unique<SortExecutor>(convert_plan_executor(x->subplan_, context), 
+                                            x->order_bys,x->limit_num_);
         }
         return nullptr;
     }

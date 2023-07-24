@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 #include <fstream>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "common/config.h"
 #include "errors.h"
@@ -31,42 +32,48 @@ class SortExecutor : public AbstractExecutor {
     // TODO: 直接申请内存还是从bufferpool里获取？
 
     static const int mem_num = 10;  // 花费 10 页内存用于排序  5 页用于缓存输入， 5页用于缓存输出
-    SmManager* sm_manager_;
+
     std::unique_ptr<AbstractExecutor> prev_;
-    std::vector<ColMeta> cols_;  // 框架中只支持一个键排序，需要自行修改数据结构支持多个键排序
+    std::vector<std::pair<ColMeta,bool>> cols_;  // 框架中只支持一个键排序，需要自行修改数据结构支持多个键排序
     size_t tuple_num;
     size_t used_tuple_num;
     int limit_num_;
-    bool is_desc_;
+
      mutable std::ifstream res_file_;
     std::string res_file_name_;
     std::vector<size_t> used_tuple;
     RmRecord current_tuple_;
 
    public:
-    SortExecutor(SmManager* sm_manager, std::unique_ptr<AbstractExecutor> prev, std::vector<TabCol> sel_cols,
-                 bool is_desc, int limit_num) {
+    SortExecutor( std::unique_ptr<AbstractExecutor> prev, std::vector<std::pair<TabCol,bool> > sel_cols,
+                 int limit_num) {
         prev_ = std::move(prev);
         for (auto& col : sel_cols) {
-            cols_.push_back(prev_->get_col_offset(col));
+            cols_.push_back(std::make_pair(prev_->get_col_offset(col.first), col.second));
         }
-        is_desc_ = is_desc;
+
         tuple_num = 0;
         used_tuple_num = 0;
         limit_num_ = limit_num;
         used_tuple.clear();
     }
 
-    int cmp(std::shared_ptr<RmRecord>& rec1, std::shared_ptr<RmRecord>& rec2, std::vector<ColMeta>& cols) {
+    int cmp(std::shared_ptr<RmRecord>& rec1, std::shared_ptr<RmRecord>& rec2, std::vector<std::pair<ColMeta,bool>>& cols) {
         int ret = 0;
         for (auto col : cols) {
-            auto val1 = Value::read_from_record(rec1, col);
-            auto val2 = Value::read_from_record(rec2, col);
+            auto val1 = Value::read_from_record(rec1, col.first);
+            auto val2 = Value::read_from_record(rec2, col.first);
             if (val1 > val2) {
                 ret = 1;
-                break;
+
             } else if (val1 < val2) {
                 ret = -1;
+
+            }
+            if( ret !=0 ){
+                if(col.second){
+                    ret = -ret;
+                }
                 break;
             }
         }
@@ -80,7 +87,6 @@ class SortExecutor : public AbstractExecutor {
                 auto rec1 = std::make_shared<RmRecord>(prev_->tupleLen(), buf + (j)*tuple_len);
                 auto rec2 = std::make_shared<RmRecord>(prev_->tupleLen(), buf + (j + 1) * tuple_len);
                 auto ret = cmp(rec1, rec2, cols_);
-                if (is_desc_) ret = -ret;
                 if (ret > 0) {  // more bigger more  backer
                     //  tmp = a[j]
                     memcpy(rec1->data, buf + (j)*tuple_len, prev_->tupleLen());
@@ -234,7 +240,6 @@ class SortExecutor : public AbstractExecutor {
         for (auto i = 1; i < datas.size(); i++) {
             auto rec = datas[i];
             int ret = cmp(tmp, rec, cols_);
-            if (is_desc_) ret = -ret;
             if (ret < 0) {
                 tmp = rec;
                 index = i;

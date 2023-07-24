@@ -276,10 +276,9 @@ std::shared_ptr<Plan> Planner::generate_sort_plan(std::shared_ptr<Query> query,
             throw InternalError("error limit val type");
         }
     }
-
     return std::make_shared<SortPlan>(
-        T_Sort, std::move(plan), query->oder_by.cols,
-        x->order->orderby_dir == ast::OrderBy_DESC,limit_num);
+        T_Sort, std::move(plan), query->oder_by.orderby_pair,
+        limit_num);
 }
 
 /**

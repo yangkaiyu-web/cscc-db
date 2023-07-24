@@ -305,10 +305,11 @@ struct SetClause {
     TabCol lhs;
     Value rhs;
 };
-enum OrderByDir { OrderBy_ASC, OrderBy_DESC };
+
 struct OrderByCaluse {
-    std::vector<TabCol> cols;
-    OrderByDir dir;
+    //                          is desc
+    std::vector<std::pair<TabCol,bool>> orderby_pair;
+
 };
 struct LimitClause {
     Value val;
