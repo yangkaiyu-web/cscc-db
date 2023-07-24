@@ -274,8 +274,13 @@ class SortExecutor : public AbstractExecutor {
     ColMeta get_col_offset(const TabCol& target) override { return prev_->get_col_offset(target); };
     bool is_end() const override {
         bool not_finish;
-        not_finish = used_tuple_num <=tuple_num || (limit_num_>0 && used_tuple_num <=limit_num_) ;
-
+        if(limit_num_<0){
+            not_finish = used_tuple_num <=tuple_num;
+        }else if(limit_num_ >= 0){
+            not_finish = used_tuple_num <=limit_num_;
+        }else {
+            throw InternalError("limit number error");
+        }
         return !not_finish;
     }
 
