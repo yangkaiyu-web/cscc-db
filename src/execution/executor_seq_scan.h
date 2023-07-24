@@ -56,7 +56,7 @@ class SeqScanExecutor : public AbstractExecutor {
         scan_ = std::make_unique<RmScan>(fh_);
         for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
             rid = scan_->rid();
-            auto record = fh_->get_record(rid, context_);
+            std::shared_ptr<RmRecord> record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
             for (auto &cond : conds_) {
@@ -78,7 +78,7 @@ class SeqScanExecutor : public AbstractExecutor {
         while(!scan_->is_end()){
             rid = scan_->rid();
             
-            auto record = fh_->get_record(rid, context_);
+            std::shared_ptr<RmRecord> record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
             for (auto &cond : conds_) {
@@ -102,6 +102,14 @@ class SeqScanExecutor : public AbstractExecutor {
 
     std::unique_ptr<RmRecord> Next() override { return fh_->get_record(rid_, context_); }
 
+    ColMeta get_col_offset(const TabCol &target) override{
+        for(auto &col:cols_){
+            if(col.tab_name==target.tab_name && col.name== target.col_name){
+                return col;
+            }
+        }
+        throw ColumnNotFoundError(target.col_name);
+    }
     virtual const std::vector<ColMeta> &cols() const override{
         return cols_;
     }

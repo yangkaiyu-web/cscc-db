@@ -10,6 +10,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 #include <cassert>
+#include <memory>
 
 #include "errors.h"
 #include "execution_defs.h"
@@ -42,7 +43,7 @@ class DeleteExecutor : public AbstractExecutor {
 
     std::unique_ptr<RmRecord> Next() override {
         for (auto &rid : rids_) {
-            auto record = fh_->get_record(rid, context_);
+            std::shared_ptr<RmRecord> record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
             for (auto &cond : conds_) {

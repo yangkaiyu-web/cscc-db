@@ -88,6 +88,14 @@ class ProjectionExecutor : public AbstractExecutor {
 
     const std::vector<ColMeta> &cols() const override { return cols_; };
 
+    ColMeta get_col_offset(const TabCol &target) override{
+        for(auto &col:cols_){
+            if(col.tab_name==target.tab_name && col.name== target.col_name){
+                return col;
+            }
+        }
+        throw ColumnNotFoundError(target.col_name);
+    }
     std::string getType() override { return "ProjectionExecutor"; };
     Rid &rid() override { return _abstract_rid; }
 };

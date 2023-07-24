@@ -62,6 +62,8 @@ std::shared_ptr<Query> Analyze::do_analyze(
         get_check_clause(x->conds, query->tables, query->conds);
         if (x->has_sort) {
             get_check_orderby_clause(x->order, query->tables, query->oder_by);
+        }
+        if(x->has_limit){
             get_limit_clause(x->limit, query->limit);
         }
 

@@ -11,6 +11,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 #include <memory>
 
+#include "errors.h"
 #include "execution_defs.h"
 #include "execution_manager.h"
 #include "executor_abstract.h"
@@ -125,6 +126,14 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
 
     const std::vector<ColMeta>& cols() const override { return cols_; };
 
+    ColMeta get_col_offset(const TabCol &target) override{
+        for(auto &col:cols_){
+            if(col.tab_name==target.tab_name && col.name== target.col_name){
+                return col;
+            }
+        }
+        throw ColumnNotFoundError(target.col_name);
+    }
     std::string getType() override { return "NestedLoopJoinExecutor"; };
     Rid& rid() override { return _abstract_rid; }
 };
