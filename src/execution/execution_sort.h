@@ -35,11 +35,11 @@ class SortExecutor : public AbstractExecutor {
 
     std::unique_ptr<AbstractExecutor> prev_;
     std::vector<std::pair<ColMeta,bool>> cols_;  // 框架中只支持一个键排序，需要自行修改数据结构支持多个键排序
-    size_t tuple_num;
-    size_t used_tuple_num;
+    int tuple_num;
+    int used_tuple_num;
     int limit_num_;
 
-     mutable std::ifstream res_file_;
+    std::ifstream res_file_;
     std::string res_file_name_;
     std::vector<size_t> used_tuple;
     RmRecord current_tuple_;
@@ -118,9 +118,9 @@ class SortExecutor : public AbstractExecutor {
         std::vector<std::string> tmp_file_names;
         int tmp_file_count = 0;
         auto tuple_num_per_page = PAGE_SIZE / prev_->tupleLen();
-        auto tuple_len = prev_->tupleLen();
+        size_t tuple_len = prev_->tupleLen();
         prev_->beginTuple();
-        int tuple_num_on_page = 0;
+        size_t tuple_num_on_page = 0;
         char read_buf[PAGE_SIZE];
         // part data
         while (!prev_->is_end()) {
@@ -226,7 +226,7 @@ class SortExecutor : public AbstractExecutor {
         }
         assert(res_file_names.size() == 1);
         res_file_name_ = res_file_names[0];
-        res_file_.open(res_file_name_,std::ios::binary);
+        res_file_ = std::ifstream(res_file_name_,std::ios::binary);
         current_tuple_ = RmRecord(prev_->tupleLen());
 
         res_file_.read(current_tuple_.data, prev_->tupleLen());
@@ -237,7 +237,7 @@ class SortExecutor : public AbstractExecutor {
     int find_element(std::vector<std::shared_ptr<RmRecord>>& datas) {
         auto tmp = datas.front();
         int index = 0;
-        for (auto i = 1; i < datas.size(); i++) {
+        for (size_t i = 1; i < datas.size(); i++) {
             auto rec = datas[i];
             int ret = cmp(tmp, rec, cols_);
             if (ret < 0) {
@@ -249,8 +249,16 @@ class SortExecutor : public AbstractExecutor {
     }
 
     void nextTuple() override {
-        res_file_.read(current_tuple_.data, prev_->tupleLen());
-        used_tuple_num++;
+        if(used_tuple_num <tuple_num || (limit_num_>0 && used_tuple_num <limit_num_)){
+            res_file_.read(current_tuple_.data, prev_->tupleLen());
+            used_tuple_num++;
+        }else if(used_tuple_num == tuple_num || (limit_num_>0 && used_tuple_num ==limit_num_)) {
+            res_file_.close();
+            if(remove(res_file_name_.c_str())!=0){
+                throw UnixError();
+            }
+            used_tuple_num++;
+        }
     }
 
     std::unique_ptr<RmRecord> Next() override {
@@ -265,20 +273,10 @@ class SortExecutor : public AbstractExecutor {
 
     ColMeta get_col_offset(const TabCol& target) override { return prev_->get_col_offset(target); };
     bool is_end() const override {
-        bool ret = res_file_.good() && (!res_file_.eof());
-        ret = used_tuple_num <= tuple_num && ret;
-        if (limit_num_ != -1) {
-            if (tuple_num > limit_num_) {
-                ret = true;
-            }
-        }
-        if (!ret) {
-            res_file_.close();
-            if(remove(res_file_name_.c_str())!=0){
-                throw UnixError();
-            }
-        }
-        return !ret;
+        bool not_finish;
+        not_finish = used_tuple_num <=tuple_num || (limit_num_>0 && used_tuple_num <=limit_num_) ;
+
+        return !not_finish;
     }
 
     Rid& rid() override { return _abstract_rid; }
