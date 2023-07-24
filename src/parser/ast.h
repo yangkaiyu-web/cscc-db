@@ -11,6 +11,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 enum JoinType { INNER_JOIN, LEFT_JOIN, RIGHT_JOIN, FULL_JOIN };
@@ -157,10 +158,10 @@ struct BinaryExpr : public TreeNode {
 };
 
 struct OrderBy : public TreeNode {
-    std::vector<std::shared_ptr<Col>> cols;
+    std::shared_ptr<Col> col;
     OrderByDir orderby_dir;
-    OrderBy(std::vector<std::shared_ptr<Col>> cols_, OrderByDir orderby_dir_)
-        : cols(std::move(cols_)), orderby_dir(std::move(orderby_dir_)) {}
+    OrderBy(std::shared_ptr<Col> col_, OrderByDir orderby_dir_)
+        : col(std::move(col_)), orderby_dir(orderby_dir_) {}
 };
 
 struct InsertStmt : public TreeNode {
@@ -214,7 +215,7 @@ struct SelectStmt : public TreeNode {
     std::vector<std::shared_ptr<JoinExpr>> jointree;
 
     bool has_sort;
-    std::shared_ptr<OrderBy> order;
+    std::vector<std::shared_ptr<OrderBy>> orderbys;
 
     bool has_limit;
     std::shared_ptr<Limit> limit;
@@ -222,14 +223,14 @@ struct SelectStmt : public TreeNode {
     SelectStmt(std::vector<std::shared_ptr<Col>> cols_,
                std::vector<std::string> tabs_,
                std::vector<std::shared_ptr<BinaryExpr>> conds_,
-               std::shared_ptr<OrderBy> order_,
+               std::vector<std::shared_ptr<OrderBy>> orderbys_,
                std::shared_ptr<Limit> limit_)
         : cols(std::move(cols_)),
           tabs(std::move(tabs_)),
           conds(std::move(conds_)),
-          order(std::move(order_)) ,
+          orderbys(std::move(orderbys_)) ,
           limit(std::move(limit_)) {
-        has_sort = (bool)order;
+        has_sort = (bool)orderbys;
         has_limit = (bool)limit;
     }
 };
@@ -266,6 +267,8 @@ struct SemValue {
     std::vector<std::shared_ptr<BinaryExpr>> sv_conds;
 
     std::shared_ptr<OrderBy> sv_orderby;
+    std::vector<std::shared_ptr<OrderBy>> sv_orderbys;
+
     std::shared_ptr<Limit> sv_limit;
 };
 

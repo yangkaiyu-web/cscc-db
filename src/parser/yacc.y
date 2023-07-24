@@ -49,7 +49,8 @@ WHERE UPDATE SET SELECT INT CHAR FLOAT DATETIME INDEX AND JOIN EXIT HELP TXN_BEG
 %type <sv_set_clauses> setClauses
 %type <sv_cond> condition
 %type <sv_conds> whereClause optWhereClause
-%type <sv_orderby>  order_clause opt_order_clause
+%type <sv_orderby>  order_clause
+%type <sv_orderbys> opt_order_clause  order_clause_list
 %type <sv_limit>  opt_limit_clause
 %type <sv_orderby_dir> opt_asc_desc
 
@@ -363,7 +364,7 @@ tableList:
     ;
 
 opt_order_clause:
-    ORDER BY order_clause      
+    ORDER BY order_clause_list      
     { 
         $$ = $3; 
     }
@@ -377,13 +378,23 @@ opt_limit_clause:
     |   /* epsilon */ { /* ignore*/ }
     ;
 
-order_clause:
-      colList  opt_asc_desc 
+order_clause_list:
+    oder_clause
     { 
-        $$ = std::make_shared<OrderBy>($1, $2);
+        $$ =std::vector< std::make_shared<OrderBy>>{$1};
+    }
+
+    |oder_clause_list ',' order_clause{
+
+        $$.push_back($3);
     }
     ;   
 
+oder_clause:
+           colName  opt_asc_desc 
+           {$$ = std::make_shared<OrderBy>($1,$2)}
+           | /* empty*/{}
+           ;
 opt_asc_desc:
     ASC          { $$ = OrderBy_ASC;     }
     |  DESC      { $$ = OrderBy_DESC;    }

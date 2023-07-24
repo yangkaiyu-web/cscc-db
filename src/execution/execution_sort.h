@@ -35,12 +35,13 @@ class SortExecutor : public AbstractExecutor {
     std::unique_ptr<AbstractExecutor> prev_;
     std::vector<ColMeta> cols_;  // 框架中只支持一个键排序，需要自行修改数据结构支持多个键排序
     size_t tuple_num;
+    size_t used_tuple_num;
     int limit_num_;
     bool is_desc_;
-    std::ifstream res_file_;
+     mutable std::ifstream res_file_;
+    std::string res_file_name_;
     std::vector<size_t> used_tuple;
-    std::unique_ptr<RmRecord> current_tuple;
-
+    RmRecord current_tuple_;
 
    public:
     SortExecutor(SmManager* sm_manager, std::unique_ptr<AbstractExecutor> prev, std::vector<TabCol> sel_cols,
@@ -51,6 +52,7 @@ class SortExecutor : public AbstractExecutor {
         }
         is_desc_ = is_desc;
         tuple_num = 0;
+        used_tuple_num = 0;
         limit_num_ = limit_num;
         used_tuple.clear();
     }
@@ -105,6 +107,8 @@ class SortExecutor : public AbstractExecutor {
     }
     // TODO: 缓存一下排序结果，防止反复 begin
     void beginTuple() override {
+        tuple_num = 0;
+        used_tuple_num = 0;
         std::vector<std::string> tmp_file_names;
         int tmp_file_count = 0;
         auto tuple_num_per_page = PAGE_SIZE / prev_->tupleLen();
@@ -120,27 +124,28 @@ class SortExecutor : public AbstractExecutor {
             if (tuple_num_on_page == tuple_num_per_page) {
                 sort(read_buf, tuple_num_on_page);
                 writeTmpData(read_buf, tmp_file_count++, tmp_file_names);
+                tuple_num += tuple_num_on_page;
                 tuple_num_on_page = 0;
             }
             prev_->nextTuple();
         }
         if (tuple_num_on_page != 0) {
+            tuple_num += tuple_num_on_page;
             sort(read_buf, tuple_num_on_page);
             writeTmpData(read_buf, tmp_file_count++, tmp_file_names);
             tuple_num_on_page = 0;
         }
 
         // merge
-        std::string res_file_name = "sort.res" + getTime();
         std::vector<std::string> res_file_names;
         std::vector<std::ifstream> streams;
         std::vector<std::shared_ptr<RmRecord>> datas;
-        //std::copy(tmp_file_names.begin(), tmp_file_names.end(), res_file_names.begin());
-        res_file_names =tmp_file_names;
+        // std::copy(tmp_file_names.begin(), tmp_file_names.end(), res_file_names.begin());
+        res_file_names = tmp_file_names;
         while (res_file_names.size() > 1) {
             tmp_file_names.clear();
-            //std::copy(res_file_names.begin(), res_file_names.end(), tmp_file_names.begin());
-            tmp_file_names=res_file_names;
+            // std::copy(res_file_names.begin(), res_file_names.end(), tmp_file_names.begin());
+            tmp_file_names = res_file_names;
             res_file_names.clear();
             auto block_it = tmp_file_names.begin();
             while (block_it != tmp_file_names.end()) {
@@ -171,7 +176,9 @@ class SortExecutor : public AbstractExecutor {
 
                         // 当前块文件已经读取完，关闭文件并从内存中移除
                         streams[index].close();
-                        remove(block_it->c_str());
+                        if(remove(block_it->c_str())!=0){
+                            throw UnixError();
+                        }
                         datas.erase(datas.begin() + index);
                         streams.erase(streams.begin() + index);
                     }
@@ -208,15 +215,16 @@ class SortExecutor : public AbstractExecutor {
                 output_file.close();
             }
             tmp_file_names.clear();
-            //std::copy(tmp_file_names.begin(), tmp_file_names.end(), res_file_names.begin());
+            // std::copy(tmp_file_names.begin(), tmp_file_names.end(), res_file_names.begin());
             res_file_names = tmp_file_names;
         }
-        assert(res_file_names.size()==1);
-        res_file_ = std::ifstream(res_file_names[0],std::ios::binary);
-        current_tuple = std::make_unique<RmRecord>(prev_->tupleLen());
+        assert(res_file_names.size() == 1);
+        res_file_name_ = res_file_names[0];
+        res_file_.open(res_file_name_,std::ios::binary);
+        current_tuple_ = RmRecord(prev_->tupleLen());
 
-        res_file_.read(current_tuple->data, prev_->tupleLen());
-        tuple_num++;
+        res_file_.read(current_tuple_.data, prev_->tupleLen());
+        used_tuple_num++;
     }
 
     // 如果是 desc， 那么大的先落盘，
@@ -236,31 +244,34 @@ class SortExecutor : public AbstractExecutor {
     }
 
     void nextTuple() override {
-        res_file_.read(current_tuple->data, prev_->tupleLen());
-        tuple_num++;
+        res_file_.read(current_tuple_.data, prev_->tupleLen());
+        used_tuple_num++;
     }
 
-    std::unique_ptr<RmRecord> Next() override { 
-        std::unique_ptr<RmRecord> ptr = std::make_unique<RmRecord>(*current_tuple.get());
-        return ptr; }
+    std::unique_ptr<RmRecord> Next() override {
+        std::unique_ptr<RmRecord> ptr = std::make_unique<RmRecord>(current_tuple_);
+        return ptr;
+    }
 
     size_t tupleLen() const override { return prev_->tupleLen(); }
 
-    const std::vector<ColMeta>& cols() const override {return prev_->cols();}
+    const std::vector<ColMeta>& cols() const override { return prev_->cols(); }
     std::string getType() override { return "SortExecutor"; }
 
-
-    ColMeta get_col_offset(const TabCol &target) override{ return prev_->get_col_offset(target);};
+    ColMeta get_col_offset(const TabCol& target) override { return prev_->get_col_offset(target); };
     bool is_end() const override {
-        bool ret = res_file_.good();
-        if(limit_num_!=-1){
-            if(tuple_num > limit_num_){
+        bool ret = res_file_.good() && (!res_file_.eof());
+        ret = used_tuple_num <= tuple_num && ret;
+        if (limit_num_ != -1) {
+            if (tuple_num > limit_num_) {
                 ret = true;
             }
-
         }
-        if(!ret){
-            //TODO: delete files
+        if (!ret) {
+            res_file_.close();
+            if(remove(res_file_name_.c_str())!=0){
+                throw UnixError();
+            }
         }
         return !ret;
     }
