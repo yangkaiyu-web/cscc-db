@@ -11,6 +11,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 #include <memory>
 
+#include "errors.h"
 #include "execution_defs.h"
 #include "execution_manager.h"
 #include "executor_abstract.h"
@@ -28,9 +29,9 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
     std::vector<Condition> fed_conds_;  // join条件
     bool is_end_;
     RmRecord rec_;
-    std::vector<std::unique_ptr<RmRecord>> left_record_save_;
-    bool left_cache_valid_;
-    size_t left_index_;
+    //std::vector<std::unique_ptr<RmRecord>> left_record_save_;
+    //bool left_cache_valid_;
+    //size_t left_index_;
 
    public:
     NestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> left,
@@ -49,21 +50,17 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
         is_end_ = false;
         fed_conds_ = std::move(conds);
         rec_ = RmRecord(len_);
-        left_index_ = 0;  // 标志当前已经消耗完第几个 left_record_save_
+        //left_index_ = 0;  // 标志当前已经消耗完第几个 left_record_save_
     }
 
     void beginTuple() override {
         // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
-        for (left_->beginTuple(); !left_->is_end(); left_->nextTuple()) {
-            left_record_save_.push_back(left_->Next());
-        }
-        if (!left_record_save_.empty()) {
-            for (right_->beginTuple(); !right_->is_end(); right_->nextTuple()) {
-                auto right_rec = right_->Next();
-                for (left_index_ = 0; left_index_ < left_record_save_.size();
-                     left_index_++) {
-                    auto& left_record = left_record_save_[left_index_];
-                    auto flag = true;
+
+        for(left_->beginTuple();!left_->is_end();left_->nextTuple()){
+            std::shared_ptr<RmRecord> left_record = left_->Next();
+            for(right_->beginTuple();!right_->is_end();right_->nextTuple()){
+                std::shared_ptr<RmRecord> right_rec = right_->Next()  ;
+                    bool flag = true;
                     for (auto& cond : fed_conds_) {
                         flag = flag &&
                                cond.test_join_record(left_->cols(), left_record,
@@ -78,18 +75,15 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
                 }
             }
         }
-    }
+
+    
 
     void nextTuple() override {
-        left_index_ ++;
-        if (left_index_ == left_record_save_.size()) {
-            right_->nextTuple();
-            left_index_ = 0;
-        }
-        while (!right_->is_end()) {
-            auto right_rec = right_->Next();
-            while (left_index_ < left_record_save_.size()) {
-                auto& left_record = left_record_save_[left_index_];
+        right_->nextTuple();
+        while(!left_->is_end()){
+            std::shared_ptr<RmRecord> left_record = left_->Next();
+            while(!right_->is_end()){
+                std::shared_ptr<RmRecord> right_rec = right_->Next();
                 auto flag = true;
                 for (auto& cond : fed_conds_) {
                     flag = flag &&
@@ -102,11 +96,20 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
                            right_->tupleLen());
                     return;
                 }
-                left_index_++;
+                right_->nextTuple();
             }
-            left_index_ = 0;
-            right_->nextTuple();
+            right_->beginTuple();
+            left_->nextTuple();
         }
+        //while (!right_->is_end()) {
+        //    auto right_rec = right_->Next();
+        //    while (left_index_ < left_record_save_.size()) {
+        //        auto& left_record = left_record_save_[left_index_];
+        //        left_index_++;
+        //    }
+        //    left_index_ = 0;
+        //    right_->nextTuple();
+        //}
     }
 
     std::unique_ptr<RmRecord> Next() override {
@@ -115,7 +118,7 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
     }
 
     bool is_end() const override {
-        bool ret = right_->is_end() || left_record_save_.empty();
+        bool ret = left_->is_end() ;
         return ret;
     }
 
@@ -123,6 +126,14 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
 
     const std::vector<ColMeta>& cols() const override { return cols_; };
 
+    ColMeta get_col_offset(const TabCol &target) override{
+        for(auto &col:cols_){
+            if(col.tab_name==target.tab_name && col.name== target.col_name){
+                return col;
+            }
+        }
+        throw ColumnNotFoundError(target.col_name);
+    }
     std::string getType() override { return "NestedLoopJoinExecutor"; };
     Rid& rid() override { return _abstract_rid; }
 };

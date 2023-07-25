@@ -1,9 +1,20 @@
 import argparse
+import shutil
 import os
 import subprocess
 import time
 import signal
 
+
+def compare(out,std):
+    with open(out,'r') as f1,open(std,'r') as f2:
+        content1=f1.read()
+        content2=f2.read()
+
+        if content1==content2 :
+            print("ok")
+        else :
+            print("no")
 
 def bench_run():
 
@@ -20,7 +31,9 @@ def bench_run():
     
     file = open("rmdb_client/build/a.sql",'r')
     
-    p3= subprocess.Popen(mysql_str.split(),stdin=file,stdout=subprocess.PIPE)
+    mysql_str2 = "mysql -u root -p1234 -D testdb"
+
+    p3= subprocess.Popen(mysql_str2.split(),stdin=file,stdout=subprocess.PIPE)
     output,errors = p3.communicate()
     p3.wait()
     result = output.decode().splitlines()
@@ -38,7 +51,7 @@ def my_run():
     print("running rmdb")
     os.chdir('build')
     if os.path.exists('testdb'):
-        os.rmdir("testdb")
+        shutil.rmtree('testdb')
     svr = "./bin/rmdb testdb"
     p1 = subprocess.Popen(svr.split(),preexec_fn=os.setsid)
     time.sleep(1)
@@ -84,6 +97,7 @@ def build():
 
 
 
+# 根目录执行， 自动运行 rmdb_client/build/a.sql
 
 
 
@@ -94,12 +108,17 @@ def main():
     parser.add_argument("-b","--build",help = '编译项目',action='store_true')
     parser.add_argument("-r","--run",help = '运行测试',action='store_true')
 
+
     args = parser.parse_args()
+
     if args.build:
         build()
     if args.run:
         bench_run()
         my_run()
+        print("std out : ./rmdb_client/build/a.txt")
+        print("my out : ./build/testdb/output.txt")
+        compare("./build/testdb/output.txt","./rmdb_client/build/a.txt")
     return 0
 
 

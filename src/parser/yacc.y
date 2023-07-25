@@ -22,7 +22,7 @@ using namespace ast;
 %define parse.error verbose
 
 // keywords
-%token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY
+%token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY LIMIT
 WHERE UPDATE SET SELECT INT CHAR FLOAT DATETIME INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY BIGINT
 // non-keywords
 %token LEQ NEQ GEQ T_EOF
@@ -49,7 +49,10 @@ WHERE UPDATE SET SELECT INT CHAR FLOAT DATETIME INDEX AND JOIN EXIT HELP TXN_BEG
 %type <sv_set_clauses> setClauses
 %type <sv_cond> condition
 %type <sv_conds> whereClause optWhereClause
-%type <sv_orderby>  order_clause opt_order_clause
+%type <sv_orderby>  order_clause
+%type <sv_orderbys> opt_order_clause  
+%type <sv_orderby_list> order_clause_list
+%type <sv_limit>  opt_limit_clause
 %type <sv_orderby_dir> opt_asc_desc
 
 %%
@@ -149,9 +152,9 @@ dml:
     {
         $$ = std::make_shared<UpdateStmt>($2, $4, $5);
     }
-    |   SELECT selector FROM tableList optWhereClause opt_order_clause
+    |   SELECT selector FROM tableList optWhereClause opt_order_clause opt_limit_clause
     {
-        $$ = std::make_shared<SelectStmt>($2, $4, $5, $6);
+        $$ = std::make_shared<SelectStmt>($2, $4, $5, $6,$7);
     }
     ;
 
@@ -192,7 +195,7 @@ type:
     |   CHAR '(' VALUE_INT_BIGINT ')'
     {
         // 这里应该检查精度
-        $$ = std::make_shared<TypeLen>(SV_TYPE_STRING, atoi($3.c_str()));
+        $$ = std::make_shared<TypeLen>(SV_TYPE_STRING, std::stoi($3.c_str()));
     }
     |   FLOAT
     {
@@ -362,20 +365,36 @@ tableList:
     ;
 
 opt_order_clause:
-    ORDER BY order_clause      
+    ORDER BY order_clause_list      
     { 
-        $$ = $3; 
+        $$ = std::make_shared<OrderBys>($3);
+    }
+    |   /* epsilon */ { /* ignore*/ }
+    ;
+opt_limit_clause:
+    LIMIT  value
+    { 
+        $$ = std::make_shared<Limit>($2); 
     }
     |   /* epsilon */ { /* ignore*/ }
     ;
 
-order_clause:
-      col  opt_asc_desc 
+order_clause_list:
+    order_clause
     { 
-        $$ = std::make_shared<OrderBy>($1, $2);
+        $$ =std::vector< std::shared_ptr<OrderBy>>{$1};
+    }
+
+    |order_clause_list ',' order_clause{
+
+        $$.push_back($3);
     }
     ;   
 
+order_clause:
+           col  opt_asc_desc 
+           {$$ = std::make_shared<OrderBy>($1,$2);}
+           ;
 opt_asc_desc:
     ASC          { $$ = OrderBy_ASC;     }
     |  DESC      { $$ = OrderBy_DESC;    }

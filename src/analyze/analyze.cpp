@@ -11,8 +11,13 @@ See the Mulan PSL v2 for more details. */
 #include "analyze.h"
 
 #include <iomanip>
+#include <limits>
+#include <utility>
 
 #include "common/common.h"
+#include "defs.h"
+#include "errors.h"
+#include "parser/ast.h"
 template <typename type>
 inline bool no_overflow(const std::string &value);
 int compare_int_string(const std::string &val1, const std::string &val2);
@@ -56,6 +61,13 @@ std::shared_ptr<Query> Analyze::do_analyze(
         }
         // 处理where条件
         get_check_clause(x->conds, query->tables, query->conds);
+        if (x->has_sort) {
+            get_check_orderby_clause(x->orderbys, query->tables, query->oder_by);
+        }
+        if(x->has_limit){
+            get_limit_clause(x->limit, query->limit);
+        }
+
     } else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(parse)) {
         /** TODO: */
 
@@ -236,6 +248,27 @@ void Analyze::get_check_clause(
         conds.push_back(cond);
     }
 }
+
+void Analyze::get_check_orderby_clause(const std::shared_ptr<ast::OrderBys>& x_orderbys,
+                                 const std::vector<std::string> &tab_names,
+                                 OrderByCaluse &orderby) {
+    std::vector<ColMeta> all_cols;
+
+    get_all_cols(tab_names, all_cols);
+
+    for(auto & ast_orderby : x_orderbys->order_bys){
+        TabCol sel_col  = {.tab_name=ast_orderby->col->tab_name,.col_name=ast_orderby->col->col_name};
+        sel_col = check_column(all_cols, sel_col);
+        bool is_desc = ast_orderby->orderby_dir == ast::OrderBy_DESC;
+        orderby.orderby_pair.push_back(std::make_pair(sel_col, is_desc));
+    }
+
+}
+
+void Analyze::get_limit_clause(const std::shared_ptr<ast::Limit> x_limit,
+                               LimitClause &limit) {
+    limit.val = convert_sv_value(x_limit->val, ColType::TYPE_INT);
+}
 /*
 // 处理二元关系表达式
 void Analyze::get_clause(
@@ -368,7 +401,7 @@ int compare_pos_int_string(const std::string &val1, const std::string &val2) {
     } else if (len1 < len2) {
         return -1;
     } else {
-        for (int i = 0; i < val1.size(); ++i) {
+        for (size_t i = 0; i < val1.size(); ++i) {
             if (val1[i] > val2[i]) {
                 return 1;
             } else if (val1[i] < val2[i]) {
@@ -401,5 +434,6 @@ inline bool no_overflow(const std::string &value) {
                 value, std::to_string(std::numeric_limits<type>::max())) <=
             0) &&
            (compare_int_string(
-                value, std::to_string(std::numeric_limits<type>::min())) >= 0);
+                value, std::to_string(std::numeric_limits<type>::lowest())) >=
+            0);
 }

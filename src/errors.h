@@ -205,3 +205,9 @@ class PageNotExistError : public RMDBError {
         : RMDBError("Page " + std::to_string(page_no) + " in table " +
                     table_name + "not exits") {}
 };
+
+class UnreachableCodeError : public RMDBError {
+   public:
+    UnreachableCodeError()
+        : RMDBError("unreachable code !") {}
+};

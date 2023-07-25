@@ -12,7 +12,6 @@ See the Mulan PSL v2 for more details. */
 
 #include <cassert>
 #include <cstring>
-#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -99,7 +98,7 @@ struct Value {
     friend bool operator<=(const Value &x, const Value &y) { return !(x > y); }
     friend bool operator>=(const Value &x, const Value &y) { return !(x < y); }
     std::shared_ptr<RmRecord> raw;  // raw record buffer
-    static Value read_from_record(std::unique_ptr<RmRecord> &record,
+    static Value read_from_record(std::shared_ptr<RmRecord> &record,
                                   ColMeta &col) {
         Value ret;
         if (col.type == TYPE_INT) {
@@ -113,8 +112,9 @@ struct Value {
             ret.set_float(float_val);
         } else if (col.type == TYPE_STRING) {
             char *raw_str_val = record->data + col.offset;
-            int str_len =
-                (strlen(raw_str_val) > col.len) ? col.len : strlen(raw_str_val);
+            int str_len = (static_cast<int>(strlen(raw_str_val)) > col.len)
+                              ? col.len
+                              : strlen(raw_str_val);
 
             std::string str_val = std::string(raw_str_val, str_len);
             ret.set_str(str_val);
@@ -245,7 +245,7 @@ struct Condition {
     //
     //
     bool test_record(const std::vector<ColMeta> &cols,
-                     std::unique_ptr<RmRecord> &record) {
+                     std::shared_ptr<RmRecord> &record) {
         // assert(lhs_col.tab_name == col.tab_name);
         auto lhs_col_meta = ColMeta::find_from_cols(cols, lhs_col.col_name);
         auto lhs_val = Value::read_from_record(record, lhs_col_meta);
@@ -274,9 +274,9 @@ struct Condition {
         return ret;
     }
     bool test_join_record(const std::vector<ColMeta> &left_cols,
-                          std::unique_ptr<RmRecord> &left_rec,
+                          std::shared_ptr<RmRecord> &left_rec,
                           const std::vector<ColMeta> &right_cols,
-                          std::unique_ptr<RmRecord> &right_rec) {
+                          std::shared_ptr<RmRecord> &right_rec) {
         // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
         // TabCol true_lhs_col,true_rhs_col;
         // if(lhs_col.tab_name == right_tab.name){
@@ -304,6 +304,15 @@ struct Condition {
 struct SetClause {
     TabCol lhs;
     Value rhs;
+};
+
+struct OrderByCaluse {
+    //                          is desc
+    std::vector<std::pair<TabCol,bool>> orderby_pair;
+
+};
+struct LimitClause {
+    Value val;
 };
 
 inline bool type_compatible(ColType type1, ColType type2) {

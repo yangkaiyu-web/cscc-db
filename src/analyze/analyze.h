@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "common/common.h"
+#include "parser/ast.h"
 #include "parser/parser.h"
 #include "system/sm.h"
 
@@ -34,7 +35,8 @@ class Query {
     std::vector<SetClause> set_clauses;
     // insert 的values值
     std::vector<Value> values;
-
+    OrderByCaluse oder_by;
+    LimitClause limit;
     Query() {}
 };
 
@@ -56,6 +58,12 @@ class Analyze {
         const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv_conds,
         const std::vector<std::string> &tab_names,
         std::vector<Condition> &conds);
+    void get_check_orderby_clause(const std::shared_ptr<ast::OrderBys> &x_orderbys,
+                            const std::vector<std::string> &tab_names,
+                            OrderByCaluse &orderby);
+
+    void get_limit_clause(const std::shared_ptr<ast::Limit> x_limit,
+                          LimitClause &limit);
     /*
     void get_clause(
         const std::vector<std::shared_ptr<ast::BinaryExpr>> &sv_conds,
