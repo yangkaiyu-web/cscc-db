@@ -267,13 +267,17 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
                 switch(sel_cols[col_id].aggregate->aggregate_type){
                     case 0:
                         // COUNT
-                        if(tmp_item.size() <= col_id){tmp_item.push_back("1");}
-                        else
+                        if(col.type == TYPE_INT || col.type == TYPE_FLOAT || col.type == TYPE_STRING)
                         {
-                            if(col_str != "")
+                            if(tmp_item.size() <= col_id){tmp_item.push_back("1");}
+                            else
                             {
                                 tmp_item[col_id] = std::to_string(atoi(tmp_item[col_id].c_str()) + 1);
                             }
+                        }
+                        else
+                        {
+                            throw AggregateParamFormatError("COUNT");
                         }
                         break;
                     case 1:
@@ -293,7 +297,10 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
                             {
                                 tmp_item[col_id] = tmp_item[col_id] > col_str ? tmp_item[col_id]:col_str;
                             }
-                            // 缺一个else，throw一个max参数类型错误
+                            else
+                            {
+                                throw AggregateParamFormatError("MAX");
+                            }
                         }
                         break;
                     case 2:
@@ -313,7 +320,10 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
                             {
                                 tmp_item[col_id] = tmp_item[col_id] < col_str ? tmp_item[col_id]:col_str;
                             }
-                            // 缺一个else，throw一个max参数类型错误
+                            else
+                            {
+                                throw AggregateParamFormatError("MIN");
+                            }
                         }
                         break;
                     case 3:
@@ -334,7 +344,10 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
                                 tmp_item[col_id] = std::to_string(atof(tmp_item[col_id].c_str()) + atof(col_str.c_str()));
                             }  
                         }
-                        // 缺一个else，throw一个sum参数类型错误
+                        else
+                        {
+                            throw AggregateParamFormatError("SUM");
+                        }
                         break;
                     default: break;
                 }
@@ -359,6 +372,7 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
     // 打印聚集函数相关
     if(has_aggregate)
     {
+        num_rec = 1;
         // print record into buffer
         rec_printer.print_record(tmp_item, context);
         // print record into file
@@ -367,7 +381,6 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
             outfile << " " << tmp_item[i] << " |";
         }
         outfile << "\n";
-        num_rec++;
     }
     outfile.close();
     // Print footer into buffer

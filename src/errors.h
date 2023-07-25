@@ -181,6 +181,12 @@ class DateTimeFormatError : public RMDBError {
         : RMDBError("Datetime literal " + val + " format error") {}
 };
 
+class AggregateParamFormatError : public RMDBError {
+   public:
+    AggregateParamFormatError(const std::string &type)
+        : RMDBError("Aggregate " + type + " param format error") {}
+};
+
 class IncompatibleTypeError : public RMDBError {
    public:
     IncompatibleTypeError(const std::string &lhs, const std::string &rhs)
