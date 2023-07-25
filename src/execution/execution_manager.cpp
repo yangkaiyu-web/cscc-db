@@ -270,7 +270,10 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
                         if(tmp_item.size() <= col_id){tmp_item.push_back("1");}
                         else
                         {
-                            tmp_item[col_id] = std::to_string(atoi(tmp_item[col_id].c_str()) + 1);
+                            if(col_str != "")
+                            {
+                                tmp_item[col_id] = std::to_string(atoi(tmp_item[col_id].c_str()) + 1);
+                            }
                         }
                         break;
                     case 1:
