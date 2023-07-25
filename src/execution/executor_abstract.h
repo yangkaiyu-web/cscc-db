@@ -25,7 +25,7 @@ class AbstractExecutor {
 
     virtual size_t tupleLen() const =0;
 
-    virtual const std::vector<ColMeta> &cols() const =0;
+    virtual const std::vector<ColMeta> &cols() const {static std::vector<ColMeta> cols;return cols;}
     // virtual const std::vector<ColMeta> &cols() const {
     //     std::vector<ColMeta> *_cols = nullptr;
     //     return *_cols;

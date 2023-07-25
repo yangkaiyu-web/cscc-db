@@ -12,10 +12,12 @@ See the Mulan PSL v2 for more details. */
 
 #include <cerrno>
 #include <cstring>
+#include <memory>
 #include <string>
 
 #include "common/common.h"
 #include "execution/execution_sort.h"
+#include "execution/executor_agg.h"
 #include "execution/executor_abstract.h"
 #include "execution/executor_delete.h"
 #include "execution/executor_index_scan.h"
@@ -37,13 +39,13 @@ typedef enum portalTag {
 struct PortalStmt {
     portalTag tag;
 
-    std::vector<TabCol> sel_cols;
+    
     std::unique_ptr<AbstractExecutor> root;
     std::shared_ptr<Plan> plan;
 
-    PortalStmt(portalTag tag_, std::vector<TabCol> sel_cols_, std::unique_ptr<AbstractExecutor> root_,
+    PortalStmt(portalTag tag_, std::unique_ptr<AbstractExecutor> root_,
                std::shared_ptr<Plan> plan_)
-        : tag(tag_), sel_cols(std::move(sel_cols_)), root(std::move(root_)), plan(std::move(plan_)) {}
+        : tag(tag_), root(std::move(root_)), plan(std::move(plan_)) {}
 };
 
 class Portal {
@@ -58,17 +60,18 @@ class Portal {
     std::shared_ptr<PortalStmt> start(std::shared_ptr<Plan> plan, Context *context) {
         // 这里可以将select进行拆分，例如：一个select，带有return的select等
         if (auto x = std::dynamic_pointer_cast<OtherPlan>(plan)) {
-            return std::make_shared<PortalStmt>(PORTAL_CMD_UTILITY, std::vector<TabCol>(),
+            return std::make_shared<PortalStmt>(PORTAL_CMD_UTILITY,
                                                 std::unique_ptr<AbstractExecutor>(), plan);
         } else if (auto x = std::dynamic_pointer_cast<DDLPlan>(plan)) {
-            return std::make_shared<PortalStmt>(PORTAL_MULTI_QUERY, std::vector<TabCol>(),
+            return std::make_shared<PortalStmt>(PORTAL_MULTI_QUERY,
                                                 std::unique_ptr<AbstractExecutor>(), plan);
         } else if (auto x = std::dynamic_pointer_cast<DMLPlan>(plan)) {
             switch (x->tag) {
                 case T_select: {
-                    std::shared_ptr<ProjectionPlan> p = std::dynamic_pointer_cast<ProjectionPlan>(x->subplan_);
+                    // std::shared_ptr<ProjectionPlan> p = std::dynamic_pointer_cast<ProjectionPlan>(x->subplan_);
+                    std::shared_ptr<Plan> p = x->subplan_;
                     std::unique_ptr<AbstractExecutor> root = convert_plan_executor(p, context);
-                    return std::make_shared<PortalStmt>(PORTAL_ONE_SELECT, std::move(p->sel_cols_), std::move(root),
+                    return std::make_shared<PortalStmt>(PORTAL_ONE_SELECT, std::move(root),
                                                         plan);
                 }
 
@@ -80,7 +83,7 @@ class Portal {
                     }
                     std::unique_ptr<AbstractExecutor> root = std::make_unique<UpdateExecutor>(
                         sm_manager_, x->tab_name_, x->set_clauses_, x->conds_, rids, context);
-                    return std::make_shared<PortalStmt>(PORTAL_DML_WITHOUT_SELECT, std::vector<TabCol>(),
+                    return std::make_shared<PortalStmt>(PORTAL_DML_WITHOUT_SELECT,
                                                         std::move(root), plan);
                 }
                 case T_Delete: {
@@ -93,7 +96,7 @@ class Portal {
                     std::unique_ptr<AbstractExecutor> root =
                         std::make_unique<DeleteExecutor>(sm_manager_, x->tab_name_, x->conds_, rids, context);
 
-                    return std::make_shared<PortalStmt>(PORTAL_DML_WITHOUT_SELECT, std::vector<TabCol>(),
+                    return std::make_shared<PortalStmt>(PORTAL_DML_WITHOUT_SELECT,
                                                         std::move(root), plan);
                 }
 
@@ -101,7 +104,7 @@ class Portal {
                     std::unique_ptr<AbstractExecutor> root =
                         std::make_unique<InsertExecutor>(sm_manager_, x->tab_name_, x->values_, context);
 
-                    return std::make_shared<PortalStmt>(PORTAL_DML_WITHOUT_SELECT, std::vector<TabCol>(),
+                    return std::make_shared<PortalStmt>(PORTAL_DML_WITHOUT_SELECT,
                                                         std::move(root), plan);
                 }
 
@@ -119,7 +122,7 @@ class Portal {
     void run(std::shared_ptr<PortalStmt> portal, QlManager *ql, txn_id_t *txn_id, Context *context) {
         switch (portal->tag) {
             case PORTAL_ONE_SELECT: {
-                ql->select_from(std::move(portal->root), std::move(portal->sel_cols), context);
+                ql->select_from(std::move(portal->root), context);
                 break;
             }
 
