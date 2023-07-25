@@ -24,7 +24,9 @@ std::unique_ptr<RmRecord> RmFileHandle::get_record(const Rid &rid,
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
     int record_size = page_handle.file_hdr->record_size;
     char *data = page_handle.get_slot(rid.slot_no);
-    return std::make_unique<RmRecord>(record_size, data);
+    auto res = std::make_unique<RmRecord>(record_size, data);
+    buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), false);
+    return res;
 }
 
 /**
@@ -51,7 +53,9 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
             if (page_hdr->num_records == file_hdr_.num_records_per_page) {
                 file_hdr_.first_free_page_no = page_hdr->next_free_page_no;
             }
-            return Rid{page_hdl.page->get_page_id().page_no, i};
+            const PageId &page_id = page_hdl.page->get_page_id();
+            buffer_pool_manager_->unpin_page(page_id, true);
+            return Rid{page_id.page_no, i};
         }
     }
     assert(false);
@@ -76,6 +80,7 @@ void RmFileHandle::insert_record(const Rid &rid, char *buf) {
     } else {
         assert(false);
     }
+    buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), true);
 }
 /**
  * @description: 删除记录文件中记录号为rid的记录
@@ -99,6 +104,7 @@ void RmFileHandle::delete_record(const Rid &rid, Context *context) {
     } else {
         assert(false);
     }
+    buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), true);
 }
 
 /**
@@ -117,6 +123,7 @@ void RmFileHandle::update_record(const Rid &rid, char *buf, Context *context) {
     } else {
         assert(false);
     }
+    buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), true);
 }
 
 /**

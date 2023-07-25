@@ -26,8 +26,7 @@ class InsertExecutor : public AbstractExecutor {
     SmManager *sm_manager_;
 
    public:
-    InsertExecutor(SmManager *sm_manager, const std::string &tab_name,
-                   std::vector<Value> values, Context *context) {
+    InsertExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Value> values, Context *context) {
         sm_manager_ = sm_manager;
         tab_ = sm_manager_->db_.get_table(tab_name);
         values_ = values;
@@ -46,44 +45,58 @@ class InsertExecutor : public AbstractExecutor {
             auto &col = tab_.cols[i];
             auto &val = values_[i];
             if (col.type != val.type) {
-                throw IncompatibleTypeError(coltype2str(col.type),
-                                            coltype2str(val.type));
+                throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
             }
-            val.init_raw(col.len);
             memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
-        // Insert into record file
-        rid_ = fh_->insert_record(rec.data, context_);
 
-        // Insert into index
+        // 检查以符合索引唯一性
         for (size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto &index = tab_.indexes[i];
-            auto ih = sm_manager_->ihs_
-                          .at(sm_manager_->get_ix_manager()->get_index_name(
-                              tab_name_, index.cols))
-                          .get();
+            auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
             char *key = new char[index.col_tot_len];
             int offset = 0;
             assert(index.col_num >= 0);
-            for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
-                memcpy(key + offset, rec.data + index.cols[i].offset,
-                       index.cols[i].len);
-                offset += index.cols[i].len;
+            for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
+                memcpy(key + offset, rec.data + index.cols[j].offset, index.cols[j].len);
+                offset += index.cols[j].len;
+            }
+            if (ih->is_exist(key, context_->txn_)) {
+                delete[] key;
+                throw IndexEntryNotUniqueError();
+            }
+            delete[] key;
+        }
+
+        // Insert into record file
+        rid_ = fh_->insert_record(rec.data, context_);
+
+        // Insert into index file
+        for (size_t i = 0; i < tab_.indexes.size(); ++i) {
+            auto &index = tab_.indexes[i];
+            auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
+            char *key = new char[index.col_tot_len];
+            int offset = 0;
+            assert(index.col_num >= 0);
+            for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
+                memcpy(key + offset, rec.data + index.cols[j].offset, index.cols[j].len);
+                offset += index.cols[j].len;
             }
             ih->insert_entry(key, rid_, context_->txn_);
+            delete[] key;
         }
         return nullptr;
     }
+
     Rid &rid() override { return rid_; }
 
-    void beginTuple() override{throw UnreachableCodeError();}
+    void beginTuple() override { throw UnreachableCodeError(); }
 
-    void nextTuple()override{throw UnreachableCodeError();}
+    void nextTuple() override { throw UnreachableCodeError(); }
 
-    bool is_end() const override{throw UnreachableCodeError();}
-    size_t tupleLen() const override{throw UnreachableCodeError();}
-    std::string getType() override {return "InsertExecutor";}
+    bool is_end() const override { throw UnreachableCodeError(); }
+    size_t tupleLen() const override { throw UnreachableCodeError(); }
+    std::string getType() override { return "InsertExecutor"; }
 
-    const std::vector<ColMeta> &cols() const override{throw UnreachableCodeError();}
-
+    const std::vector<ColMeta> &cols() const override { throw UnreachableCodeError(); }
 };

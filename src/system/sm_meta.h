@@ -76,6 +76,14 @@ struct IndexMeta {
         }
         return is;
     }
+
+    inline std::string get_index_name() {
+        std::string index_name = tab_name;
+        for (size_t i = 0; i < cols.size(); ++i)
+            index_name += "_" + cols[i].name;
+        index_name += ".idx";
+        return index_name;
+    }
 };
 
 /* 表元数据 */

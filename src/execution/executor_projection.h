@@ -28,8 +28,7 @@ class ProjectionExecutor : public AbstractExecutor {
     RmRecord rec_;
 
    public:
-    ProjectionExecutor(std::unique_ptr<AbstractExecutor> prev,
-                       const std::vector<TabCol> &sel_cols) {
+    ProjectionExecutor(std::unique_ptr<AbstractExecutor> prev, const std::vector<TabCol> &sel_cols) {
         prev_ = std::move(prev);
 
         ssize_t curr_offset = 0;
@@ -54,8 +53,7 @@ class ProjectionExecutor : public AbstractExecutor {
             for (size_t i = 0; i < sel_idxs_.size(); i++) {
                 auto prev_col = prev_->cols().at(sel_idxs_[i]);
                 auto this_col = cols_[i];
-                memcpy(rec_.data + this_col.offset,
-                       record->data + prev_col.offset, prev_col.len);
+                memcpy(rec_.data + this_col.offset, record->data + prev_col.offset, prev_col.len);
             }
         }
     }
@@ -68,8 +66,7 @@ class ProjectionExecutor : public AbstractExecutor {
             for (size_t i = 0; i < sel_idxs_.size(); i++) {
                 auto prev_col = prev_->cols().at(sel_idxs_[i]);
                 auto this_col = cols_[i];
-                memcpy(rec_.data + this_col.offset,
-                       record->data + prev_col.offset, prev_col.len);
+                memcpy(rec_.data + this_col.offset, record->data + prev_col.offset, prev_col.len);
             }
         }
     }
@@ -88,9 +85,9 @@ class ProjectionExecutor : public AbstractExecutor {
 
     const std::vector<ColMeta> &cols() const override { return cols_; };
 
-    ColMeta get_col_offset(const TabCol &target) override{
-        for(auto &col:cols_){
-            if(col.tab_name==target.tab_name && col.name== target.col_name){
+    ColMeta get_col_offset(const TabCol &target) override {
+        for (auto &col : cols_) {
+            if (col.tab_name == target.tab_name && col.name == target.col_name) {
                 return col;
             }
         }

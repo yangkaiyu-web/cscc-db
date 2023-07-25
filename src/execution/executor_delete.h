@@ -29,9 +29,8 @@ class DeleteExecutor : public AbstractExecutor {
     SmManager *sm_manager_;
 
    public:
-    DeleteExecutor(SmManager *sm_manager, const std::string &tab_name,
-                   std::vector<Condition> conds, std::vector<Rid> rids,
-                   Context *context) {
+    DeleteExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Condition> conds,
+                   std::vector<Rid> rids, Context *context) {
         sm_manager_ = sm_manager;
         tab_name_ = tab_name;
         tab_ = sm_manager_->db_.get_table(tab_name);
@@ -54,6 +53,18 @@ class DeleteExecutor : public AbstractExecutor {
             }
             if (cond_flag) {
                 fh_->delete_record(rid, context_);
+
+                for (auto &index : tab_.indexes) {
+                    auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
+                    char *key = new char[index.col_tot_len];
+                    int offset = 0;
+                    for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
+                        memcpy(key + offset, record->data + index.cols[j].offset, index.cols[j].len);
+                        offset += index.cols[j].len;
+                    }
+                    ih->delete_entry(key, context_->txn_);
+                    delete[] key;
+                }
             }
         }
 
@@ -61,19 +72,16 @@ class DeleteExecutor : public AbstractExecutor {
     }
     size_t tupleLen() const override { throw UnreachableCodeError(); }
 
-    const std::vector<ColMeta> &cols() const override {
-        throw UnreachableCodeError();
-    }
+    const std::vector<ColMeta> &cols() const override { throw UnreachableCodeError(); }
 
-    std::string getType() override{ return "DeleteExecutor";}
+    std::string getType() override { return "DeleteExecutor"; }
     // virtual std::string getType() {return "AbstractExecutor";}
 
-    void beginTuple() override{throw  UnreachableCodeError();}
+    void beginTuple() override { throw UnreachableCodeError(); }
 
-    void nextTuple() override{throw  UnreachableCodeError();}
+    void nextTuple() override { throw UnreachableCodeError(); }
 
-    bool is_end() const override{throw  UnreachableCodeError();}
-
+    bool is_end() const override { throw UnreachableCodeError(); }
 
     Rid &rid() override { return _abstract_rid; }
 };

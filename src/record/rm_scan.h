@@ -1,7 +1,7 @@
 /* Copyright (c) 2023 Renmin University of China
 RMDB is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
+You can use this software according to the terms and conditions of the Mulan PSL
+v2. You may obtain a copy of Mulan PSL v2 at:
         http://license.coscl.org.cn/MulanPSL2
 THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -14,10 +14,12 @@ See the Mulan PSL v2 for more details. */
 
 class RmFileHandle;
 
+// 不考虑查询条件之类的语义级别扫描，仅负责迭代
 class RmScan : public RecScan {
     const RmFileHandle *file_handle_;
     Rid rid_;
-public:
+
+   public:
     RmScan(const RmFileHandle *file_handle);
 
     void next() override;

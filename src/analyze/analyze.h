@@ -72,6 +72,6 @@ class Analyze {
                       std::vector<Condition> &conds);
                       */
     Value convert_sv_value(const std::shared_ptr<ast::Value> &sv_val,
-                           ColType sv_cast_to_type);
+                           std::vector<ColMeta>::iterator col);
     CompOp convert_sv_comp_op(ast::SvCompOp op);
 };

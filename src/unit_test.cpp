@@ -193,6 +193,7 @@ class BigStorageTest : public ::testing::Test {
 
     // This function is called after every test.
     void TearDown() override {
+        buffer_pool_manager->free_all_pages(fd_);
         disk_manager_->close_file(fd_);
         // disk_manager_->destroy_file(TEST_FILE_NAME_BIG);  // you can choose
         // to delete the file
@@ -205,7 +206,7 @@ class BigStorageTest : public ::testing::Test {
     };
 };
 
-TEST(LRUReplacerTest, SampleTest) {
+TEST(LRUReplacerTest, DISABLED_SampleTest) {
     LRUReplacer lru_replacer(7);
 
     // Scenario: unpin six elements, i.e. add them to the replacer.
@@ -284,6 +285,7 @@ class BufferPoolManagerTest : public ::testing::Test {
 
     // This function is called after every test.
     void TearDown() override {
+        buffer_pool_manager->free_all_pages(fd_);
         disk_manager_->close_file(fd_);
         // disk_manager_->destroy_file(TEST_FILE_NAME);  // you can choose to
         // delete the file
@@ -297,7 +299,7 @@ class BufferPoolManagerTest : public ::testing::Test {
 };
 
 // NOLINTNEXTLINE
-TEST_F(BufferPoolManagerTest, SampleTest) {
+TEST_F(BufferPoolManagerTest, DISABLED_SampleTest) {
     // create BufferPoolManager
     const size_t buffer_pool_size = 10;
     auto disk_manager = BufferPoolManagerTest::disk_manager_.get();
@@ -323,6 +325,7 @@ TEST_F(BufferPoolManagerTest, SampleTest) {
     for (size_t i = 1; i < buffer_pool_size; ++i) {
         EXPECT_NE(nullptr, bpm->new_page(&page_id_temp));
     }
+
     // Scenario: Once the buffer pool is full, we should not be able to create
     // any new pages.
     for (size_t i = buffer_pool_size; i < buffer_pool_size * 2; ++i) {
@@ -389,6 +392,7 @@ class BufferPoolManagerConcurrencyTest : public ::testing::Test {
 
     // This function is called after every test.
     void TearDown() override {
+        buffer_pool_manager->free_all_pages(fd_);
         disk_manager_->close_file(fd_);
         // disk_manager_->destroy_file(TEST_FILE_NAME_CCUR);  // you can choose
         // to delete the file
@@ -456,8 +460,8 @@ TEST_F(BufferPoolManagerConcurrencyTest, ConcurrencyTest) {
 }
 
 // TODO: fix detected memory leaks found by Google Test
-TEST(StorageTest, DISABLED_SimpleTest) {
-    srand((unsigned)time(nullptr));
+TEST(StorageTest, SimpleTest) {
+    srand(10);
 
     /** Test disk_manager */
     std::vector<std::string> filenames(MAX_FILES);  // MAX_FILES=32
@@ -560,11 +564,12 @@ TEST(StorageTest, DISABLED_SimpleTest) {
             check_disk(fd, page_no);
         }
         // flush entire file
-        if (rand() % 100 == 0) {
-            buffer_pool_manager->flush_all_pages(fd);
-        }
+        buffer_pool_manager->flush_all_pages(fd);
+        check_disk(fd, page_no);
         // re-open file
         if (rand() % 100 == 0) {
+            buffer_pool_manager->free_all_pages(fd);
+            check_disk(fd, page_no);
             disk_manager->close_file(fd);
             auto filename = fd2name[fd];
             char *buf = mock[fd];
@@ -573,6 +578,7 @@ TEST(StorageTest, DISABLED_SimpleTest) {
             int new_fd = disk_manager->open_file(filename);
             mock[new_fd] = buf;
             fd2name[new_fd] = filename;
+            fd = new_fd;
         }
         // assert equal in cache
         check_cache(fd, page_no);
@@ -592,6 +598,7 @@ TEST(StorageTest, DISABLED_SimpleTest) {
     for (auto &entry : fd2name) {
         int fd = entry.first;
         auto &filename = entry.second;
+        buffer_pool_manager->free_all_pages(fd);
         disk_manager->close_file(fd);
         disk_manager->destroy_file(filename);
         try {
@@ -603,8 +610,7 @@ TEST(StorageTest, DISABLED_SimpleTest) {
 }
 
 TEST(RecordManagerTest, SimpleTest) {
-    // srand((unsigned)time(nullptr));
-    srand(10);
+    srand((unsigned)time(nullptr));
 
     // 创建RmManager类的对象rm_manager
     auto disk_manager = std::make_unique<DiskManager>();

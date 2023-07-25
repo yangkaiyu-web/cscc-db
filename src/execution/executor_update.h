@@ -29,10 +29,8 @@ class UpdateExecutor : public AbstractExecutor {
     SmManager *sm_manager_;
 
    public:
-    UpdateExecutor(SmManager *sm_manager, const std::string &tab_name,
-                   std::vector<SetClause> set_clauses,
-                   std::vector<Condition> conds, std::vector<Rid> rids,
-                   Context *context) {
+    UpdateExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<SetClause> set_clauses,
+                   std::vector<Condition> conds, std::vector<Rid> rids, Context *context) {
         sm_manager_ = sm_manager;
         tab_name_ = tab_name;
         set_clauses_ = set_clauses;
@@ -43,30 +41,72 @@ class UpdateExecutor : public AbstractExecutor {
         context_ = context;
     }
     std::unique_ptr<RmRecord> Next() override {
+        // 检查索引唯一性
         for (auto &rid : rids_) {
             auto record = fh_->get_record(rid, context_);
-            // bool cond_flag=true;
-            //  test conds
-            // for(auto & cond : conds_){
-            //     cond_flag = cond_flag && cond.test_record(tab_.cols, record);
-            //     if(!cond_flag){
-            //         break;
-            //     }
-            // }
-            // if(cond_flag){
             for (auto &set_clause : set_clauses_) {
                 assert(tab_name_ == set_clause.lhs.tab_name);
                 auto &col = *tab_.get_col(set_clause.lhs.col_name);
                 auto val = set_clause.rhs;
                 if (col.type != val.type) {
-                    throw IncompatibleTypeError(coltype2str(col.type),
-                                                coltype2str(val.type));
+                    throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
                 }
-                val.init_raw(col.len);
-                memcpy(record.get()->data + col.offset, val.raw->data, col.len);
+                memcpy(record->data + col.offset, val.raw->data, col.len);
             }
-            fh_->update_record(rid, record.get()->data, context_);
-            // }
+
+            for (auto &index : tab_.indexes) {
+                auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
+                char *key = new char[index.col_tot_len];
+                int offset = 0;
+                for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
+                    memcpy(key + offset, record->data + index.cols[j].offset, index.cols[j].len);
+                    offset += index.cols[j].len;
+                }
+
+                std::vector<Rid> result;
+                if (ih->get_value(key, result, nullptr) && result[0] != rid) {
+                    assert(result.size() == 1);
+                    delete[] key;
+                    throw IndexEntryNotUniqueError();
+                }
+                delete[] key;
+            }
+        }
+
+        for (auto &rid : rids_) {
+            auto record = fh_->get_record(rid, context_);
+            char *old_raw_data = new char[record->size];
+            memcpy(old_raw_data, record->data, record->size);
+
+            for (auto &set_clause : set_clauses_) {
+                assert(tab_name_ == set_clause.lhs.tab_name);
+                auto &col = *tab_.get_col(set_clause.lhs.col_name);
+                auto val = set_clause.rhs;
+                if (col.type != val.type) {
+                    throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
+                }
+                memcpy(record->data + col.offset, val.raw->data, col.len);
+            }
+            fh_->update_record(rid, record->data, context_);
+
+            // 更新索引项
+            for (auto &index : tab_.indexes) {
+                auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
+                char *key = new char[index.col_tot_len];
+                int offset = 0;
+                for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
+                    memcpy(key + offset, old_raw_data + index.cols[j].offset, index.cols[j].len);
+                    offset += index.cols[j].len;
+                }
+                ih->delete_entry(key, context_->txn_);
+
+                offset = 0;
+                for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
+                    memcpy(key + offset, record->data + index.cols[j].offset, index.cols[j].len);
+                    offset += index.cols[j].len;
+                }
+                ih->insert_entry(key, rid, context_->txn_);
+            }
         }
 
         return nullptr;
@@ -74,9 +114,7 @@ class UpdateExecutor : public AbstractExecutor {
 
     size_t tupleLen() const override { throw UnreachableCodeError(); }
 
-    const std::vector<ColMeta> &cols() const override {
-        throw UnreachableCodeError();
-    }
+    const std::vector<ColMeta> &cols() const override { throw UnreachableCodeError(); }
 
     std::string getType() override { return "UpdateExecutor"; }
 

@@ -29,7 +29,7 @@ See the Mulan PSL v2 for more details. */
  */
 class DiskManager {
    public:
-    explicit DiskManager();
+    explicit DiskManager() = default;
 
     ~DiskManager() = default;
 

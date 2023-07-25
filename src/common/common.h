@@ -18,9 +18,9 @@ See the Mulan PSL v2 for more details. */
 
 #include "defs.h"
 #include "errors.h"
+#include "parser/ast.h"
 #include "record/rm_defs.h"
 #include "system/sm_meta.h"
-#include "parser/ast.h"
 
 struct TabCol {
     std::string tab_name;
@@ -28,21 +28,20 @@ struct TabCol {
     std::shared_ptr<ast::Aggregate> aggregate;
 
     friend bool operator<(const TabCol &x, const TabCol &y) {
-        return std::make_pair(x.tab_name, x.col_name) <
-               std::make_pair(y.tab_name, y.col_name);
+        return std::make_pair(x.tab_name, x.col_name) < std::make_pair(y.tab_name, y.col_name);
     }
 };
 
 struct Value {
-    ColType type;        // type of value
+    ColType type;            // type of value
     union {
-        int int_val;     // int value
-        int64_t
-            bigint_val;  // bigint or datatime value,
-                         // datatime时，40~56位年，32~40位月，24~32位日，16~24位时，8~16位分，0~8位秒
-        float float_val;  // float value
+        int int_val;         // int value
+        int64_t bigint_val;  // bigint or datatime value,
+                             // datatime时，40~56位年，32~40位月，24~32位日，16~24位时，8~16位分，0~8位秒
+        float float_val;            // float value
     };
-    std::string str_val;  // string value
+    std::string str_val;            // string value
+    std::shared_ptr<RmRecord> raw;  // raw record buffer
 
     friend bool operator==(const Value &x, const Value &y) {
         bool ret = false;
@@ -73,8 +72,7 @@ struct Value {
             } else if (x.type == TYPE_STRING) {
                 ret = x.str_val > y.str_val;
             } else if (x.type == TYPE_DATETIME) {
-                ret = static_cast<uint64_t>(x.bigint_val) >
-                      static_cast<uint64_t>(y.bigint_val);
+                ret = static_cast<uint64_t>(x.bigint_val) > static_cast<uint64_t>(y.bigint_val);
             }
         }
         return ret;
@@ -91,17 +89,14 @@ struct Value {
             } else if (x.type == TYPE_STRING) {
                 ret = x.str_val < y.str_val;
             } else if (x.type == TYPE_DATETIME) {
-                ret = static_cast<uint64_t>(x.bigint_val) <
-                      static_cast<uint64_t>(y.bigint_val);
+                ret = static_cast<uint64_t>(x.bigint_val) < static_cast<uint64_t>(y.bigint_val);
             }
         }
         return ret;
     }
     friend bool operator<=(const Value &x, const Value &y) { return !(x > y); }
     friend bool operator>=(const Value &x, const Value &y) { return !(x < y); }
-    std::shared_ptr<RmRecord> raw;  // raw record buffer
-    static Value read_from_record(std::shared_ptr<RmRecord> &record,
-                                  ColMeta &col) {
+    static Value read_from_record(std::unique_ptr<RmRecord> &record, ColMeta &col) {
         Value ret;
         if (col.type == TYPE_INT) {
             int int_val = *(int *)(record->data + col.offset);
@@ -114,9 +109,7 @@ struct Value {
             ret.set_float(float_val);
         } else if (col.type == TYPE_STRING) {
             char *raw_str_val = record->data + col.offset;
-            int str_len = (static_cast<int>(strlen(raw_str_val)) > col.len)
-                              ? col.len
-                              : strlen(raw_str_val);
+            int str_len = (static_cast<int>(strlen(raw_str_val)) > col.len) ? col.len : strlen(raw_str_val);
 
             std::string str_val = std::string(raw_str_val, str_len);
             ret.set_str(str_val);
@@ -174,8 +167,7 @@ struct Value {
                 return day <= 28;
         }
 
-        if (month == 1 || month == 3 || month == 5 || month == 7 ||
-            month == 8 || month == 10 || month == 12)
+        if (month == 1 || month == 3 || month == 5 || month == 7 || month == 8 || month == 10 || month == 12)
             return day <= 31;
 
         return false;
@@ -183,8 +175,8 @@ struct Value {
 
     // 格式为YYYY-MM-DD HH:MM:SS
     void check_set_datetime(const std::string &str_val_) {
-        if (str_val_.size() == 19 && str_val_[4] == '-' && str_val_[7] == '-' &&
-            str_val_[10] == ' ' && str_val_[13] == ':' && str_val_[16] == ':') {
+        if (str_val_.size() == 19 && str_val_[4] == '-' && str_val_[7] == '-' && str_val_[10] == ' ' &&
+            str_val_[13] == ':' && str_val_[16] == ':') {
             const std::string &syear = str_val_.substr(0, 4);
             const std::string &smonth = str_val_.substr(5, 2);
             const std::string &sday = str_val_.substr(8, 2);
@@ -196,15 +188,11 @@ struct Value {
             int month = std::stoi(smonth);
             int day = std::stoi(sday);
 
-            if (syear >= "1000" && syear <= "9999" && smonth >= "01" &&
-                smonth <= "12" && sday >= "01" && sday <= "31" &&
-                shour >= "00" && shour <= "23" && sminute >= "00" &&
-                sminute <= "59" && ssec >= "00" && ssec <= "59" &&
-                IsDayValid(year, month, day)) {
-                bigint_val = (static_cast<int64_t>(year) << 40) +
-                             (static_cast<int64_t>(month) << 32) +
-                             (static_cast<int64_t>(day) << 24) +
-                             (std::stoll(shour) << 16) +
+            if (syear >= "1000" && syear <= "9999" && smonth >= "01" && smonth <= "12" && sday >= "01" &&
+                sday <= "31" && shour >= "00" && shour <= "23" && sminute >= "00" && sminute <= "59" && ssec >= "00" &&
+                ssec <= "59" && IsDayValid(year, month, day)) {
+                bigint_val = (static_cast<int64_t>(year) << 40) + (static_cast<int64_t>(month) << 32) +
+                             (static_cast<int64_t>(day) << 24) + (std::stoll(shour) << 16) +
                              (std::stoll(sminute) << 8) + (std::stoll(ssec));
                 type = TYPE_DATETIME;
                 return;
@@ -246,8 +234,7 @@ struct Condition {
     Value rhs_val;    // right-hand side value
     //
     //
-    bool test_record(const std::vector<ColMeta> &cols,
-                     std::shared_ptr<RmRecord> &record) {
+    bool test_record(const std::vector<ColMeta> &cols, std::unique_ptr<RmRecord> &record) {
         // assert(lhs_col.tab_name == col.tab_name);
         auto lhs_col_meta = ColMeta::find_from_cols(cols, lhs_col.col_name);
         auto lhs_val = Value::read_from_record(record, lhs_col_meta);
@@ -275,10 +262,8 @@ struct Condition {
         }
         return ret;
     }
-    bool test_join_record(const std::vector<ColMeta> &left_cols,
-                          std::shared_ptr<RmRecord> &left_rec,
-                          const std::vector<ColMeta> &right_cols,
-                          std::shared_ptr<RmRecord> &right_rec) {
+    bool test_join_record(const std::vector<ColMeta> &left_cols, std::unique_ptr<RmRecord> &left_rec,
+                          const std::vector<ColMeta> &right_cols, std::unique_ptr<RmRecord> &right_rec) {
         // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
         // TabCol true_lhs_col,true_rhs_col;
         // if(lhs_col.tab_name == right_tab.name){
@@ -289,14 +274,10 @@ struct Condition {
         if (is_rhs_val) {
             return test_record(left_cols, left_rec);
         } else {
-            auto cond_rhs_col_meta =
-                ColMeta::find_from_cols(right_cols, rhs_col.col_name);
-            auto real_rhs_val =
-                Value::read_from_record(right_rec, cond_rhs_col_meta);
-            auto cond_lhs_col_meta =
-                ColMeta::find_from_cols(left_cols, lhs_col.col_name);
-            auto real_lhs_val =
-                Value::read_from_record(left_rec, cond_lhs_col_meta);
+            auto cond_rhs_col_meta = ColMeta::find_from_cols(right_cols, rhs_col.col_name);
+            auto real_rhs_val = Value::read_from_record(right_rec, cond_rhs_col_meta);
+            auto cond_lhs_col_meta = ColMeta::find_from_cols(left_cols, lhs_col.col_name);
+            auto real_lhs_val = Value::read_from_record(left_rec, cond_lhs_col_meta);
 
             return real_lhs_val == real_rhs_val;
         }
@@ -310,19 +291,17 @@ struct SetClause {
 
 struct OrderByCaluse {
     //                          is desc
-    std::vector<std::pair<TabCol,bool>> orderby_pair;
-
+    std::vector<std::pair<TabCol, bool>> orderby_pair;
 };
 struct LimitClause {
-    Value val;
+    int val;
 };
 
 inline bool type_compatible(ColType type1, ColType type2) {
     if ((type1 == TYPE_INT || type1 == TYPE_FLOAT || type1 == TYPE_BIGINT) &&
         (type2 == TYPE_INT || type2 == TYPE_FLOAT || type2 == TYPE_BIGINT)) {
         return true;
-    } else if ((type1 == TYPE_STRING || type1 == TYPE_DATETIME) &&
-               (type2 == TYPE_STRING || type2 == TYPE_DATETIME)) {
+    } else if ((type1 == TYPE_STRING || type1 == TYPE_DATETIME) && (type2 == TYPE_STRING || type2 == TYPE_DATETIME)) {
         return true;
     }
     return false;
