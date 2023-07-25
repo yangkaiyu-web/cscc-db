@@ -202,13 +202,10 @@ class IndexScanExecutor : public AbstractExecutor {
     virtual const std::vector<ColMeta> &cols() const { return cols_; }
 
     std::unique_ptr<RmRecord> Next() override { return fh_->get_record(rid_, context_); }
-    void beginTuple() override { throw UnreachableCodeError(); }
-    void nextTuple() override { throw UnreachableCodeError(); }
-    bool is_end() const override { throw UnreachableCodeError(); }
+
     std::string getType() override { return "IndexScanExecutor"; }
 
     size_t tupleLen() const override { throw UnreachableCodeError(); }
-    const std::vector<ColMeta> &cols() const override { throw UnreachableCodeError(); }
 
     Rid &rid() override { return rid_; }
 
