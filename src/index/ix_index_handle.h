@@ -221,8 +221,9 @@ class IxIndexHandle {
                   BufferPoolManager *buffer_pool_manager, int fd);
 
     // for search
-    bool get_value(const char *key,
-                   std::vector<std::pair<const char *, Rid>> *result,
+    bool is_exist(const char *key, Transaction *transaction);
+
+    bool get_value(const char *key, std::vector<Rid> &result,
                    Transaction *transaction);
 
     IxNodeHandle *find_leaf_page(const char *key, Operation operation,

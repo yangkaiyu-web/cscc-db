@@ -52,6 +52,22 @@ class DeleteExecutor : public AbstractExecutor {
             }
             if (cond_flag) {
                 fh_->delete_record(rid, context_);
+
+                for (auto &index : tab_.indexes) {
+                    auto ih =
+                        sm_manager_->ihs_.at(index.get_index_name()).get();
+                    char *key = new char[index.col_tot_len];
+                    int offset = 0;
+                    for (size_t j = 0; j < static_cast<size_t>(index.col_num);
+                         ++j) {
+                        memcpy(key + offset,
+                               record->data + index.cols[j].offset,
+                               index.cols[j].len);
+                        offset += index.cols[j].len;
+                    }
+                    ih->delete_entry(key, context_->txn_);
+                    delete[] key;
+                }
             }
         }
 

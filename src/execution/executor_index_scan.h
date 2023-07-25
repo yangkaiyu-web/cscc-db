@@ -139,7 +139,7 @@ class IndexScanExecutor : public AbstractExecutor {
                 }
                 ++i;
             }
-
+            // 下界大于上界，直接结束
             if (has_lower && has_upper &&
                 (lower_val > upper_val ||
                  (lower_val == upper_val && !(be && le)))) {

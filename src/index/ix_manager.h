@@ -126,7 +126,9 @@ class IxManager {
                 .prev_leaf = IX_NO_PAGE,
                 .next_leaf = IX_NO_PAGE,
             };
+            buffer_pool_manager_->unpin_page(page->get_page_id(), true);
             buffer_pool_manager_->flush_page(page->get_page_id());
+            buffer_pool_manager_->free_page(page->get_page_id());
         }
 
         // Close index file
@@ -197,6 +199,7 @@ class IxManager {
         delete[] data;
         // 缓冲区的所有页刷到磁盘，注意这句话必须写在close_file前面
         buffer_pool_manager_->flush_all_pages(ih->fd_);
+        buffer_pool_manager_->free_all_pages(ih->fd_);
         disk_manager_->close_file(ih->fd_);
     }
 };

@@ -25,9 +25,13 @@ RmScan::RmScan(const RmFileHandle *file_handle) : file_handle_(file_handle) {
             if (Bitmap::is_set(page_handle.bitmap, j)) {
                 rid_.page_no = i;
                 rid_.slot_no = j;
+                file_handle_->buffer_pool_manager_->unpin_page(
+                    page_handle.page->get_page_id(), false);
                 return;
             }
         }
+        file_handle_->buffer_pool_manager_->unpin_page(
+            page_handle.page->get_page_id(), false);
     }
     rid_.page_no = INVALID_PAGE_ID;
     rid_.slot_no = -1;
@@ -46,9 +50,13 @@ void RmScan::next() {
             if (Bitmap::is_set(page_handle.bitmap, j)) {
                 rid_.page_no = i;
                 rid_.slot_no = j;
+                file_handle_->buffer_pool_manager_->unpin_page(
+                    page_handle.page->get_page_id(), false);
                 return;
             }
         }
+        file_handle_->buffer_pool_manager_->unpin_page(
+            page_handle.page->get_page_id(), false);
     }
     rid_.page_no = INVALID_PAGE_ID;
     rid_.slot_no = -1;

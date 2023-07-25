@@ -181,9 +181,6 @@ bool BufferPoolManager::flush_page(PageId page_id) {
         page.is_dirty_ = false;
         disk_manager_->write_page(page.id_.fd, page.id_.page_no, page.data_,
                                   PAGE_SIZE);
-        replacer_->pin(frame_id);
-        page_table_.erase(page_id);
-        free_list_.push_back(frame_id);
         page_latches_[frame_id].unlock();
         return true;
     }
@@ -291,10 +288,46 @@ void BufferPoolManager::flush_all_pages(int fd) {
             page.is_dirty_ = false;
             disk_manager_->write_page(page_id.fd, page_id.page_no, page.data_,
                                       PAGE_SIZE);
+        }
+        page_latches_[i].unlock();
+    }
+}
+
+void BufferPoolManager::free_page(PageId page_id) {
+    latch_.lock();
+    if (page_table_.count(page_id) > 0) {
+        frame_id_t frame_id = page_table_[page_id];
+        // 注释assert时可注释掉page_latches_[frame_id].lock()
+        Page &page = pages_[frame_id];
+        page_latches_[frame_id].lock();
+        assert(page.pin_count_ == 0);
+        assert(page.is_dirty_ == false);
+        page.id_.page_no = INVALID_PAGE_ID;
+        page_latches_[frame_id].unlock();
+        replacer_->pin(frame_id);
+        page_table_.erase(page_id);
+        free_list_.push_back(frame_id);
+    }
+    latch_.unlock();
+}
+
+void BufferPoolManager::free_all_pages(int fd) {
+    for (size_t i = 0; i < pool_size_; ++i) {
+        latch_.lock();
+        Page &page = pages_[i];
+        page_latches_[i].lock();
+        auto page_id = page.get_page_id();
+        if (page_id.page_no != INVALID_PAGE_ID && page_id.fd == fd) {
+            assert(page.pin_count_ == 0);
+            assert(page.is_dirty_ == false);
+            page.id_.page_no = INVALID_PAGE_ID;
+            page_latches_[i].unlock();
             replacer_->pin(i);
             page_table_.erase(page_id);
             free_list_.push_back(i);
+        } else {
+            page_latches_[i].unlock();
         }
-        page_latches_[i].unlock();
+        latch_.unlock();
     }
 }

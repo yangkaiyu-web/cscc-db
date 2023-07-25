@@ -58,25 +58,6 @@ std::shared_ptr<Query> Analyze::do_analyze(
         // 处理where条件
         get_check_clause(x->conds, query->tables, query->conds);
     } else if (auto x = std::dynamic_pointer_cast<ast::UpdateStmt>(parse)) {
-        /** TODO: */
-
-        // conds.clear();
-        // for (auto &expr : sv_conds) {
-        //     Condition cond;
-        //     cond.lhs_col = {.tab_name = expr->lhs->tab_name, .col_name =
-        //     expr->lhs->col_name}; cond.op = convert_sv_comp_op(expr->op); if
-        //     (auto rhs_val = std::dynamic_pointer_cast<ast::Value>(expr->rhs))
-        //     {
-        //         cond.is_rhs_val = true;
-        //         cond.rhs_val = convert_sv_value(rhs_val);
-        //     } else if (auto rhs_col =
-        //     std::dynamic_pointer_cast<ast::Col>(expr->rhs)) {
-        //         cond.is_rhs_val = false;
-        //         cond.rhs_col = {.tab_name = rhs_col->tab_name, .col_name =
-        //         rhs_col->col_name};
-        //     }
-        //     conds.push_back(cond);
-        // }
         std::vector<ColMeta> all_cols;
         get_all_cols({x->tab_name}, all_cols);
 
@@ -90,9 +71,8 @@ std::shared_ptr<Query> Analyze::do_analyze(
             TabMeta &lhs_tab =
                 sm_manager_->db_.get_table(set_clause.lhs.tab_name);
             auto lhs_col = lhs_tab.get_col(set_clause.lhs.col_name);
-            ColType lhs_type = lhs_col->type;
 
-            set_clause.rhs = convert_sv_value(set_clause_ptr->val, lhs_type);
+            set_clause.rhs = convert_sv_value(set_clause_ptr->val, lhs_col);
             query->set_clauses.push_back(set_clause);
         }
 
@@ -140,7 +120,7 @@ std::shared_ptr<Query> Analyze::do_analyze(
         for (size_t i = 0; i < all_cols.size(); ++i) {
             TabMeta &tab = sm_manager_->db_.get_table(x->tab_name);
             auto col = tab.get_col(all_cols[i].name);
-            query->values.push_back(convert_sv_value(x->vals[i], col->type));
+            query->values.push_back(convert_sv_value(x->vals[i], col));
         }
     } else {
         // do nothing
@@ -218,8 +198,7 @@ void Analyze::get_check_clause(
         ColType rhs_type;
         if (auto rhs_val = std::dynamic_pointer_cast<ast::Value>(expr->rhs)) {
             cond.is_rhs_val = true;
-            cond.rhs_val = convert_sv_value(rhs_val, lhs_type);
-            cond.rhs_val.init_raw(lhs_col->len);
+            cond.rhs_val = convert_sv_value(rhs_val, lhs_col);
         } else if (auto rhs_col =
                        std::dynamic_pointer_cast<ast::Col>(expr->rhs)) {
             cond.is_rhs_val = false;
@@ -300,56 +279,57 @@ void Analyze::check_clause(const std::vector<std::string> &tab_names,
 
 // 有点冗长
 Value Analyze::convert_sv_value(const std::shared_ptr<ast::Value> &sv_val,
-                                ColType sv_cast_to_type) {
+                                std::vector<ColMeta>::iterator col) {
     Value val;
     if (auto int_bint_lit =
             std::dynamic_pointer_cast<ast::Int_Bint_Lit>(sv_val)) {
         const std::string &int_bint = int_bint_lit->val;
-        if (sv_cast_to_type == TYPE_BIGINT) {
+        if (col->type == TYPE_BIGINT) {
             if (no_overflow<int64_t>(int_bint)) {
                 val.set_bigint(std::stoll(int_bint));
             } else {
                 throw BigIntOverflowError(int_bint_lit->val);
             }
-        } else if (sv_cast_to_type == TYPE_INT) {
+        } else if (col->type == TYPE_INT) {
             // 检查范围防止溢出
             if (no_overflow<int>(int_bint)) {
                 val.set_int(static_cast<int>(std::stoi(int_bint)));
             } else {
                 throw IntOverflowError(int_bint_lit->val);
             }
-        } else if (sv_cast_to_type == TYPE_FLOAT) {
+        } else if (col->type == TYPE_FLOAT) {
             if (no_overflow<float>(int_bint)) {
                 val.set_float((static_cast<float>(std::stof(int_bint))));
             } else {
                 throw FloatOverflowError(int_bint_lit->val);
             }
         } else {
-            throw CastTypeError("int_bigint", coltype2str(sv_cast_to_type));
+            throw CastTypeError("int_bigint", coltype2str(col->type));
         }
     } else if (auto float_lit =
                    std::dynamic_pointer_cast<ast::FloatLit>(sv_val)) {
-        if (sv_cast_to_type == TYPE_FLOAT) {
+        if (col->type == TYPE_FLOAT) {
             val.set_float(float_lit->val);
-        } else if (sv_cast_to_type == TYPE_INT) {
+        } else if (col->type == TYPE_INT) {
             val.set_int(static_cast<int>(float_lit->val));
-        } else if (sv_cast_to_type == TYPE_BIGINT) {
+        } else if (col->type == TYPE_BIGINT) {
             val.set_bigint(static_cast<int64_t>(float_lit->val));
         } else {
-            throw CastTypeError("float", coltype2str(sv_cast_to_type));
+            throw CastTypeError("float", coltype2str(col->type));
         }
     } else if (auto str_lit =
                    std::dynamic_pointer_cast<ast::StringLit>(sv_val)) {
-        if (sv_cast_to_type == TYPE_STRING) {
+        if (col->type == TYPE_STRING) {
             val.set_str(str_lit->val);
-        } else if (sv_cast_to_type == TYPE_DATETIME) {
+        } else if (col->type == TYPE_DATETIME) {
             val.check_set_datetime(str_lit->val);
         } else {
-            throw CastTypeError("string", coltype2str(sv_cast_to_type));
+            throw CastTypeError("string", coltype2str(col->type));
         }
     } else {
         throw InternalError("Unexpected sv value type");
     }
+    val.init_raw(col->len);
     return val;
 }
 

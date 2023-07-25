@@ -36,7 +36,7 @@ def bench_run():
 def my_run():
 
     print("running rmdb")
-    os.chdir('/home/one/db2023/src/build')
+    os.chdir('/home/one/db2023/build')
     if os.path.exists('testdb'):
         import shutil
         shutil.rmtree('testdb', ignore_errors=True)

@@ -78,11 +78,15 @@ class RmFileHandle {
     RmFileHdr get_file_hdr() { return file_hdr_; }
     int GetFd() { return fd_; }
 
+    inline int get_record_size() const { return file_hdr_.record_size; }
+
     /* 判断指定位置上是否已经存在一条记录，通过Bitmap来判断 */
     bool is_record(const Rid &rid) const {
         RmPageHandle page_handle = fetch_page_handle(rid.page_no);
-        return Bitmap::is_set(page_handle.bitmap,
-                              rid.slot_no);  // page的slot_no位置上是否有record
+        bool res = Bitmap::is_set(page_handle.bitmap, rid.slot_no);
+        buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(),
+                                         false);
+        return res;  // page的slot_no位置上是否有record
     }
 
     std::unique_ptr<RmRecord> get_record(const Rid &rid,

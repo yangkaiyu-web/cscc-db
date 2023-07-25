@@ -174,6 +174,9 @@ int IxNodeHandle::insert(const char *key, const Rid &value) {
         ix_compare(get_key(key_idx), key, file_hdr->col_types_,
                    file_hdr->col_lens_) > 0) {
         insert_pair(key_idx, key, value);
+    } else {
+        assert(key_idx < page_hdr->num_key);
+        throw IndexEntryNotUniqueError();
     }
 
     return page_hdr->num_key;
@@ -279,6 +282,22 @@ IxNodeHandle *IxIndexHandle::find_leaf_page(const char *key,
     return tnode;
 }
 
+bool IxIndexHandle::is_exist(const char *key, Transaction *transaction) {
+    root_latch_.lock_shared();
+
+    IxNodeHandle *ix_hdl = find_leaf_page(key, Operation::FIND, transaction);
+    int key_idx = ix_hdl->lower_bound(key);
+    if (key_idx < ix_hdl->get_size() &&
+        ix_compare(key, ix_hdl->get_key(key_idx), file_hdr_->col_types_,
+                   file_hdr_->col_lens_) == 0) {
+        release_node_handle(ix_hdl, false);
+        root_latch_.unlock_shared();
+        return true;
+    }
+    release_node_handle(ix_hdl, false);
+    root_latch_.unlock_shared();
+    return false;
+}
 /**
  * @brief 用于查找指定键在叶子结点中的对应的值result
  *
@@ -287,8 +306,7 @@ IxNodeHandle *IxIndexHandle::find_leaf_page(const char *key,
  * @param transaction 事务指针
  * @return bool 返回目标键值对是否存在
  */
-bool IxIndexHandle::get_value(const char *key,
-                              std::vector<std::pair<const char *, Rid>> *result,
+bool IxIndexHandle::get_value(const char *key, std::vector<Rid> &result,
                               Transaction *transaction) {
     // Todo:
     // 1. 获取目标key值所在的叶子结点
@@ -296,6 +314,7 @@ bool IxIndexHandle::get_value(const char *key,
     // 3. 把rid存入result参数中
     // 提示：使用完buffer_pool提供的page之后，记得unpin
     // page；记得处理并发的上锁
+    result.clear();
     root_latch_.lock_shared();
 
     IxNodeHandle *ix_hdl = find_leaf_page(key, Operation::FIND, transaction);
@@ -303,13 +322,12 @@ bool IxIndexHandle::get_value(const char *key,
     while (key_idx < ix_hdl->get_size() &&
            ix_compare(key, ix_hdl->get_key(key_idx), file_hdr_->col_types_,
                       file_hdr_->col_lens_) == 0) {
-        result->push_back(std::make_pair(ix_hdl->get_key(key_idx),
-                                         *(ix_hdl->get_rid(key_idx))));
+        result.push_back(*ix_hdl->get_rid(key_idx));
         ++key_idx;
     }
-
+    release_node_handle(ix_hdl, false);
     root_latch_.unlock_shared();
-    return !result->empty();
+    return !result.empty();
 }
 
 /**
@@ -363,6 +381,7 @@ IxNodeHandle *IxIndexHandle::split(IxNodeHandle *node) {
         if (node->get_next_leaf() != IX_NO_PAGE) {
             IxNodeHandle *old_next_node = fetch_node(node->get_next_leaf());
             old_next_node->set_prev_leaf(new_node->get_page_no());
+            release_node_handle(old_next_node, true);
         } else {
             file_hdr_->last_leaf_ = new_node->get_page_no();
         }
@@ -386,6 +405,7 @@ IxNodeHandle *IxIndexHandle::split(IxNodeHandle *node) {
         if (node->get_next_leaf() != IX_NO_PAGE) {
             IxNodeHandle *old_next_node = fetch_node(node->get_next_leaf());
             old_next_node->set_prev_leaf(new_node->get_page_no());
+            release_node_handle(old_next_node, true);
         }
         node->set_next_leaf(new_node->get_page_no());
         for (int i = 0; i < split_to - split_from; ++i) {
@@ -483,7 +503,15 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value,
     std::scoped_lock lock(root_latch_);
     IxNodeHandle *old_ix_hdl =
         find_leaf_page(key, Operation::INSERT, transaction);
-    int pair_count = old_ix_hdl->insert(key, value);
+
+    int pair_count = 0;
+    try {
+        pair_count = old_ix_hdl->insert(key, value);
+    } catch (IndexEntryNotUniqueError &e) {
+        release_node_handle(old_ix_hdl, false);
+        throw e;
+    }
+
     if (pair_count > old_ix_hdl->get_max_key_size()) {
         assert(pair_count == old_ix_hdl->get_max_key_size() + 1);
         IxNodeHandle *prev_node = nullptr;
@@ -560,7 +588,7 @@ bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
             release_node_handle(old_ix_hdl, true);
         }
     }
-
+    release_node_handle(old_ix_hdl, true);
     return false;
 }
 
@@ -570,7 +598,7 @@ bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
  * @param node 执行完删除操作的结点
  * @param transaction 事务指针
  * @param root_is_latched 传出参数：根节点是否上锁，用于并发操作
- * @return 是否需要删除结点
+ * @return 是否需要删除结点node
  * @note User needs to first find the sibling of input page.
  * If sibling's size + input page's size >= 2 * page's minsize, then
  * redistribute. Otherwise, merge(Coalesce).
@@ -645,6 +673,7 @@ bool IxIndexHandle::adjust_root(IxNodeHandle *old_root_node) {
     buffer_pool_manager_->delete_page(old_root_node->get_page_id());
     file_hdr_->root_page_ = new_root_id;
     new_root->set_parent_page_no(IX_NO_PAGE);
+    release_node_handle(new_root, true);
     return true;
 }
 
@@ -897,6 +926,7 @@ Rid IxIndexHandle::get_rid(const Iid &iid) const {
     if (iid.slot_no == node->get_size()) {
         // 当upper/lower
         // bound返回key_num时（大于所有key）会出现这种情况，不能报异常
+        release_node_handle(node, false);  // unpin it!
         return {-1, -1};
     } else if (iid.slot_no > node->get_size()) {
         throw IndexEntryNotFoundError();
@@ -919,7 +949,9 @@ Rid IxIndexHandle::get_rid(const Iid &iid) const {
 Iid IxIndexHandle::lower_bound(const char *key, size_t pre) {
     IxNodeHandle *leaf_hdl = find_leaf_page(key, Operation::FIND, nullptr);
     int slot_no = leaf_hdl->lower_bound(key, pre);
-    return {leaf_hdl->get_page_no(), slot_no};
+    page_id_t page_id = leaf_hdl->get_page_no();
+    release_node_handle(leaf_hdl, false);
+    return {page_id, slot_no};
 }
 
 /**
@@ -931,7 +963,9 @@ Iid IxIndexHandle::lower_bound(const char *key, size_t pre) {
 Iid IxIndexHandle::upper_bound(const char *key, size_t pre) {
     IxNodeHandle *leaf_hdl = find_leaf_page(key, Operation::FIND, nullptr);
     int slot_no = leaf_hdl->upper_bound(key, pre);
-    return {leaf_hdl->get_page_no(), slot_no};
+    page_id_t page_id = leaf_hdl->get_page_no();
+    release_node_handle(leaf_hdl, false);
+    return {page_id, slot_no};
 }
 
 /**
