@@ -131,11 +131,52 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
                             std::vector<TabCol> sel_cols, Context *context) {
     std::vector<std::string> captions;
     captions.reserve(sel_cols.size());
+    // 处理表头
     for (auto &sel_col : sel_cols) {
-        if(sel_col.aggregate.get()!= NULL && sel_col.aggregate->another_name != "")
+        if(sel_col.aggregate.get()!= NULL && sel_col.aggregate->aggregate_type != 4)
         {
-            // as 的情况
-            captions.push_back(sel_col.aggregate->another_name);
+            if(sel_col.aggregate->another_name != "")
+            {
+                // as 的情况
+                captions.push_back(sel_col.aggregate->another_name);
+            }
+            else
+            {
+                std::string tmp_col_name;
+                switch (sel_col.aggregate->aggregate_type)
+                {
+                case 0:
+                    // COUNT
+                    tmp_col_name = "COUNT(";
+                    tmp_col_name.append(sel_col.col_name);
+                    tmp_col_name.append(")");
+                    captions.push_back(tmp_col_name);
+                    break;
+                case 1:
+                    // MAX
+                    tmp_col_name = "MAX(";
+                    tmp_col_name.append(sel_col.col_name);
+                    tmp_col_name.append(")");
+                    captions.push_back(tmp_col_name);
+                    break;
+                case 2:
+                    // MIN
+                    tmp_col_name = "MIN(";
+                    tmp_col_name.append(sel_col.col_name);
+                    tmp_col_name.append(")");
+                    captions.push_back(tmp_col_name);
+                    break;
+                case 3:
+                    // SUM
+                    tmp_col_name = "SUM(";
+                    tmp_col_name.append(sel_col.col_name);
+                    tmp_col_name.append(")");
+                    captions.push_back(tmp_col_name);
+                    break;
+                default:
+                    break;
+                }
+            }
         }
         else
         {

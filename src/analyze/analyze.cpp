@@ -56,7 +56,8 @@ std::shared_ptr<Query> Analyze::do_analyze(
             {
                 // 应该需要把投影列设置为主键列，这里不确定，先选上第一列
                 col.tab_name = all_cols[0].tab_name,
-                col.col_name = all_cols[0].name;        
+                col.col_name = all_cols[0].name;
+                if(col.aggregate->another_name == ""){col.aggregate->another_name = "COUNT(*)";}
             }
         }
         // select * 
