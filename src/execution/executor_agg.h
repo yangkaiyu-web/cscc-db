@@ -175,20 +175,21 @@ class AggExecutor : public AbstractExecutor {
     };
     void beginCount(){
         count_res_.set_int(0);
-        if(sel_col_.col_name == ""){
+        // if(sel_col_.col_name == ""){
             int res = 0;
             for (prev_->beginTuple(); !prev_->is_end(); prev_->nextTuple()) {
                 res += 1;
             }
             count_res_.set_int(res);
-        }else{
-            for (prev_->beginTuple(); !prev_->is_end(); prev_->nextTuple()) {
-                auto rec = prev_->Next();
-                auto val = Value::read_from_record(rec, prev_col_);
-                count_sets_.insert(std::move(val));
-            }
-            count_res_.set_int(count_sets_.size());
         }
+        // else{
+        //     for (prev_->beginTuple(); !prev_->is_end(); prev_->nextTuple()) {
+        //         auto rec = prev_->Next();
+        //         auto val = Value::read_from_record(rec, prev_col_);
+        //         count_sets_.insert(std::move(val));
+        //     }
+        //     count_res_.set_int(count_sets_.size());
+        // }
 
 
     };
