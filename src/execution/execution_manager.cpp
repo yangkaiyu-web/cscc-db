@@ -132,7 +132,15 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
     std::vector<std::string> captions;
     captions.reserve(sel_cols.size());
     for (auto &sel_col : sel_cols) {
-        captions.push_back(sel_col.col_name);
+        if(sel_col.aggregate.get()!= NULL && sel_col.aggregate->another_name != "")
+        {
+            // as 的情况
+            captions.push_back(sel_col.aggregate->another_name);
+        }
+        else
+        {
+            captions.push_back(sel_col.col_name);
+        }
     }
 
     // Print header into buffer
@@ -151,12 +159,21 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
 
     // Print records
     size_t num_rec = 0;
+
+    bool has_aggregate = false;
+    std::vector<std::string> tmp_item;
+
     // 执行query_plan
     for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end();
          executorTreeRoot->nextTuple()) {
         auto Tuple = executorTreeRoot->Next();
         std::vector<std::string> columns;
+        int col_id = 0;
         for (auto &col : executorTreeRoot->cols()) {
+            if(sel_cols[col_id].aggregate.get()!= NULL && sel_cols[col_id].aggregate->aggregate_type!= 4)
+            {
+                has_aggregate = true;
+            }
             std::string col_str;
             char *rec_buf = Tuple->data + col.offset;
             if (col.type == TYPE_INT) {
@@ -203,14 +220,107 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
                 col_str = fyear + "-" + fmonth + "-" + fday + " " + fhour +
                           ":" + fminute + ":" + fsec;
             }
-            columns.push_back(col_str);
+            if(has_aggregate)
+            {
+                // 处理聚集函数
+                switch(sel_cols[col_id].aggregate->aggregate_type){
+                    case 0:
+                        // COUNT
+                        if(tmp_item.size() <= col_id){tmp_item.push_back("1");}
+                        else
+                        {
+                            tmp_item[col_id] = std::to_string(atoi(tmp_item[col_id].c_str()) + 1);
+                        }
+                        break;
+                    case 1:
+                        // MAX
+                        if(tmp_item.size() <= col_id){tmp_item.push_back(col_str);}
+                        else
+                        {
+                            if(col.type == TYPE_INT)
+                            {
+                                tmp_item[col_id] = atoi(tmp_item[col_id].c_str()) > atoi(col_str.c_str()) ? tmp_item[col_id]:col_str;
+                            }
+                            else if(col.type == TYPE_FLOAT)
+                            {
+                                tmp_item[col_id] = atof(tmp_item[col_id].c_str()) > atof(col_str.c_str()) ? tmp_item[col_id]:col_str;
+                            }
+                            else if(col.type == TYPE_STRING)
+                            {
+                                tmp_item[col_id] = tmp_item[col_id] > col_str ? tmp_item[col_id]:col_str;
+                            }
+                            // 缺一个else，throw一个max参数类型错误
+                        }
+                        break;
+                    case 2:
+                        // MIN
+                        if(tmp_item.size() <= col_id){tmp_item.push_back(col_str);}
+                        else
+                        {
+                            if(col.type == TYPE_INT)
+                            {
+                                tmp_item[col_id] = atoi(tmp_item[col_id].c_str()) < atoi(col_str.c_str()) ? tmp_item[col_id]:col_str;
+                            }
+                            else if(col.type == TYPE_FLOAT)
+                            {
+                                tmp_item[col_id] = atof(tmp_item[col_id].c_str()) < atof(col_str.c_str()) ? tmp_item[col_id]:col_str;
+                            }
+                            else if(col.type == TYPE_STRING)
+                            {
+                                tmp_item[col_id] = tmp_item[col_id] < col_str ? tmp_item[col_id]:col_str;
+                            }
+                            // 缺一个else，throw一个max参数类型错误
+                        }
+                        break;
+                    case 3:
+                        // SUM
+                        if(col.type == TYPE_INT)
+                        {
+                            if(tmp_item.size() <= col_id){tmp_item.push_back(col_str);}
+                            else
+                            {
+                                tmp_item[col_id] = std::to_string(atoi(tmp_item[col_id].c_str()) + atoi(col_str.c_str()));
+                            }  
+                        }
+                        else if(col.type == TYPE_FLOAT)
+                        {
+                            if(tmp_item.size() <= col_id){tmp_item.push_back(col_str);}
+                            else
+                            {
+                                tmp_item[col_id] = std::to_string(atof(tmp_item[col_id].c_str()) + atof(col_str.c_str()));
+                            }  
+                        }
+                        // 缺一个else，throw一个sum参数类型错误
+                        break;
+                    default: break;
+                }
+            }
+            else
+            {
+                columns.push_back(col_str);
+            }
+            col_id++;
         }
+        if(has_aggregate){continue;}
         // print record into buffer
         rec_printer.print_record(columns, context);
         // print record into file
         outfile << "|";
         for (size_t i = 0; i < columns.size(); ++i) {
             outfile << " " << columns[i] << " |";
+        }
+        outfile << "\n";
+        num_rec++;
+    }
+    // 打印聚集函数相关
+    if(has_aggregate)
+    {
+        // print record into buffer
+        rec_printer.print_record(tmp_item, context);
+        // print record into file
+        outfile << "|";
+        for (int i = 0; i < tmp_item.size(); ++i) {
+            outfile << " " << tmp_item[i] << " |";
         }
         outfile << "\n";
         num_rec++;

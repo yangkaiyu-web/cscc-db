@@ -23,6 +23,8 @@ enum SvCompOp { SV_OP_EQ, SV_OP_NE, SV_OP_LT, SV_OP_GT, SV_OP_LE, SV_OP_GE };
 
 enum OrderByDir { OrderBy_DEFAULT, OrderBy_ASC, OrderBy_DESC };
 
+enum AggregateType { COUNT, MAX, MIN, SUM ,NONE};
+
 // Base class for tree nodes
 struct TreeNode {
     virtual ~TreeNode() = default;  // enable polymorphism
@@ -126,9 +128,11 @@ struct StringLit : public Value {
 struct Col : public Expr {
     std::string tab_name;
     std::string col_name;
+    AggregateType aggregate_type = NONE;
+    std::string another_name = "";
 
     Col(std::string tab_name_, std::string col_name_)
-        : tab_name(std::move(tab_name_)), col_name(std::move(col_name_)) {}
+        : tab_name(std::move(tab_name_)), col_name(std::move(col_name_)){}
 };
 
 struct SetClause : public TreeNode {
@@ -195,11 +199,21 @@ struct JoinExpr : public TreeNode {
         : left(std::move(left_)), right(std::move(right_)), conds(std::move(conds_)), type(type_) {}
 };
 
+// 聚合函数的抽象语法树节点
+struct Aggregate : public TreeNode {
+    std::shared_ptr<Col> cols;
+    AggregateType aggregate_type;
+    std::string another_name = "";
+    Aggregate(std::shared_ptr<Col> cols_, AggregateType aggregate_type_, std::string another_name_)
+        : cols(std::move(cols_)), aggregate_type(std::move(aggregate_type_)),another_name(std::move(another_name_)) {}
+};
+
 struct SelectStmt : public TreeNode {
     std::vector<std::shared_ptr<Col>> cols;
     std::vector<std::string> tabs;
     std::vector<std::shared_ptr<BinaryExpr>> conds;
     std::vector<std::shared_ptr<JoinExpr>> jointree;
+    std::vector<std::shared_ptr<Aggregate>> aggregates;
 
     bool has_sort;
     std::shared_ptr<OrderBys> orderbys;
@@ -250,6 +264,10 @@ struct SemValue {
 
     std::shared_ptr<BinaryExpr> sv_cond;
     std::vector<std::shared_ptr<BinaryExpr>> sv_conds;
+
+    AggregateType sv_aggregate_type;
+    // std::shared_ptr<Aggregate> sv_aggregate;
+    // std::vector<std::shared_ptr<Aggregate>> sv_aggregates;
 
     std::shared_ptr<OrderBy> sv_orderby;
     std::vector<std::shared_ptr<OrderBy>> sv_orderby_list;

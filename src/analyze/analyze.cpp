@@ -41,11 +41,25 @@ std::shared_ptr<Query> Analyze::do_analyze(
         for (auto &sv_sel_col : x->cols) {
             TabCol sel_col = {.tab_name = sv_sel_col->tab_name,
                               .col_name = sv_sel_col->col_name};
+            // 增加投影列聚集函数结构体的初始化（通过col中存的type和another_name信息）
+            sel_col.aggregate = std::make_unique<ast::Aggregate>(sv_sel_col,sv_sel_col->aggregate_type,sv_sel_col->another_name);
             query->cols.push_back(sel_col);
         }
 
+
         std::vector<ColMeta> all_cols;
         get_all_cols(query->tables, all_cols);
+        // 处理select COUNT（*）
+        for(auto &col : query->cols)
+        {
+            if(col.col_name == "") 
+            {
+                // 应该需要把投影列设置为主键列，这里不确定，先选上第一列
+                col.tab_name = all_cols[0].tab_name,
+                col.col_name = all_cols[0].name;        
+            }
+        }
+        // select * 
         if (query->cols.empty()) {
             // select all columns
             for (auto &col : all_cols) {
@@ -53,7 +67,8 @@ std::shared_ptr<Query> Analyze::do_analyze(
                                   .col_name = col.name};
                 query->cols.push_back(sel_col);
             }
-        } else {
+        }
+        else {
             // infer table name from column name
             for (auto &sel_col : query->cols) {
                 sel_col = check_column(all_cols, sel_col);  // 列元数据校验

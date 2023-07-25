@@ -1209,7 +1209,7 @@ YY_RULE_SETUP
 #line 121 "lex.l"
 { std::cerr << "Lexer Error: unexpected character " << yytext[0] << std::endl; }
 	YY_BREAK
-case 50:
+case 54:
 YY_RULE_SETUP
 #line 122 "lex.l"
 ECHO;

@@ -24,6 +24,7 @@ using namespace ast;
 // keywords
 %token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY LIMIT
 WHERE UPDATE SET SELECT INT CHAR FLOAT DATETIME INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY BIGINT
+COUNT MAX MIN SUM AS
 // non-keywords
 %token LEQ NEQ GEQ T_EOF
 
@@ -43,8 +44,8 @@ WHERE UPDATE SET SELECT INT CHAR FLOAT DATETIME INDEX AND JOIN EXIT HELP TXN_BEG
 %type <sv_vals> valueList
 %type <sv_str> tbName colName
 %type <sv_strs> tableList colNameList
-%type <sv_col> col
-%type <sv_cols> colList selector
+%type <sv_col> col aggregate_clause
+%type <sv_cols> colList selector aggregate_list
 %type <sv_set_clause> setClause
 %type <sv_set_clauses> setClauses
 %type <sv_cond> condition
@@ -53,6 +54,7 @@ WHERE UPDATE SET SELECT INT CHAR FLOAT DATETIME INDEX AND JOIN EXIT HELP TXN_BEG
 %type <sv_orderbys> opt_order_clause  
 %type <sv_orderby_list> order_clause_list
 %type <sv_limit>  opt_limit_clause
+%type <sv_aggregate_type>  aggregate_type
 %type <sv_orderby_dir> opt_asc_desc
 
 %%
@@ -347,6 +349,7 @@ selector:
         $$ = {};
     }
     |   colList
+    |   aggregate_list
     ;
 
 tableList:
@@ -363,6 +366,58 @@ tableList:
         $$.push_back($3);
     }
     ;
+
+aggregate_list:
+    aggregate_clause
+    {
+        $$  = std::vector<std::shared_ptr<Col>>{$1};
+    }
+    | aggregate_list ',' aggregate_clause
+    {
+        $$.push_back($3);
+    }
+
+aggregate_clause:
+    aggregate_type '(' col ')'
+    {
+        $$ = $3;
+        $$->aggregate_type = $1;
+    }
+    | aggregate_type '(' '*' ')'
+    {
+        $$ = std::make_shared<Col>("", "");
+        $$->aggregate_type = $1;;
+    }
+    | aggregate_type '(' col ')' AS colName
+    {
+        $$ = $3;
+        $$->aggregate_type = $1;
+        $$->another_name = $6;
+    }
+    | aggregate_type '(' '*' ')' AS colName
+    {
+        $$ = std::make_shared<Col>("", "");
+        $$->aggregate_type = $1;
+        $$->another_name = $6;
+    }
+
+aggregate_type:
+    COUNT
+    {
+        $$ = ast::COUNT;
+    }
+    | MAX
+    {
+        $$ = ast::MAX;
+    }
+    | MIN
+    {
+        $$ = ast::MIN;
+    }
+    | SUM
+    {
+        $$ = ast::SUM;
+    }
 
 opt_order_clause:
     ORDER BY order_clause_list      
