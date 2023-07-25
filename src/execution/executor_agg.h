@@ -181,7 +181,7 @@ class AggExecutor : public AbstractExecutor {
                 res += 1;
             }
             count_res_.set_int(res);
-        }
+        // }
         // else{
         //     for (prev_->beginTuple(); !prev_->is_end(); prev_->nextTuple()) {
         //         auto rec = prev_->Next();
