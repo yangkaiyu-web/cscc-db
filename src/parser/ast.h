@@ -199,21 +199,13 @@ struct JoinExpr : public TreeNode {
         : left(std::move(left_)), right(std::move(right_)), conds(std::move(conds_)), type(type_) {}
 };
 
-// 聚合函数的抽象语法树节点
-struct Aggregate : public TreeNode {
-    std::shared_ptr<Col> cols;
-    AggregateType aggregate_type;
-    std::string another_name = "";
-    Aggregate(std::shared_ptr<Col> cols_, AggregateType aggregate_type_, std::string another_name_)
-        : cols(std::move(cols_)), aggregate_type(std::move(aggregate_type_)),another_name(std::move(another_name_)) {}
-};
 
 struct SelectStmt : public TreeNode {
     std::vector<std::shared_ptr<Col>> cols;
     std::vector<std::string> tabs;
     std::vector<std::shared_ptr<BinaryExpr>> conds;
     std::vector<std::shared_ptr<JoinExpr>> jointree;
-    std::vector<std::shared_ptr<Aggregate>> aggregates;
+
 
     bool has_sort;
     std::shared_ptr<OrderBys> orderbys;
@@ -266,8 +258,6 @@ struct SemValue {
     std::vector<std::shared_ptr<BinaryExpr>> sv_conds;
 
     AggregateType sv_aggregate_type;
-    // std::shared_ptr<Aggregate> sv_aggregate;
-    // std::vector<std::shared_ptr<Aggregate>> sv_aggregates;
 
     std::shared_ptr<OrderBy> sv_orderby;
     std::vector<std::shared_ptr<OrderBy>> sv_orderby_list;

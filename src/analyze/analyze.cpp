@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <iomanip>
 #include <limits>
+#include <memory>
 #include <utility>
 
 #include "common/common.h"
@@ -38,10 +39,36 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
 
         // 处理target list，再target list中添加上表名，例如 a.id
         for (auto &sv_sel_col : x->cols) {
-            TabCol sel_col = {.tab_name = sv_sel_col->tab_name, .col_name = sv_sel_col->col_name};
-            // 增加投影列聚集函数结构体的初始化（通过col中存的type和another_name信息）
-            sel_col.aggregate =
-                std::make_unique<ast::Aggregate>(sv_sel_col, sv_sel_col->aggregate_type, sv_sel_col->another_name);
+            TabCol sel_col;
+            sel_col.tab_name = sv_sel_col->tab_name;
+            sel_col.col_name = sv_sel_col->col_name;
+            sel_col.has_agg=false;
+            if (sv_sel_col->aggregate_type != ast::AggregateType::NONE) {
+                sel_col.has_agg=true;
+                sel_col.agg_arg_col_name=sel_col.col_name;
+                switch (sv_sel_col->aggregate_type) {
+                    case ast::AggregateType::MAX:
+                        sel_col.aggregate_type = AggType::MAX;
+                        break;
+                    case ast::AggregateType::COUNT:
+                        sel_col.aggregate_type = AggType::COUNT;
+                        break;
+                    case ast::AggregateType::MIN:
+                        sel_col.aggregate_type = AggType::MIN;
+                        break;
+                    case ast::AggregateType::SUM:
+                        sel_col.aggregate_type = AggType::SUM;
+                        break;
+
+                    default:
+                        throw InternalError("unknown agg function");
+                }
+                // if(sv_sel_col->another_name.size()!=0){
+                //     sel_col.col_name = sv_sel_col->another_name;
+                // }else {
+                //     sel_col.col_name=tmp_col_name;
+                // }
+            }
             query->cols.push_back(sel_col);
         }
 
@@ -49,11 +76,9 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         get_all_cols(query->tables, all_cols);
         // 处理select COUNT（*）
         for (auto &col : query->cols) {
-            if (col.col_name == "") {
-                // 应该需要把投影列设置为主键列，这里不确定，先选上第一列
-                col.tab_name = all_cols[0].tab_name, col.col_name = all_cols[0].name;
-                if (col.aggregate->another_name == "") {
-                    col.aggregate->another_name = "COUNT(*)";
+            if (col.col_name == "" ) {
+                if (col.another_name == "") {
+                    col.another_name = "COUNT(*)";
                 }
             }
         }

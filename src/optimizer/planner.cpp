@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 #include <algorithm>
 #include <memory>
 
+#include "common/common.h"
 #include "defs.h"
 #include "errors.h"
 #include "execution/executor_delete.h"
@@ -23,6 +24,7 @@ See the Mulan PSL v2 for more details. */
 #include "execution/executor_seq_scan.h"
 #include "execution/executor_update.h"
 #include "index/ix.h"
+#include "optimizer/plan.h"
 #include "record_printer.h"
 
 // 目前的索引匹配规则为：自动调整where条件的顺序
@@ -278,7 +280,28 @@ std::shared_ptr<Plan> Planner::make_one_rel(std::shared_ptr<Query> query) {
     return table_join_executors;
 }
 
-std::shared_ptr<Plan> Planner::generate_sort_plan(std::shared_ptr<Query> query, std::shared_ptr<Plan> plan) {
+std::shared_ptr<Plan> Planner::generate_agg_plan(std::shared_ptr<Query> query,
+                                                  std::shared_ptr<Plan> plan) {
+    bool has_agg=false;
+    for(auto&col :query->cols){
+        if(col.has_agg){
+            has_agg=true;
+            // TODO: 这里怎么检测非法情况，因为不支持group by,所以col list里，只能由一个聚集函数且普通列名不能同时出现
+            // bool ok = 
+            // if(query->cols.size()!=1){
+            //     throw InternalError("not support cols and agg like 'select a,count(b) from t1;'");
+            // }
+        }
+    }
+    if (!has_agg) {
+        return plan;
+    }
+    auto col = query->cols[0];
+    return std::make_shared<AggPlan>(
+        T_Sort, std::move(plan), col);
+}
+std::shared_ptr<Plan> Planner::generate_sort_plan(std::shared_ptr<Query> query,
+                                                  std::shared_ptr<Plan> plan) {
     auto x = std::dynamic_pointer_cast<ast::SelectStmt>(query->parse);
     if (!x->has_sort) {
         return plan;
@@ -304,7 +327,27 @@ std::shared_ptr<Plan> Planner::generate_select_plan(std::shared_ptr<Query> query
     // 物理优化
     auto sel_cols = query->cols;
     std::shared_ptr<Plan> plannerRoot = physical_optimization(query, context);
-    plannerRoot = std::make_shared<ProjectionPlan>(T_Projection, std::move(plannerRoot), std::move(sel_cols));
+
+    // handle count(*)
+    // TODO:有更好的方式
+    if(sel_cols.size()==1 && sel_cols[0].col_name=="" && sel_cols[0].has_agg &&
+        sel_cols[0].aggregate_type==AggType::COUNT){
+        sel_cols.clear();
+        std::vector<ColMeta> all_cols;
+        for (const auto &sel_tab_name :query->tables) {
+            // 这里db_不能写成get_db(), 注意要传指针
+            const auto &sel_tab_cols = sm_manager_->db_.get_table(sel_tab_name).cols;
+            for(const auto& col : sel_tab_cols){
+                TabCol sel_col = {.tab_name = col.tab_name, .col_name = col.name};
+                sel_cols.emplace_back(sel_col);
+            }
+
+        }
+    }
+    plannerRoot = std::make_shared<ProjectionPlan>(
+        T_Projection, std::move(plannerRoot), std::move(sel_cols));
+    // agg
+    plannerRoot= generate_agg_plan(query, std::move(plannerRoot));
 
     return plannerRoot;
 }

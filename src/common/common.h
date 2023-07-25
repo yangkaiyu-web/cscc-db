@@ -22,10 +22,16 @@ See the Mulan PSL v2 for more details. */
 #include "record/rm_defs.h"
 #include "system/sm_meta.h"
 
+enum AggType { COUNT, MAX, MIN, SUM };
+
 struct TabCol {
     std::string tab_name;
     std::string col_name;
-    std::shared_ptr<ast::Aggregate> aggregate;
+    bool has_agg;
+    AggType aggregate_type;
+    std::string another_name = "";
+    std::string agg_arg_col_name;
+
 
     friend bool operator<(const TabCol &x, const TabCol &y) {
         return std::make_pair(x.tab_name, x.col_name) < std::make_pair(y.tab_name, y.col_name);
@@ -93,6 +99,24 @@ struct Value {
             }
         }
         return ret;
+    }
+ // MyNumber operator+(const MyNumber& other) const {
+ //        MyNumber result(value + other.value);
+ //        return result;
+ //    }
+    friend Value operator+(const Value &x, const Value &y) { 
+        Value ret ;
+        if(x.type==TYPE_FLOAT && y.type==TYPE_FLOAT){
+            float tmp = x.float_val + y.float_val;
+            ret.set_float(tmp);
+        }else if (x.type==TYPE_INT && y.type==TYPE_INT){
+            int tmp = x.int_val+y.int_val;
+            ret.set_int(tmp);
+        }else {
+            throw InternalError("error value plus operator type");
+        }
+        return ret;
+
     }
     friend bool operator<=(const Value &x, const Value &y) { return !(x > y); }
     friend bool operator>=(const Value &x, const Value &y) { return !(x < y); }
