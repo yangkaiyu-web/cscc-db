@@ -45,6 +45,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
             sel_col.has_agg=false;
             if (sv_sel_col->aggregate_type != ast::AggregateType::NONE) {
                 sel_col.has_agg=true;
+                sel_col.another_name = sv_sel_col->another_name;
                 sel_col.agg_arg_col_name=sel_col.col_name;
                 switch (sv_sel_col->aggregate_type) {
                     case ast::AggregateType::MAX:
@@ -187,7 +188,8 @@ TabCol Analyze::check_column(const std::vector<ColMeta> &all_cols, TabCol target
                 tab_name = col.tab_name;
             }
         }
-        if (tab_name.empty()) {
+        // NOTE: 好蠢的 修补  "count(*) 找不到 column " 的方式
+        if (tab_name.empty() && !target.has_agg) {
             throw ColumnNotFoundError(target.col_name);
         }
         target.tab_name = tab_name;

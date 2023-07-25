@@ -1,6 +1,6 @@
-#line 2 "/home/yonchicy/rmdb/src/parser/lex.yy.cpp"
+#line 2 "/root/rmdb/src/parser/lex.yy.cpp"
 
-#line 4 "/home/yonchicy/rmdb/src/parser/lex.yy.cpp"
+#line 4 "/root/rmdb/src/parser/lex.yy.cpp"
 
 #define  YY_INT_ALIGNED short int
 
@@ -646,9 +646,9 @@ int64_t S64(const char *s);
         } \
     }
 
-#line 650 "/home/yonchicy/rmdb/src/parser/lex.yy.cpp"
+#line 650 "/root/rmdb/src/parser/lex.yy.cpp"
 
-#line 652 "/home/yonchicy/rmdb/src/parser/lex.yy.cpp"
+#line 652 "/root/rmdb/src/parser/lex.yy.cpp"
 
 #define INITIAL 0
 #define STATE_COMMENT 1
@@ -886,7 +886,7 @@ YY_DECL
 
 #line 51 "lex.l"
     /* block comment */
-#line 890 "/home/yonchicy/rmdb/src/parser/lex.yy.cpp"
+#line 890 "/root/rmdb/src/parser/lex.yy.cpp"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1246,7 +1246,7 @@ YY_RULE_SETUP
 #line 127 "lex.l"
 ECHO;
 	YY_BREAK
-#line 1250 "/home/yonchicy/rmdb/src/parser/lex.yy.cpp"
+#line 1250 "/root/rmdb/src/parser/lex.yy.cpp"
 
 	case YY_END_OF_BUFFER:
 		{

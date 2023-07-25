@@ -29,10 +29,12 @@ class AggExecutor : public AbstractExecutor {
     Value sum_res_;
     Value count_res_;
     std::set<Value> count_sets_;
+    bool is_result_used_ ;
 
    public:
     AggExecutor(std::unique_ptr<AbstractExecutor> prev, TabCol &sel_col) {
         count_sets_={};
+        is_result_used_=false;
         assert(sel_col.has_agg);
         prev_ = std::move(prev);
         // ssize_t curr_offset = 0;
@@ -85,8 +87,8 @@ class AggExecutor : public AbstractExecutor {
                 res_col.tab_name="";
                 
                 res_col.name= sel_col_.another_name==""? "COUNT("+sel_col.col_name+")":sel_col_.another_name;
-                res_col.type=prev_col_.type;
-                res_col.len=prev_col_.len;
+                res_col.type=TYPE_INT;
+                res_col.len=sizeof(int);
                 break;
             default:
                 throw InternalError("unsupported agg function");
@@ -197,32 +199,36 @@ class AggExecutor : public AbstractExecutor {
     }
 
     std::unique_ptr<RmRecord> Next() override {
-        
-        std::unique_ptr<RmRecord> ptr = std::make_unique<RmRecord>(len_);
+        is_result_used_=true;
         Value ret ;
+        int res_len;
         switch (sel_col_.aggregate_type) {
             case AggType::MAX:
                 ret  = max_res_;
+                res_len = len_;
                 break;
             case AggType::MIN:
                 ret  = min_res_;
+                res_len = len_;
                 break;
             case AggType::SUM:
                 ret  = sum_res_;
+                res_len = len_;
                 break;
             case AggType::COUNT:
                 ret  = count_res_;
+                res_len = sizeof(int);
                 break;
             default:
                 throw InternalError("unsupported agg function");
         }
-        ret.init_raw(len_);
+        std::unique_ptr<RmRecord> ptr = std::make_unique<RmRecord>(res_len);
+        ret.init_raw(res_len);
         ptr->SetData(ret.raw->data);
         return ptr;
     }
     bool is_end() const override {
-        bool ret = prev_->is_end();
-        return ret;
+        return is_result_used_;
     }
 
     size_t tupleLen() const override { return len_; };
