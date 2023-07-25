@@ -60,13 +60,11 @@ void QlManager::run_mutli_query(std::shared_ptr<Plan> plan, Context *context) {
                 break;
             }
             case T_CreateIndex: {
-                sm_manager_->create_index(x->tab_name_, x->tab_col_names_,
-                                          context);
+                sm_manager_->create_index(x->tab_name_, x->tab_col_names_, context);
                 break;
             }
             case T_DropIndex: {
-                sm_manager_->drop_index(x->tab_name_, x->tab_col_names_,
-                                        context);
+                sm_manager_->drop_index(x->tab_name_, x->tab_col_names_, context);
                 break;
             }
             case T_ShowIndex: {
@@ -81,13 +79,11 @@ void QlManager::run_mutli_query(std::shared_ptr<Plan> plan, Context *context) {
 }
 
 // 执行help; show tables; desc table; begin; commit; abort;语句
-void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id,
-                                Context *context) {
+void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id, Context *context) {
     if (auto x = std::dynamic_pointer_cast<OtherPlan>(plan)) {
         switch (x->tag) {
             case T_Help: {
-                memcpy(context->data_send_ + *(context->offset_), help_info,
-                       strlen(help_info));
+                memcpy(context->data_send_ + *(context->offset_), help_info, strlen(help_info));
                 *(context->offset_) = strlen(help_info);
                 break;
             }
@@ -127,59 +123,52 @@ void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id,
 }
 
 // 执行select语句，select语句的输出除了需要返回客户端外，还需要写入output.txt文件中
-void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
-                            std::vector<TabCol> sel_cols, Context *context) {
+void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, std::vector<TabCol> sel_cols,
+                            Context *context) {
     std::vector<std::string> captions;
     captions.reserve(sel_cols.size());
     // 处理表头
     for (auto &sel_col : sel_cols) {
-        if(sel_col.aggregate.get()!= NULL && sel_col.aggregate->aggregate_type != 4)
-        {
-            if(sel_col.aggregate->another_name != "")
-            {
+        if (sel_col.aggregate.get() != NULL && sel_col.aggregate->aggregate_type != 4) {
+            if (sel_col.aggregate->another_name != "") {
                 // as 的情况
                 captions.push_back(sel_col.aggregate->another_name);
-            }
-            else
-            {
+            } else {
                 std::string tmp_col_name;
-                switch (sel_col.aggregate->aggregate_type)
-                {
-                case 0:
-                    // COUNT
-                    tmp_col_name = "COUNT(";
-                    tmp_col_name.append(sel_col.col_name);
-                    tmp_col_name.append(")");
-                    captions.push_back(tmp_col_name);
-                    break;
-                case 1:
-                    // MAX
-                    tmp_col_name = "MAX(";
-                    tmp_col_name.append(sel_col.col_name);
-                    tmp_col_name.append(")");
-                    captions.push_back(tmp_col_name);
-                    break;
-                case 2:
-                    // MIN
-                    tmp_col_name = "MIN(";
-                    tmp_col_name.append(sel_col.col_name);
-                    tmp_col_name.append(")");
-                    captions.push_back(tmp_col_name);
-                    break;
-                case 3:
-                    // SUM
-                    tmp_col_name = "SUM(";
-                    tmp_col_name.append(sel_col.col_name);
-                    tmp_col_name.append(")");
-                    captions.push_back(tmp_col_name);
-                    break;
-                default:
-                    break;
+                switch (sel_col.aggregate->aggregate_type) {
+                    case 0:
+                        // COUNT
+                        tmp_col_name = "COUNT(";
+                        tmp_col_name.append(sel_col.col_name);
+                        tmp_col_name.append(")");
+                        captions.push_back(tmp_col_name);
+                        break;
+                    case 1:
+                        // MAX
+                        tmp_col_name = "MAX(";
+                        tmp_col_name.append(sel_col.col_name);
+                        tmp_col_name.append(")");
+                        captions.push_back(tmp_col_name);
+                        break;
+                    case 2:
+                        // MIN
+                        tmp_col_name = "MIN(";
+                        tmp_col_name.append(sel_col.col_name);
+                        tmp_col_name.append(")");
+                        captions.push_back(tmp_col_name);
+                        break;
+                    case 3:
+                        // SUM
+                        tmp_col_name = "SUM(";
+                        tmp_col_name.append(sel_col.col_name);
+                        tmp_col_name.append(")");
+                        captions.push_back(tmp_col_name);
+                        break;
+                    default:
+                        break;
                 }
             }
-        }
-        else
-        {
+        } else {
             captions.push_back(sel_col.col_name);
         }
     }
@@ -205,14 +194,12 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
     std::vector<std::string> tmp_item;
 
     // 执行query_plan
-    for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end();
-         executorTreeRoot->nextTuple()) {
+    for (executorTreeRoot->beginTuple(); !executorTreeRoot->is_end(); executorTreeRoot->nextTuple()) {
         auto Tuple = executorTreeRoot->Next();
         std::vector<std::string> columns;
         int col_id = 0;
         for (auto &col : executorTreeRoot->cols()) {
-            if(sel_cols[col_id].aggregate.get()!= NULL && sel_cols[col_id].aggregate->aggregate_type!= 4)
-            {
+            if (sel_cols[col_id].aggregate.get() != NULL && sel_cols[col_id].aggregate->aggregate_type != 4) {
                 has_aggregate = true;
             }
             std::string col_str;
@@ -228,137 +215,109 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
                 col_str.resize(strlen(col_str.c_str()));
             } else if (col.type == TYPE_DATETIME) {
                 int64_t tmp = *(int64_t *)rec_buf;
-                const std::string &year =
-                    std::to_string((tmp >> 40) & 0b1111111111111111);
-                const std::string &fyear =
-                    std::string(4 - year.size(), '0') + year;
+                const std::string &year = std::to_string((tmp >> 40) & 0b1111111111111111);
+                const std::string &fyear = std::string(4 - year.size(), '0') + year;
 
-                const std::string &month =
-                    std::to_string((tmp >> 32) & 0b11111111);
-                const std::string &fmonth =
-                    std::string(2 - month.size(), '0') + month;
+                const std::string &month = std::to_string((tmp >> 32) & 0b11111111);
+                const std::string &fmonth = std::string(2 - month.size(), '0') + month;
 
-                const std::string &day =
-                    std::to_string((tmp >> 24) & 0b11111111);
-                const std::string &fday =
-                    std::string(2 - day.size(), '0') + day;
+                const std::string &day = std::to_string((tmp >> 24) & 0b11111111);
+                const std::string &fday = std::string(2 - day.size(), '0') + day;
 
-                const std::string &hour =
-                    std::to_string((tmp >> 16) & 0b11111111);
-                const std::string &fhour =
-                    std::string(2 - hour.size(), '0') + hour;
+                const std::string &hour = std::to_string((tmp >> 16) & 0b11111111);
+                const std::string &fhour = std::string(2 - hour.size(), '0') + hour;
 
-                const std::string &minute =
-                    std::to_string((tmp >> 8) & 0b11111111);
-                const std::string &fminute =
-                    std::string(2 - minute.size(), '0') + minute;
+                const std::string &minute = std::to_string((tmp >> 8) & 0b11111111);
+                const std::string &fminute = std::string(2 - minute.size(), '0') + minute;
 
                 const std::string &sec = std::to_string(tmp & 0b11111111);
-                const std::string &fsec =
-                    std::string(2 - sec.size(), '0') + sec;
+                const std::string &fsec = std::string(2 - sec.size(), '0') + sec;
 
                 // YYYY-MM-DD HH:MM:SS
-                col_str = fyear + "-" + fmonth + "-" + fday + " " + fhour +
-                          ":" + fminute + ":" + fsec;
+                col_str = fyear + "-" + fmonth + "-" + fday + " " + fhour + ":" + fminute + ":" + fsec;
             }
-            if(has_aggregate)
-            {
+            if (has_aggregate) {
                 // 处理聚集函数
-                switch(sel_cols[col_id].aggregate->aggregate_type){
+                switch (sel_cols[col_id].aggregate->aggregate_type) {
                     case 0:
                         // COUNT
-                        if(col.type == TYPE_INT || col.type == TYPE_FLOAT || col.type == TYPE_STRING)
-                        {
-                            if(tmp_item.size() <= col_id){tmp_item.push_back("1");}
-                            else
-                            {
+                        if (col.type == TYPE_INT || col.type == TYPE_FLOAT || col.type == TYPE_STRING) {
+                            if (tmp_item.size() <= col_id) {
+                                tmp_item.push_back("1");
+                            } else {
                                 tmp_item[col_id] = std::to_string(atoi(tmp_item[col_id].c_str()) + 1);
                             }
-                        }
-                        else
-                        {
+                        } else {
                             throw AggregateParamFormatError("COUNT");
                         }
                         break;
                     case 1:
                         // MAX
-                        if(tmp_item.size() <= col_id){tmp_item.push_back(col_str);}
-                        else
-                        {
-                            if(col.type == TYPE_INT)
-                            {
-                                tmp_item[col_id] = atoi(tmp_item[col_id].c_str()) > atoi(col_str.c_str()) ? tmp_item[col_id]:col_str;
-                            }
-                            else if(col.type == TYPE_FLOAT)
-                            {
-                                tmp_item[col_id] = atof(tmp_item[col_id].c_str()) > atof(col_str.c_str()) ? tmp_item[col_id]:col_str;
-                            }
-                            else if(col.type == TYPE_STRING)
-                            {
-                                tmp_item[col_id] = tmp_item[col_id] > col_str ? tmp_item[col_id]:col_str;
-                            }
-                            else
-                            {
+                        if (tmp_item.size() <= col_id) {
+                            tmp_item.push_back(col_str);
+                        } else {
+                            if (col.type == TYPE_INT) {
+                                tmp_item[col_id] =
+                                    atoi(tmp_item[col_id].c_str()) > atoi(col_str.c_str()) ? tmp_item[col_id] : col_str;
+                            } else if (col.type == TYPE_FLOAT) {
+                                tmp_item[col_id] =
+                                    atof(tmp_item[col_id].c_str()) > atof(col_str.c_str()) ? tmp_item[col_id] : col_str;
+                            } else if (col.type == TYPE_STRING) {
+                                tmp_item[col_id] = tmp_item[col_id] > col_str ? tmp_item[col_id] : col_str;
+                            } else {
                                 throw AggregateParamFormatError("MAX");
                             }
                         }
                         break;
                     case 2:
                         // MIN
-                        if(tmp_item.size() <= col_id){tmp_item.push_back(col_str);}
-                        else
-                        {
-                            if(col.type == TYPE_INT)
-                            {
-                                tmp_item[col_id] = atoi(tmp_item[col_id].c_str()) < atoi(col_str.c_str()) ? tmp_item[col_id]:col_str;
-                            }
-                            else if(col.type == TYPE_FLOAT)
-                            {
-                                tmp_item[col_id] = atof(tmp_item[col_id].c_str()) < atof(col_str.c_str()) ? tmp_item[col_id]:col_str;
-                            }
-                            else if(col.type == TYPE_STRING)
-                            {
-                                tmp_item[col_id] = tmp_item[col_id] < col_str ? tmp_item[col_id]:col_str;
-                            }
-                            else
-                            {
+                        if (tmp_item.size() <= col_id) {
+                            tmp_item.push_back(col_str);
+                        } else {
+                            if (col.type == TYPE_INT) {
+                                tmp_item[col_id] =
+                                    atoi(tmp_item[col_id].c_str()) < atoi(col_str.c_str()) ? tmp_item[col_id] : col_str;
+                            } else if (col.type == TYPE_FLOAT) {
+                                tmp_item[col_id] =
+                                    atof(tmp_item[col_id].c_str()) < atof(col_str.c_str()) ? tmp_item[col_id] : col_str;
+                            } else if (col.type == TYPE_STRING) {
+                                tmp_item[col_id] = tmp_item[col_id] < col_str ? tmp_item[col_id] : col_str;
+                            } else {
                                 throw AggregateParamFormatError("MIN");
                             }
                         }
                         break;
                     case 3:
                         // SUM
-                        if(col.type == TYPE_INT)
-                        {
-                            if(tmp_item.size() <= col_id){tmp_item.push_back(col_str);}
-                            else
-                            {
-                                tmp_item[col_id] = std::to_string(atoi(tmp_item[col_id].c_str()) + atoi(col_str.c_str()));
-                            }  
-                        }
-                        else if(col.type == TYPE_FLOAT)
-                        {
-                            if(tmp_item.size() <= col_id){tmp_item.push_back(col_str);}
-                            else
-                            {
-                                tmp_item[col_id] = std::to_string(atof(tmp_item[col_id].c_str()) + atof(col_str.c_str()));
-                            }  
-                        }
-                        else
-                        {
+                        if (col.type == TYPE_INT) {
+                            if (tmp_item.size() <= col_id) {
+                                tmp_item.push_back(col_str);
+                            } else {
+                                tmp_item[col_id] =
+                                    std::to_string(atoi(tmp_item[col_id].c_str()) + atoi(col_str.c_str()));
+                            }
+                        } else if (col.type == TYPE_FLOAT) {
+                            if (tmp_item.size() <= col_id) {
+                                tmp_item.push_back(col_str);
+                            } else {
+                                tmp_item[col_id] =
+                                    std::to_string(atof(tmp_item[col_id].c_str()) + atof(col_str.c_str()));
+                            }
+                        } else {
                             throw AggregateParamFormatError("SUM");
                         }
                         break;
-                    default: break;
+                    default:
+                        break;
                 }
-            }
-            else
-            {
+            } else {
                 columns.push_back(col_str);
             }
             col_id++;
         }
-        if(has_aggregate){continue;}
+        if (has_aggregate) {
+            continue;
+        }
         // print record into buffer
         rec_printer.print_record(columns, context);
         // print record into file
@@ -370,8 +329,7 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
         num_rec++;
     }
     // 打印聚集函数相关
-    if(has_aggregate)
-    {
+    if (has_aggregate) {
         num_rec = 1;
         // print record into buffer
         rec_printer.print_record(tmp_item, context);
@@ -390,6 +348,4 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
 }
 
 // 执行DML语句
-void QlManager::run_dml(std::unique_ptr<AbstractExecutor> exec) {
-    exec->Next();
-}
+void QlManager::run_dml(std::unique_ptr<AbstractExecutor> exec) { exec->Next(); }

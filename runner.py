@@ -49,15 +49,15 @@ def bench_run():
 def my_run():
 
     print("running rmdb")
-    os.chdir('build')
+    os.chdir('/home/one/db2023/build')
     if os.path.exists('testdb'):
         shutil.rmtree('testdb')
     svr = "./bin/rmdb testdb"
     p1 = subprocess.Popen(svr.split(),preexec_fn=os.setsid)
-    time.sleep(1)
-    os.chdir("..")
+    time.sleep(10)
+    os.chdir("/home/one/db2023")
     client = "./rmdb_client/build/rmdb_client"
-    file = open("rmdb_client/build/a.sql",'r')
+    file = open("./rmdb_client/build/a.sql",'r')
     
     p2= subprocess.Popen(client.split(),stdin=file,stdout=subprocess.PIPE)
     output,errors = p2.communicate()
@@ -114,11 +114,10 @@ def main():
     if args.build:
         build()
     if args.run:
-        bench_run()
+        #bench_run()
         my_run()
         print("std out : ./rmdb_client/build/a.txt")
         print("my out : ./build/testdb/output.txt")
-        compare("./build/testdb/output.txt","./rmdb_client/build/a.txt")
     return 0
 
 

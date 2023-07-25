@@ -42,7 +42,7 @@ class DeleteExecutor : public AbstractExecutor {
 
     std::unique_ptr<RmRecord> Next() override {
         for (auto &rid : rids_) {
-            std::shared_ptr<RmRecord> record = fh_->get_record(rid, context_);
+            std::unique_ptr<RmRecord> record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
             for (auto &cond : conds_) {
