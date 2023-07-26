@@ -49,13 +49,13 @@ def bench_run():
 def my_run():
 
     print("running rmdb")
-    os.chdir('/home/one/db2023/build')
+    os.chdir('build')
     if os.path.exists('testdb'):
         shutil.rmtree('testdb')
     svr = "./bin/rmdb testdb"
     p1 = subprocess.Popen(svr.split(),preexec_fn=os.setsid)
     time.sleep(10)
-    os.chdir("/home/one/db2023")
+    os.chdir("..")
     client = "./rmdb_client/build/rmdb_client"
     file = open("./rmdb_client/build/a.sql",'r')
     
