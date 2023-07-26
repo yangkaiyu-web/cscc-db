@@ -74,7 +74,9 @@ class SeqScanExecutor : public AbstractExecutor {
 
     void nextTuple() override {
         Rid rid;
-        scan_->next();
+        if(!scan_->is_end()){
+            scan_->next();
+        }
         while (!scan_->is_end()) {
             rid = scan_->rid();
 

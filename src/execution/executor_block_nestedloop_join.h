@@ -9,6 +9,8 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #pragma once
+#include <cstdio>
+#include <cstring>
 #include <memory>
 
 #include "errors.h"
@@ -18,38 +20,74 @@ See the Mulan PSL v2 for more details. */
 #include "index/ix.h"
 #include "record/rm_defs.h"
 #include "system/sm.h"
-
-
-static int const  BUF_SIZE =  4096 * 1;
+                            // b    k      m    g
+static int const BUF_SIZE = 1024 * 1024 * 1024 *1 ;
 // 4
 struct MemBuf {
     char mem[BUF_SIZE];
 
     size_t total_tuple_num;
     std::unique_ptr<AbstractExecutor> inner_executor;
+    size_t tuple_len;
     size_t read_num;
-    MemBuf(std::unique_ptr<AbstractExecutor> inner) : inner_executor(std::move(inner)) {
-        total_tuple_num = read_num = 0;
+    size_t write_num;
+    RmRecord cur_rec;
+    MemBuf(std::unique_ptr<AbstractExecutor> inner) : inner_executor(std::move(inner)),cur_rec(RmRecord(inner_executor->tupleLen())) {
+        total_tuple_num = read_num = write_num = 0;
+        tuple_len = inner_executor->tupleLen();
+
     }
-    void beginTuple() {//TODO:}
+    void beginTuple() {
+        memset(mem, 0, BUF_SIZE);
+        total_tuple_num = read_num = write_num = 0;
+        for (inner_executor->beginTuple(); !inner_executor->is_end(); inner_executor->nextTuple()) {
+            auto rec = inner_executor->Next();
+            memcpy(mem + write_num * tuple_len, rec->data, tuple_len);
+            write_num++;
+            if (write_num == BUF_SIZE / tuple_len) {
+                break;
+            }
+        }
+        inner_executor->nextTuple();
+        cur_rec.SetData(mem);
+        read_num++;
+    };
 
-    void nextTuple() {//TODO:}
+    void nextTuple(){
+        if(read_num <write_num){
+            cur_rec.SetData(mem+read_num * tuple_len);
+            read_num ++;
+        }else {
+            write_num = read_num  = 0;
+            memset(mem, 0, BUF_SIZE);
+            for (; !inner_executor->is_end(); inner_executor->nextTuple()) {
+                auto rec = inner_executor->Next();
+                memcpy(mem + write_num * tuple_len, rec->data, tuple_len);
+                write_num++;
+                if (write_num == BUF_SIZE / tuple_len) {
+                    break;
+                }
+            }
+            cur_rec.SetData(mem+read_num * tuple_len);
+            read_num ++;
+        }
+    };
+    std::unique_ptr<RmRecord> Next() { return std::make_unique<RmRecord>(cur_rec); };
 
-    bool is_end() const{//TODO:}
-
+    const std::vector<ColMeta> &cols() const {return inner_executor->cols();}
+    size_t tupleLen() const {return tuple_len;}
+    bool is_end() const { return inner_executor->is_end() && read_num > write_num; }
 };
-
 class BlockNestedLoopJoinExecutor : public AbstractExecutor {
    private:
-    MemBuf left_;   // 左儿子节点（需要join的表）
+    std::shared_ptr<MemBuf> left_;                              // 左儿子节点（需要join的表）
     std::unique_ptr<AbstractExecutor> right_;  // 右儿子节点（需要join的表）
     ssize_t len_;                              // join后获得的每条记录的长度
     std::vector<ColMeta> cols_;                // join后获得的记录的字段
 
-    std::vector<Condition> fed_conds_;         // join条件
+    std::vector<Condition> fed_conds_;  // join条件
     bool is_end_;
     RmRecord rec_;
-    MemBuf out_buf_;
 
     // std::vector<std::unique_ptr<RmRecord>> left_record_save_;
     // bool left_cache_valid_;
@@ -57,17 +95,15 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     //
     //
 
-
    public:
     BlockNestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> left, std::unique_ptr<AbstractExecutor> right,
-                           std::vector<Condition> conds) {
+                                std::vector<Condition> conds) :left_(std::make_shared<MemBuf>(std::move(left))){
         right_ = std::move(right);
-        left_ = MemBuf(std::move(len_));
-        len_ = left_->tupleLen() + right_->tupleLen();
-        cols_ = left_->cols();
+        len_ = left_->inner_executor->tupleLen() + right_->tupleLen();
+        cols_ = left_->inner_executor->cols();
         auto right_cols = right_->cols();
         for (auto& col : right_cols) {
-            col.offset += left_->tupleLen();
+            col.offset += left_->inner_executor->tupleLen();
         }
 
         cols_.insert(cols_.end(), right_cols.begin(), right_cols.end());
@@ -79,7 +115,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
 
     void beginTuple() override {
         // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
-        
+
         for (left_->beginTuple(); !left_->is_end(); left_->nextTuple()) {
             std::unique_ptr<RmRecord> left_record = left_->Next();
             for (right_->beginTuple(); !right_->is_end(); right_->nextTuple()) {
