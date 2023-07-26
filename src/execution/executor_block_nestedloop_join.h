@@ -25,18 +25,23 @@ static int const  BUF_SIZE =  4096 * 1;
 struct MemBuf {
     char mem[BUF_SIZE];
 
-    size_t tuple_len;
     size_t total_tuple_num;
-
+    std::unique_ptr<AbstractExecutor> inner_executor;
     size_t read_num;
-    MemBuf(size_t tuple_len_) : tuple_len(tuple_len_) {
+    MemBuf(std::unique_ptr<AbstractExecutor> inner) : inner_executor(std::move(inner)) {
         total_tuple_num = read_num = 0;
     }
+    void beginTuple() {//TODO:}
+
+    void nextTuple() {//TODO:}
+
+    bool is_end() const{//TODO:}
+
 };
 
 class BlockNestedLoopJoinExecutor : public AbstractExecutor {
    private:
-    std::unique_ptr<AbstractExecutor> left_;   // 左儿子节点（需要join的表）
+    MemBuf left_;   // 左儿子节点（需要join的表）
     std::unique_ptr<AbstractExecutor> right_;  // 右儿子节点（需要join的表）
     ssize_t len_;                              // join后获得的每条记录的长度
     std::vector<ColMeta> cols_;                // join后获得的记录的字段
@@ -45,7 +50,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     bool is_end_;
     RmRecord rec_;
     MemBuf out_buf_;
-    MemBuf inner_buf_;
+
     // std::vector<std::unique_ptr<RmRecord>> left_record_save_;
     // bool left_cache_valid_;
     // size_t left_index_;
@@ -56,8 +61,8 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
    public:
     BlockNestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> left, std::unique_ptr<AbstractExecutor> right,
                            std::vector<Condition> conds) {
-        left_ = std::move(left);
         right_ = std::move(right);
+        left_ = MemBuf(std::move(len_));
         len_ = left_->tupleLen() + right_->tupleLen();
         cols_ = left_->cols();
         auto right_cols = right_->cols();
