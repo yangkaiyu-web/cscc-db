@@ -74,7 +74,7 @@ class IxNodeHandle {
     void set_size(int size) { page_hdr->num_key = size; }
 
     // rid数量必须满足小于等于
-    inline int get_max_rid_size() { return file_hdr->btree_order_ + 1; }
+    inline int get_max_rid_size() { return file_hdr->btree_order_; }
 
     // rid数量必须满足大于等于
     inline int get_min_rid_size() { return (get_max_rid_size() + 1) >> 1; }

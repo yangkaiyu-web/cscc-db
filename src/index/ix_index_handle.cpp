@@ -563,8 +563,9 @@ bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
         if (!coalesce_or_redistribute(old_ix_hdl)) {
             release_node_handle(old_ix_hdl, true);
         }
+    } else {
+        release_node_handle(old_ix_hdl, true);
     }
-    release_node_handle(old_ix_hdl, true);
     return false;
 }
 
@@ -645,6 +646,7 @@ bool IxIndexHandle::adjust_root(IxNodeHandle *old_root_node) {
     assert(old_root_node->get_size() == 0);
     page_id_t new_root_id = old_root_node->value_at(0);
     IxNodeHandle *new_root = fetch_node(new_root_id);
+    buffer_pool_manager_->unpin_page(old_root_node->get_page_id(), false);
     buffer_pool_manager_->delete_page(old_root_node->get_page_id());
     file_hdr_->root_page_ = new_root_id;
     new_root->set_parent_page_no(IX_NO_PAGE);
@@ -702,7 +704,8 @@ void IxIndexHandle::redistribute(IxNodeHandle *left_node, IxNodeHandle *right_no
                     memcpy(right_node->get_key(i), right_node->get_key(i - 1), file_hdr_->col_tot_len_);
                     *right_node->get_rid(i) = *right_node->get_rid(i - 1);
                 }
-                memcpy(right_node->get_key(0), left_node->get_key(left_size), file_hdr_->col_tot_len_);
+                memcpy(right_node->get_key(0), left_node->get_key(left_size - 1), file_hdr_->col_tot_len_);
+                *right_node->get_rid(0) = *left_node->get_rid(left_size - 1);
                 ++right_size;
                 --left_size;
             }
@@ -710,7 +713,7 @@ void IxIndexHandle::redistribute(IxNodeHandle *left_node, IxNodeHandle *right_no
         maintain_parent(right_node);
         return;
     }
-
+    // 非叶子节点
     if (left_size < right_size) {
         while (right_size - left_size > 1) {
             // 将右节点的第一个kv移动到左节点的最后，修改key为右节点的最小key值
@@ -841,6 +844,7 @@ void IxIndexHandle::update_right_parent(IxNodeHandle *right_node) {
     page_id_t right_parent_no = right_node->get_parent_page_no();
     IxNodeHandle *right_parent = fetch_node(right_parent_no);
     int child_idx = right_parent->find_child(right_node);
+    buffer_pool_manager_->unpin_page(right_node->get_page_id(), false);
     buffer_pool_manager_->delete_page(right_node->get_page_id());
     int &right_parent_size = right_parent->page_hdr->num_key;
     if (child_idx == 0) {

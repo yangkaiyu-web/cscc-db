@@ -16,18 +16,22 @@ See the Mulan PSL v2 for more details. */
  */
 void IxScan::next() {
     assert(!is_end());
-    IxNodeHandle *node = ih_->fetch_node(iid_.page_no);
-    assert(node->is_leaf_page());
-    assert(iid_.slot_no < node->get_size());
     // increment slot no
     iid_.slot_no++;
-    if (iid_.page_no != ih_->file_hdr_->last_leaf_ &&
-        iid_.slot_no == node->get_size()) {
+    if (iid_.page_no != ih_->file_hdr_->last_leaf_ && iid_.slot_no == curr_node_size_) {
+        IxNodeHandle *node = ih_->fetch_node(iid_.page_no);
         // go to next leaf
         iid_.slot_no = 0;
         iid_.page_no = node->get_next_leaf();
+        ih_->release_node_handle(node, false);
+
+        node = ih_->fetch_node(iid_.page_no);
+        assert(node->is_leaf_page());
+        curr_node_size_ = node->get_size();
+        ih_->release_node_handle(node, false);
+    } else if (iid_.page_no == ih_->file_hdr_->last_leaf_ && iid_.slot_no == curr_node_size_) {
+        is_end_ = true;
     }
-    ih_->release_node_handle(node, false);
 }
 
 Rid IxScan::rid() const { return ih_->get_rid(iid_); }

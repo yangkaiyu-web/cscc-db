@@ -41,15 +41,13 @@ bool BufferPoolManager::find_victim_page(frame_id_t *frame_id) {
  * @param {PageId} new_page_id 新的page_id
  * @param {frame_id_t} new_frame_id 新的帧frame_id
  */
-void BufferPoolManager::update_page(Page *page, PageId new_page_id,
-                                    frame_id_t new_frame_id) {
+void BufferPoolManager::update_page(Page *page, PageId new_page_id, frame_id_t new_frame_id) {
     // Todo:
     // 1 如果是脏页，写回磁盘，并且把dirty置为false
     // 2 更新page table
     // 3 重置page的data，更新page id
     if (page->is_dirty_) {
-        disk_manager_->write_page(page->id_.fd, page->id_.page_no, page->data_,
-                                  PAGE_SIZE);
+        disk_manager_->write_page(page->id_.fd, page->id_.page_no, page->data_, PAGE_SIZE);
         page->is_dirty_ = false;
     }
     page_table_.erase(page->id_);
@@ -100,15 +98,13 @@ Page *BufferPoolManager::fetch_page(PageId page_id) {
         latch_.unlock();
         Page &page = pages_[frame_id];
         if (page.is_dirty()) {
-            disk_manager_->write_page(old_page_id.fd, old_page_id.page_no,
-                                      page.data_, PAGE_SIZE);
+            disk_manager_->write_page(old_page_id.fd, old_page_id.page_no, page.data_, PAGE_SIZE);
             page.is_dirty_ = false;
         }
         page.pin_count_ = 1;
         page.id_ = page_id;
         page.reset_memory();
-        disk_manager_->read_page(page_id.fd, page_id.page_no, page.data_,
-                                 PAGE_SIZE);
+        disk_manager_->read_page(page_id.fd, page_id.page_no, page.data_, PAGE_SIZE);
         page_latches_[frame_id].unlock();
         return &page;
     }
@@ -179,8 +175,7 @@ bool BufferPoolManager::flush_page(PageId page_id) {
 
         Page &page = pages_[frame_id];
         page.is_dirty_ = false;
-        disk_manager_->write_page(page.id_.fd, page.id_.page_no, page.data_,
-                                  PAGE_SIZE);
+        disk_manager_->write_page(page.id_.fd, page.id_.page_no, page.data_, PAGE_SIZE);
         page_latches_[frame_id].unlock();
         return true;
     }
@@ -215,8 +210,7 @@ Page *BufferPoolManager::new_page(PageId *page_id) {
     page_latches_[new_frame_id].lock();
     if (new_page.is_dirty()) {
         const auto &old_page_id = new_page.get_page_id();
-        disk_manager_->write_page(old_page_id.fd, old_page_id.page_no,
-                                  new_page.data_, PAGE_SIZE);
+        disk_manager_->write_page(old_page_id.fd, old_page_id.page_no, new_page.data_, PAGE_SIZE);
     }
 
     new_page.reset_memory();
@@ -245,7 +239,10 @@ bool BufferPoolManager::delete_page(PageId page_id) {
     // 3.
     // 将目标页数据写回磁盘，从页表中删除目标页，重置其元数据，将其加入free_list_，返回true
     latch_.lock();
+    // 已经被置换？
     if (page_table_.count(page_id) == 0) {
+        // TRY:这里是否需要dealloc?如果删去此处，则调用delete_page之前的unpin可能会导致该页已经被置换，页表中不存在但是没有被释放
+        disk_manager_->deallocate_page(page_id.page_no);
         latch_.unlock();
         return true;
     }
@@ -263,15 +260,14 @@ bool BufferPoolManager::delete_page(PageId page_id) {
     free_list_.push_back(frame_id);
     latch_.unlock();
 
-    disk_manager_->write_page(page.id_.fd, page.id_.page_no, page.data_,
-                              PAGE_SIZE);
+    disk_manager_->write_page(page.id_.fd, page.id_.page_no, page.data_, PAGE_SIZE);
     page.reset_memory();
     page.is_dirty_ = false;
     page.id_.fd = -1;
     page.id_.page_no = INVALID_PAGE_ID;
     page_latches_[frame_id].unlock();
 
-    disk_manager_->deallocate_page(page.id_.page_no);
+    disk_manager_->deallocate_page(page_id.page_no);
     return true;
 }
 
@@ -286,8 +282,7 @@ void BufferPoolManager::flush_all_pages(int fd) {
         const auto &page_id = page.get_page_id();
         if (page_id.page_no != INVALID_PAGE_ID && page_id.fd == fd) {
             page.is_dirty_ = false;
-            disk_manager_->write_page(page_id.fd, page_id.page_no, page.data_,
-                                      PAGE_SIZE);
+            disk_manager_->write_page(page_id.fd, page_id.page_no, page.data_, PAGE_SIZE);
         }
         page_latches_[i].unlock();
     }

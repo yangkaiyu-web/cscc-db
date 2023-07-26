@@ -74,16 +74,16 @@ class IxManager {
         if (col_tot_len > IX_MAX_COL_LEN) {
             throw InvalidColLengthError(col_tot_len);
         }
-        // 根据 |page_hdr| + (|attr| + |rid|) * (n + 1) + |rid| <= PAGE_SIZE
+        // 根据 |page_hdr| + (|attr| + |rid|) * (n + 1) <= PAGE_SIZE
         // 求得n的最大值btree_order 即 n <=
         // btree_order，那么btree_order就是每个结点最多可插入的键值对数量（实际还多留了一个空位，但其不可插入）
         /* TRY:暂时将btree order修改为常数
         int btree_order =
-            static_cast<int>((PAGE_SIZE - sizeof(IxPageHdr) - sizeof(Rid)) /
-                                 (col_tot_len + sizeof(Rid)) -
-                             1);
+            static_cast<int>{[PAGE_SIZE - sizeof(IxPageHdr)] /
+                                 [col_tot_len + sizeof(Rid)] -
+                             1};
                              */
-        int btree_order = 8;
+        int btree_order = 7;
         assert(btree_order > 2);
 
         // Create file header and write to file
