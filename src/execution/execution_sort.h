@@ -234,13 +234,13 @@ class SortExecutor : public AbstractExecutor {
 
     // 如果是 desc， 那么大的先落盘，
     int find_element(std::vector<std::unique_ptr<RmRecord>>& datas) {
-        auto tmp = std::unique_ptr<RmRecord>(datas.front().get());
+        auto tmp = datas.begin();
         int index = 0;
         for (size_t i = 1; i < datas.size(); i++) {
-            auto rec = std::unique_ptr<RmRecord>(datas[i].get());
-            int ret = cmp(tmp, rec, cols_);
+            auto rec = datas.begin() + i;
+            int ret = cmp(*tmp, *rec, cols_);
             if (ret < 0) {
-                tmp = std::unique_ptr<RmRecord>(rec.get());
+                tmp = rec;
                 index = i;
             }
         }

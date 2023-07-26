@@ -26,44 +26,36 @@ class IxManager {
 
    public:
     IxManager(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager)
-        : disk_manager_(disk_manager),
-          buffer_pool_manager_(buffer_pool_manager) {}
+        : disk_manager_(disk_manager), buffer_pool_manager_(buffer_pool_manager) {}
 
-    std::string get_index_name(const std::string &filename,
-                               const std::vector<std::string> &index_cols) {
+    std::string get_index_name(const std::string &filename, const std::vector<std::string> &index_cols) {
         std::string index_name = filename;
-        for (size_t i = 0; i < index_cols.size(); ++i)
-            index_name += "_" + index_cols[i];
+        for (size_t i = 0; i < index_cols.size(); ++i) index_name += "_" + index_cols[i];
         index_name += ".idx";
 
         return index_name;
     }
 
-    std::string get_index_name(const std::string &filename,
-                               const std::vector<ColMeta> &index_cols) {
+    std::string get_index_name(const std::string &filename, const std::vector<ColMeta> &index_cols) {
         std::string index_name = filename;
-        for (size_t i = 0; i < index_cols.size(); ++i)
-            index_name += "_" + index_cols[i].name;
+        for (size_t i = 0; i < index_cols.size(); ++i) index_name += "_" + index_cols[i].name;
         index_name += ".idx";
 
         return index_name;
     }
 
-    bool exists(const std::string &filename,
-                const std::vector<ColMeta> &index_cols) {
+    bool exists(const std::string &filename, const std::vector<ColMeta> &index_cols) {
         auto ix_name = get_index_name(filename, index_cols);
         return disk_manager_->is_file(ix_name);
     }
 
-    bool exists(const std::string &filename,
-                const std::vector<std::string> &index_cols) {
+    bool exists(const std::string &filename, const std::vector<std::string> &index_cols) {
         auto ix_name = get_index_name(filename, index_cols);
         return disk_manager_->is_file(ix_name);
     }
 
     // TODO:应当加锁？
-    void create_index(const std::string &filename,
-                      const std::vector<ColMeta> &index_cols) {
+    void create_index(const std::string &filename, const std::vector<ColMeta> &index_cols) {
         std::string ix_name = get_index_name(filename, index_cols);
         // Create index file
         disk_manager_->create_file(ix_name);
@@ -85,17 +77,19 @@ class IxManager {
         // 根据 |page_hdr| + (|attr| + |rid|) * (n + 1) + |rid| <= PAGE_SIZE
         // 求得n的最大值btree_order 即 n <=
         // btree_order，那么btree_order就是每个结点最多可插入的键值对数量（实际还多留了一个空位，但其不可插入）
+        /* TRY:暂时将btree order修改为常数
         int btree_order =
             static_cast<int>((PAGE_SIZE - sizeof(IxPageHdr) - sizeof(Rid)) /
                                  (col_tot_len + sizeof(Rid)) -
                              1);
+                             */
+        int btree_order = 8;
         assert(btree_order > 2);
 
         // Create file header and write to file
-        IxFileHdr *fhdr = new IxFileHdr(
-            IX_NO_PAGE, IX_INIT_NUM_PAGES, IX_INIT_ROOT_PAGE, col_num,
-            col_tot_len, btree_order, (btree_order + 1) * col_tot_len,
-            IX_INIT_ROOT_PAGE, IX_INIT_ROOT_PAGE);
+        IxFileHdr *fhdr =
+            new IxFileHdr(IX_NO_PAGE, IX_INIT_NUM_PAGES, IX_INIT_ROOT_PAGE, col_num, col_tot_len, btree_order,
+                          (btree_order + 1) * col_tot_len, IX_INIT_ROOT_PAGE, IX_INIT_ROOT_PAGE);
         for (int i = 0; i < col_num; ++i) {
             fhdr->col_types_.push_back(index_cols[i].type);
             fhdr->col_lens_.push_back(index_cols[i].len);
@@ -136,8 +130,7 @@ class IxManager {
     }
 
     // 创建索引时初始化b+树
-    void init_tree(IxIndexHandle *ih, RmFileHandle *fh,
-                   std::vector<ColMeta> &col_meta_vec) {
+    void init_tree(IxIndexHandle *ih, RmFileHandle *fh, std::vector<ColMeta> &col_meta_vec) {
         std::unique_ptr<RmScan> scan_ = std::make_unique<RmScan>(fh);
         char *key = new char[ih->file_hdr_->col_tot_len_];
         for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
@@ -145,8 +138,7 @@ class IxManager {
             auto record = fh->get_record(rid, nullptr);
             int offset = 0;
             for (auto &col_meta : col_meta_vec) {
-                memcpy(key + offset, record->data + col_meta.offset,
-                       col_meta.len);
+                memcpy(key + offset, record->data + col_meta.offset, col_meta.len);
                 offset += col_meta.len;
             }
             assert(offset == ih->file_hdr_->col_tot_len_);
@@ -155,47 +147,38 @@ class IxManager {
         delete[] key;
     }
 
-    void destroy_index(const std::string &filename,
-                       const std::vector<ColMeta> &index_cols) {
+    void destroy_index(const std::string &filename, const std::vector<ColMeta> &index_cols) {
         std::string ix_name = get_index_name(filename, index_cols);
         disk_manager_->destroy_file(ix_name);
     }
 
-    void destroy_index(const std::string &filename,
-                       const std::vector<std::string> &index_cols) {
+    void destroy_index(const std::string &filename, const std::vector<std::string> &index_cols) {
         std::string ix_name = get_index_name(filename, index_cols);
         disk_manager_->destroy_file(ix_name);
     }
 
     // 注意这里打开文件，创建并返回了index file handle的指针
-    std::unique_ptr<IxIndexHandle> open_index(
-        const std::string &filename, const std::vector<ColMeta> &index_cols) {
+    std::unique_ptr<IxIndexHandle> open_index(const std::string &filename, const std::vector<ColMeta> &index_cols) {
         std::string ix_name = get_index_name(filename, index_cols);
         int fd = disk_manager_->open_file(ix_name);
-        return std::make_unique<IxIndexHandle>(disk_manager_,
-                                               buffer_pool_manager_, fd);
+        return std::make_unique<IxIndexHandle>(disk_manager_, buffer_pool_manager_, fd);
     }
 
-    std::unique_ptr<IxIndexHandle> open_index(
-        const std::string &filename,
-        const std::vector<std::string> &index_cols) {
+    std::unique_ptr<IxIndexHandle> open_index(const std::string &filename, const std::vector<std::string> &index_cols) {
         std::string ix_name = get_index_name(filename, index_cols);
         int fd = disk_manager_->open_file(ix_name);
-        return std::make_unique<IxIndexHandle>(disk_manager_,
-                                               buffer_pool_manager_, fd);
+        return std::make_unique<IxIndexHandle>(disk_manager_, buffer_pool_manager_, fd);
     }
 
     std::unique_ptr<IxIndexHandle> open_index(const std::string &index_name) {
         int fd = disk_manager_->open_file(index_name);
-        return std::make_unique<IxIndexHandle>(disk_manager_,
-                                               buffer_pool_manager_, fd);
+        return std::make_unique<IxIndexHandle>(disk_manager_, buffer_pool_manager_, fd);
     }
 
     void close_index(const IxIndexHandle *ih) {
         char *data = new char[ih->file_hdr_->tot_len_];
         ih->file_hdr_->serialize(data);
-        disk_manager_->write_page(ih->fd_, IX_FILE_HDR_PAGE, data,
-                                  ih->file_hdr_->tot_len_);
+        disk_manager_->write_page(ih->fd_, IX_FILE_HDR_PAGE, data, ih->file_hdr_->tot_len_);
         delete[] data;
         // 缓冲区的所有页刷到磁盘，注意这句话必须写在close_file前面
         buffer_pool_manager_->flush_all_pages(ih->fd_);

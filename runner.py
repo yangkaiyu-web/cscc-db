@@ -54,7 +54,7 @@ def my_run():
         shutil.rmtree('testdb')
     svr = "./bin/rmdb testdb"
     p1 = subprocess.Popen(svr.split(),preexec_fn=os.setsid)
-    time.sleep(10)
+    time.sleep(1)
     os.chdir("/home/one/db2023")
     client = "./rmdb_client/build/rmdb_client"
     file = open("./rmdb_client/build/a.sql",'r')
