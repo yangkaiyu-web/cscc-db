@@ -80,8 +80,8 @@ struct MemBuf {
 };
 class BlockNestedLoopJoinExecutor : public AbstractExecutor {
    private:
-    std::shared_ptr<MemBuf> left_;                              // 左儿子节点（需要join的表）
-    std::unique_ptr<AbstractExecutor> right_;  // 右儿子节点（需要join的表）
+    std::shared_ptr<MemBuf> right_;        // inner                      // 左儿子节点（需要join的表）
+    std::unique_ptr<AbstractExecutor> left_;  // 右儿子节点（需要join的表）
     ssize_t len_;                              // join后获得的每条记录的长度
     std::vector<ColMeta> cols_;                // join后获得的记录的字段
 
@@ -97,13 +97,13 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
 
    public:
     BlockNestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> left, std::unique_ptr<AbstractExecutor> right,
-                                std::vector<Condition> conds) :left_(std::make_shared<MemBuf>(std::move(left))){
-        right_ = std::move(right);
-        len_ = left_->inner_executor->tupleLen() + right_->tupleLen();
-        cols_ = left_->inner_executor->cols();
+                                std::vector<Condition> conds) :right_(std::make_shared<MemBuf>(std::move(right))){
+        left_ = std::move(left);
+        len_ = right_->inner_executor->tupleLen() + left_->tupleLen();
+        cols_ = left_->cols();
         auto right_cols = right_->cols();
         for (auto& col : right_cols) {
-            col.offset += left_->inner_executor->tupleLen();
+            col.offset += left_->tupleLen();
         }
 
         cols_.insert(cols_.end(), right_cols.begin(), right_cols.end());
