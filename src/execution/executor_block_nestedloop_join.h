@@ -19,6 +19,21 @@ See the Mulan PSL v2 for more details. */
 #include "record/rm_defs.h"
 #include "system/sm.h"
 
+
+static int const  BUF_SIZE =  4096 * 1;
+// 4
+struct MemBuf {
+    char mem[BUF_SIZE];
+
+    size_t tuple_len;
+    size_t total_tuple_num;
+
+    size_t read_num;
+    MemBuf(size_t tuple_len_) : tuple_len(tuple_len_) {
+        total_tuple_num = read_num = 0;
+    }
+};
+
 class BlockNestedLoopJoinExecutor : public AbstractExecutor {
    private:
     std::unique_ptr<AbstractExecutor> left_;   // 左儿子节点（需要join的表）
@@ -29,9 +44,14 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
     std::vector<Condition> fed_conds_;         // join条件
     bool is_end_;
     RmRecord rec_;
+    MemBuf out_buf_;
+    MemBuf inner_buf_;
     // std::vector<std::unique_ptr<RmRecord>> left_record_save_;
     // bool left_cache_valid_;
     // size_t left_index_;
+    //
+    //
+
 
    public:
     BlockNestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> left, std::unique_ptr<AbstractExecutor> right,
@@ -54,7 +74,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
 
     void beginTuple() override {
         // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
-
+        
         for (left_->beginTuple(); !left_->is_end(); left_->nextTuple()) {
             std::unique_ptr<RmRecord> left_record = left_->Next();
             for (right_->beginTuple(); !right_->is_end(); right_->nextTuple()) {
