@@ -70,8 +70,9 @@ class SortExecutor : public AbstractExecutor {
    private:
     // TODO: 直接申请内存还是从bufferpool里获取？
 
-    static const int mem_num = 10;  // 花费 10 页内存用于排序  5 页用于缓存输入， 5页用于缓存输出
 
+                                    // b    k      m    g
+    static const int  BUFFER_SIZE = 1024 * 1024 * 256 *1 ;
     std::unique_ptr<AbstractExecutor> prev_;
     std::vector<std::pair<ColMeta, bool>> cols_;  // 框架中只支持一个键排序，需要自行修改数据结构支持多个键排序
     size_t tuple_num_;
@@ -162,7 +163,7 @@ class SortExecutor : public AbstractExecutor {
         std::vector<std::string> tmp_file_names;
         std::vector<std::shared_ptr<TupleBufFile>> tmp_files;
 
-        auto tuple_num_per_page = PAGE_SIZE / prev_->tupleLen();
+        auto tuple_num_per_page = BUFFER_SIZE / prev_->tupleLen();
         size_t tuple_len = prev_->tupleLen();
         prev_->beginTuple();
         size_t tuple_num_on_page = 0;
