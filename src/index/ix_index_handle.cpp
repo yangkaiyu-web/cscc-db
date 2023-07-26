@@ -912,7 +912,13 @@ Rid IxIndexHandle::get_rid(const Iid &iid) const {
 Iid IxIndexHandle::lower_bound(const char *key, size_t pre) {
     IxNodeHandle *leaf_hdl = find_leaf_page(key, Operation::FIND, nullptr);
     int slot_no = leaf_hdl->lower_bound(key, pre);
-    page_id_t page_id = leaf_hdl->get_page_no();
+    page_id_t page_id = -1;
+    if (slot_no == leaf_hdl->page_hdr->num_key && leaf_hdl->get_next_leaf() != IX_NO_PAGE) {
+        slot_no = 0;
+        page_id = leaf_hdl->get_next_leaf();
+    } else {
+        page_id = leaf_hdl->get_page_no();
+    }
     release_node_handle(leaf_hdl, false);
     return {page_id, slot_no};
 }
@@ -926,7 +932,13 @@ Iid IxIndexHandle::lower_bound(const char *key, size_t pre) {
 Iid IxIndexHandle::upper_bound(const char *key, size_t pre) {
     IxNodeHandle *leaf_hdl = find_leaf_page(key, Operation::FIND, nullptr);
     int slot_no = leaf_hdl->upper_bound(key, pre);
-    page_id_t page_id = leaf_hdl->get_page_no();
+    page_id_t page_id = -1;
+    if (slot_no == leaf_hdl->page_hdr->num_key && leaf_hdl->get_next_leaf() != IX_NO_PAGE) {
+        slot_no = 0;
+        page_id = leaf_hdl->get_next_leaf();
+    } else {
+        page_id = leaf_hdl->get_page_no();
+    }
     release_node_handle(leaf_hdl, false);
     return {page_id, slot_no};
 }

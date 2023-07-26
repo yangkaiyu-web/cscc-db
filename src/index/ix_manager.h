@@ -83,7 +83,7 @@ class IxManager {
                                  [col_tot_len + sizeof(Rid)] -
                              1};
                              */
-        int btree_order = 7;
+        int btree_order = 3;
         assert(btree_order > 2);
 
         // Create file header and write to file
