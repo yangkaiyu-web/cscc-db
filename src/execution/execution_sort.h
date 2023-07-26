@@ -240,7 +240,7 @@ class SortExecutor : public AbstractExecutor {
         for (size_t i = 1; i < datas.size(); i++) {
             auto rec = datas.begin() + i;
             int ret = cmp(*tmp, *rec, cols_);
-            if (ret < 0) {
+            if (ret > 0) {
                 tmp = rec;
                 index = i;
             }
