@@ -71,6 +71,8 @@ class SortExecutor : public AbstractExecutor {
     // TODO: 直接申请内存还是从bufferpool里获取？
 
     static const int mem_num = 10;  // 花费 10 页内存用于排序  5 页用于缓存输入， 5页用于缓存输出
+                            // b    k      m    g
+static int const SORT_BUF_SIZE = 1024 * 1024 * 1024 *1 ;
 
     std::unique_ptr<AbstractExecutor> prev_;
     std::vector<std::pair<ColMeta, bool>> cols_;  // 框架中只支持一个键排序，需要自行修改数据结构支持多个键排序
