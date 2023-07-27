@@ -123,13 +123,12 @@ void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id, Co
 }
 
 // 执行select语句，select语句的输出除了需要返回客户端外，还需要写入output.txt文件中
-void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
-                            Context *context) {
+void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, Context *context) {
     std::vector<std::string> captions;
     captions.reserve(executorTreeRoot->cols().size());
     // 处理表头
     for (auto &sel_col : executorTreeRoot->cols()) {
-            captions.push_back(sel_col.name);
+        captions.push_back(sel_col.name);
     }
 
     // Print header into buffer
@@ -149,7 +148,6 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
     // Print records
     size_t num_rec = 0;
 
-    
     std::vector<std::string> tmp_item;
 
     // 执行query_plan
@@ -167,7 +165,7 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot,
                 col_str = std::string((char *)rec_buf, col.len);
                 col_str.resize(strlen(col_str.c_str()));
             }
-            //FIXME: datatime print
+            // FIXME: datatime print
             columns.push_back(col_str);
         }
 

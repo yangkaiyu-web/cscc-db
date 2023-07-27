@@ -49,7 +49,7 @@ def bench_run():
 def my_run():
 
     print("running rmdb")
-    os.chdir('build')
+    os.chdir('/home/one/db2023/build')
     if os.path.exists('testdb'):
         shutil.rmtree('testdb')
     svr = "./bin/rmdb testdb"

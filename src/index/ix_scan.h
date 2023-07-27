@@ -23,20 +23,26 @@ class IxScan : public RecScan {
     Iid iid_;  // 初始为lower（用于遍历的指针）
     Iid end_;  // 初始为upper
     BufferPoolManager *bpm_;
-    // 用于rid()方法中设置end标志
     bool is_end_;
+    int curr_node_size_;
 
    public:
-    IxScan(const IxIndexHandle *ih, const Iid &lower, const Iid &upper,
-           BufferPoolManager *bpm)
-        : ih_(ih), iid_(lower), end_(upper), bpm_(bpm), is_end_(false) {}
+    IxScan(const IxIndexHandle *ih, const Iid &lower, const Iid &upper, BufferPoolManager *bpm, bool is_end = false)
+        : ih_(ih), iid_(lower), end_(upper), bpm_(bpm), is_end_(is_end), curr_node_size_(-1) {
+        if (!(is_end_ || iid_ == end_)) {
+            IxNodeHandle *node = ih_->fetch_node(iid_.page_no);
+            assert(node->is_leaf_page());
+            curr_node_size_ = node->get_size();
+            ih_->release_node_handle(node, false);
+        }
+    }
 
     void next() override;
 
     // 目前索引的end判断有三种情况:
     // 1.正常到达end_
-    // 2.查找条件大于record的最大值或小于record的最小值，在rid()方法中设置is_end_
-    // 3.upper bound小于lower bound，直接在
+    // 2.查找条件大于record的最大值或小于record的最小值，lower bound==upper bound，也满足iid_==end_
+    // 3.upper bound小于lower bound
     bool is_end() const override { return is_end_ || iid_ == end_; }
 
     Rid rid() const override;

@@ -126,7 +126,7 @@ class IndexScanExecutor : public AbstractExecutor {
             }
             // 下界大于上界，直接结束
             if (has_lower && has_upper && (lower_val > upper_val || (lower_val == upper_val && !(be && le)))) {
-                scan_ = std::make_unique<IxScan>(ix_hdl, Iid{0, 0}, Iid{0, 0}, sm_manager_->get_bpm());
+                scan_ = std::make_unique<IxScan>(ix_hdl, Iid{0, 0}, Iid{0, 0}, sm_manager_->get_bpm(), true);
             } else {
                 if (has_lower) {
                     std::shared_ptr<RmRecord> raw_data = lower_val.raw;

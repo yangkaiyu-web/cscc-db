@@ -83,6 +83,7 @@ class InsertExecutor : public AbstractExecutor {
                 offset += index.cols[j].len;
             }
             ih->insert_entry(key, rid_, context_->txn_);
+            ih->dfs();
             delete[] key;
         }
         return nullptr;

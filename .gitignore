@@ -3,3 +3,6 @@ build/
 .cache/
 .ccls-cache/
 runner.py
+src/parser/yacc.tab.cpp
+src/parser/lex.yy.cpp
+src/parser/yacc.tab.h

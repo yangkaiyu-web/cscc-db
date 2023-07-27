@@ -42,26 +42,24 @@ struct TupleBufFile {
     TupleBufFile(std::string& file_name_, size_t tuple_len_) : file_name(file_name_), tuple_len(tuple_len_) {
         total_tuple_num = written_num = read_num = 0;
     }
-    TupleBufFile() : file_name(""), tuple_len(0) {
-        total_tuple_num = written_num = read_num = 0;
-    }
+    TupleBufFile() : file_name(""), tuple_len(0) { total_tuple_num = written_num = read_num = 0; }
     int open_write() {
-        fd = open(file_name.c_str(), O_CREAT | O_RDWR,0777);
+        fd = open(file_name.c_str(), O_CREAT | O_RDWR, 0777);
         return fd;
     }
     int open_read() {
-        fd = open(file_name.c_str(), O_RDWR,0777);
+        fd = open(file_name.c_str(), O_RDWR, 0777);
         return fd;
     }
     size_t write(const char* buf, size_t tuple_num) {
         size_t num = ::write(fd, buf, tuple_num * tuple_len);
         written_num += tuple_num;
-        return num/tuple_len;
+        return num / tuple_len;
     }
     size_t read(char* buf, size_t tuple_num) {
         size_t num = ::read(fd, buf, tuple_num * tuple_len);
         read_num += tuple_num;
-        return num/tuple_len;
+        return num / tuple_len;
     }
     int close() { return ::close(fd); }
     bool is_eof() { return written_num == read_num; }
@@ -70,9 +68,8 @@ class SortExecutor : public AbstractExecutor {
    private:
     // TODO: 直接申请内存还是从bufferpool里获取？
 
-
-                                    // b    k      m    g
-    static const int  BUFFER_SIZE = 1024 * 1024 * 256 *1 ;
+    // b    k      m    g
+    static const int BUFFER_SIZE = 1024 * 1024 * 256 * 1;
     std::unique_ptr<AbstractExecutor> prev_;
     std::vector<std::pair<ColMeta, bool>> cols_;  // 框架中只支持一个键排序，需要自行修改数据结构支持多个键排序
     size_t tuple_num_;
@@ -146,11 +143,11 @@ class SortExecutor : public AbstractExecutor {
     void writeTmpData(char* read_buf, std::vector<std::shared_ptr<TupleBufFile>>& tmp_files, size_t tuple_count) {
         std::string tmp_file_name = "sort.tmp" + getTime();
 
-        auto  tmp_file = std::make_shared<TupleBufFile>(tmp_file_name, prev_->tupleLen());
+        auto tmp_file = std::make_shared<TupleBufFile>(tmp_file_name, prev_->tupleLen());
         if (tmp_file->open_write() < 0) {
             throw UnixError();
         }
-        if (tmp_file->write(read_buf, tuple_count) != tuple_count ) {
+        if (tmp_file->write(read_buf, tuple_count) != tuple_count) {
             throw UnixError();
         }
         tmp_file->close();
@@ -190,7 +187,6 @@ class SortExecutor : public AbstractExecutor {
 
         // merge
 
-
         std::vector<std::unique_ptr<RmRecord>> datas;
         // std::copy(tmp_file_names.begin(), tmp_file_names.end(), res_file_names.begin());
 
@@ -201,7 +197,7 @@ class SortExecutor : public AbstractExecutor {
             while (block_it != tmp_files.end()) {
                 used_files.push_back(*block_it);
                 auto rec = std::make_unique<RmRecord>(prev_->tupleLen());
-                if(used_files.back()->open_read()<0){
+                if (used_files.back()->open_read() < 0) {
                     throw UnixError();
                 }
                 if (used_files.back()->read(rec->data, 1) != 1) {
@@ -221,7 +217,6 @@ class SortExecutor : public AbstractExecutor {
             if (!used_files.empty()) {
                 mergeTmpFiles(datas, used_files, tmp_files);
             }
-
 
             // std::copy(tmp_file_names.begin(), tmp_file_names.end(), res_file_names.begin());
         }
@@ -248,10 +243,11 @@ class SortExecutor : public AbstractExecutor {
         }
         return index;
     }
-    void mergeTmpFiles(std::vector<std::unique_ptr<RmRecord>>& datas, std::vector<std::shared_ptr<TupleBufFile>>& streams,
+    void mergeTmpFiles(std::vector<std::unique_ptr<RmRecord>>& datas,
+                       std::vector<std::shared_ptr<TupleBufFile>>& streams,
                        std::vector<std::shared_ptr<TupleBufFile>>& res_files) {
         std::string output_file_name = "sort.tmp" + getTime();
-        auto  output_file = std::make_shared<TupleBufFile>(output_file_name, prev_->tupleLen());
+        auto output_file = std::make_shared<TupleBufFile>(output_file_name, prev_->tupleLen());
 
         output_file->open_write();
         while (!datas.empty()) {
@@ -262,17 +258,17 @@ class SortExecutor : public AbstractExecutor {
             // 读取对应块文件的下一行
 
             streams[index]->read(datas[index]->data, 1);
-            if (streams[index]->read_num <=streams[index]->written_num) {
+            if (streams[index]->read_num <= streams[index]->written_num) {
                 continue;
             }
 
             // 当前块文件已经读取完，关闭文件并从内存中移除
             streams[index]->close();
-            if(remove(streams[index]->file_name.c_str())<0){
+            if (remove(streams[index]->file_name.c_str()) < 0) {
                 throw UnixError();
             }
-            for(auto bb=res_files.begin();bb!=res_files.end();bb++){
-                if((*bb)->file_name == (*(streams.begin()+index))->file_name){
+            for (auto bb = res_files.begin(); bb != res_files.end(); bb++) {
+                if ((*bb)->file_name == (*(streams.begin() + index))->file_name) {
                     res_files.erase(bb);
                     break;
                 }

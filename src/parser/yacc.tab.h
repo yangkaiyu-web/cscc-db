@@ -1,4 +1,4 @@
-/* A Bison parser, made by GNU Bison 3.8.2.  */
+/* A Bison parser, made by GNU Bison 3.7.6.  */
 
 /* Bison interface for Yacc-like parsers in C
 
@@ -35,8 +35,8 @@
    especially those whose name start with YY_ or yy_.  They are
    private implementation details that can be changed or removed.  */
 
-#ifndef YY_YY_HOME_YONCHICY_RMDB_SRC_PARSER_YACC_TAB_H_INCLUDED
-# define YY_YY_HOME_YONCHICY_RMDB_SRC_PARSER_YACC_TAB_H_INCLUDED
+#ifndef YY_YY_HOME_ONE_DB2023_SRC_PARSER_YACC_TAB_H_INCLUDED
+# define YY_YY_HOME_ONE_DB2023_SRC_PARSER_YACC_TAB_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -123,8 +123,6 @@ struct YYLTYPE
 
 
 
-
 int yyparse (void);
 
-
-#endif /* !YY_YY_HOME_YONCHICY_RMDB_SRC_PARSER_YACC_TAB_H_INCLUDED  */
+#endif /* !YY_YY_HOME_ONE_DB2023_SRC_PARSER_YACC_TAB_H_INCLUDED  */
