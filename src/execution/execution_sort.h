@@ -164,11 +164,11 @@ static int const SORT_BUF_SIZE = 1024 * 1024 * 1024 *1 ;
         std::vector<std::string> tmp_file_names;
         std::list<std::shared_ptr<TupleBufFile>> tmp_files;
 
-        auto tuple_num_per_page = PAGE_SIZE / prev_->tupleLen();
+        char read_buf[SORT_BUF_SIZE];
+        auto tuple_num_per_page = SORT_BUF_SIZE / prev_->tupleLen();
         size_t tuple_len = prev_->tupleLen();
         prev_->beginTuple();
         size_t tuple_num_on_page = 0;
-        char read_buf[PAGE_SIZE];
         // part data
         while (!prev_->is_end()) {
             auto tuple = prev_->Next();
