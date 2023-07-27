@@ -11,6 +11,11 @@ See the Mulan PSL v2 for more details. */
 #include "transaction_manager.h"
 #include "record/rm_file_handle.h"
 #include "system/sm_manager.h"
+#include "common/context.h"
+#include "execution/executor_delete.h"
+#include "transaction/transaction.h"
+#include "transaction/txn_defs.h"
+
 
 std::unordered_map<txn_id_t, Transaction *> TransactionManager::txn_map = {};
 
@@ -167,7 +172,6 @@ void TransactionManager::rollback_update(const std::string &tab_name_, const Rid
 	auto table = sm_manager_->db_.get_table(tab_name_);
 	auto rec = sm_manager_->fhs_.at(tab_name_).get()->get_record(rid, nullptr);
 	auto fh = sm_manager_->fhs_.at(tab_name_).get();
-	// delete it from every index
 	for (size_t i = 0; i < table.indexes.size(); ++i) {
 		auto &index = table.indexes[i];
 		auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
