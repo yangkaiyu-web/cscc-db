@@ -61,6 +61,10 @@ public:
 
         return res;
     }
+    
+    void rollback_insert(const std::string &tab_name_, const Rid &rid, Transaction *txn);
+	void rollback_delete(const std::string &tab_name_, const Rid &rid, const RmRecord &rec, Transaction *txn);
+	void rollback_update(const std::string &tab_name, const Rid &rid, const RmRecord &record, Transaction *txn);
 
     static std::unordered_map<txn_id_t, Transaction *> txn_map;     // 全局事务表，存放事务ID与事务对象的映射关系
 

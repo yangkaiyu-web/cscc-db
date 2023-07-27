@@ -41,8 +41,22 @@ bool LockManager::lock_exclusive_on_record(Transaction* txn, const Rid& rid, int
  * @param {int} tab_fd 目标表的fd
  */
 bool LockManager::lock_shared_on_table(Transaction* txn, int tab_fd) {
-    
-    return true;
+    auto lock = std::scoped_lock<std::mutex>(latch_);
+	auto lock_data_id = LockDataId(tab_fd, LockDataType::TABLE);
+	auto &rwlock = lock_table_[lock_data_id];
+	// if not the exclusive lock
+	if (rwlock.num >= 0) {
+		// refresh it and update the first_hold_shared
+		rwlock.num++;
+		rwlock.group_lock_mode_ = GroupLockMode::S;
+		rwlock.first = rwlock.first == -1 ? txn->get_transaction_id() : std::min(rwlock.first, txn->get_transaction_id());
+		txn->get_lock_set()->insert(lock_data_id);
+		return true;
+	} 
+    else 
+    {
+		return false;
+	}
 }
 
 /**
@@ -52,8 +66,26 @@ bool LockManager::lock_shared_on_table(Transaction* txn, int tab_fd) {
  * @param {int} tab_fd 目标表的fd
  */
 bool LockManager::lock_exclusive_on_table(Transaction* txn, int tab_fd) {
-    
-    return true;
+    auto lock = std::scoped_lock<std::mutex>{latch_};
+	auto lock_data_id = LockDataId(tab_fd, LockDataType::TABLE);
+	auto &rwlock = lock_table_[lock_data_id];
+	if (rwlock.group_lock_mode_ == GroupLockMode::NON_LOCK || rwlock.group_lock_mode_ == GroupLockMode::S) {
+		if (rwlock.first != -1 && rwlock.first!= txn->get_transaction_id() ) 
+        {
+			return false;
+		}
+        else
+        {
+            rwlock.num = rwlock.num <= 0 ? rwlock.num - 1 : -1;
+            rwlock.group_lock_mode_ = GroupLockMode::X;
+            txn->get_lock_set()->insert(lock_data_id);
+            return true;
+        }
+	}
+	else
+    {
+        return false;
+    }
 }
 
 /**
@@ -85,6 +117,29 @@ bool LockManager::lock_IX_on_table(Transaction* txn, int tab_fd) {
  * @param {LockDataId} lock_data_id 要释放的锁ID
  */
 bool LockManager::unlock(Transaction* txn, LockDataId lock_data_id) {
-   
-    return true;
+   	std::scoped_lock latch{latch_};
+	auto &rwlock = lock_table_[lock_data_id];
+	if(rwlock.num < 0 && rwlock.group_lock_mode_ == GroupLockMode::X) 
+    {
+		rwlock.num++;
+		if (rwlock.num == 0) {
+			rwlock.first = -1;
+			rwlock.group_lock_mode_ = GroupLockMode::NON_LOCK;
+		}
+		return true;
+	} 
+    else if((rwlock.num > 0 && rwlock.group_lock_mode_ == GroupLockMode::S)) 
+    {
+		rwlock.num--;
+		if(rwlock.num == 0) 
+        {
+			rwlock.group_lock_mode_ = GroupLockMode::NON_LOCK;
+			rwlock.first = -1;
+		}
+		return true;
+	}
+    else
+    {
+	    return false;
+    }
 }
