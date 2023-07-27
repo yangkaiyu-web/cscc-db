@@ -89,11 +89,11 @@ class IxNodeHandle {
     /* 得到第i个孩子结点的page_no */
     page_id_t value_at(int i) { return get_rid(i)->page_no; }
 
-    page_id_t get_page_no() { return page->get_page_id().page_no; }
+    page_id_t get_page_no() const { return page->get_page_id().page_no; }
 
     PageId get_page_id() { return page->get_page_id(); }
 
-    page_id_t get_next_leaf() { return page_hdr->next_leaf; }
+    page_id_t get_next_leaf() const { return page_hdr->next_leaf; }
 
     page_id_t get_prev_leaf() { return page_hdr->prev_leaf; }
 
@@ -130,7 +130,7 @@ class IxNodeHandle {
 
     bool leaf_lookup(const char *key, Rid **value);
 
-    int insert(const char *key, const Rid &value);
+    std::pair<int, int> insert(const char *key, const Rid &value);
 
     // 仅用于在叶子结点中的指定位置插入单个键值对
     void insert_pair(int pos, const char *key, const Rid &rid) {
@@ -240,6 +240,23 @@ class IxIndexHandle {
     Iid leaf_end() const;
 
     Iid leaf_begin() const;
+
+    void dfs(int page_no = -1) {
+        if (page_no == -1) {
+            page_no = file_hdr_->root_page_;
+        }
+        IxNodeHandle *node = fetch_node(page_no);
+        if (node->is_leaf_page()) {
+            release_node_handle(node, false);
+            return;
+        }
+
+        for (int i = 0; i <= node->get_size(); ++i) {
+            int id = node->get_rid(i)->page_no;
+            dfs(id);
+        }
+        release_node_handle(node, false);
+    }
 
    private:
     // 辅助函数
