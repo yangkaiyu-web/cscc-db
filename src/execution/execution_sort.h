@@ -142,7 +142,7 @@ class SortExecutor : public AbstractExecutor {
             std::chrono::time_point_cast<std::chrono::nanoseconds>(now).time_since_epoch();
         return std::to_string(timestamp.count());
     }
-    void writeTmpData(char* read_buf, std::vector<std::shared_ptr<TupleBufFile>>& tmp_files, size_t tuple_count) {
+    void writeTmpData(char* read_buf, std::list<std::shared_ptr<TupleBufFile>>& tmp_files, size_t tuple_count) {
         std::string tmp_file_name = "sort.tmp" + getTime();
 
         auto  tmp_file = std::make_shared<TupleBufFile>(tmp_file_name, prev_->tupleLen());
@@ -160,7 +160,7 @@ class SortExecutor : public AbstractExecutor {
         tuple_num_ = 0;
         used_tuple_num = 0;
         std::vector<std::string> tmp_file_names;
-        std::vector<std::shared_ptr<TupleBufFile>> tmp_files;
+        std::list<std::shared_ptr<TupleBufFile>> tmp_files;
 
         auto tuple_num_per_page = PAGE_SIZE / prev_->tupleLen();
         size_t tuple_len = prev_->tupleLen();
@@ -225,7 +225,7 @@ class SortExecutor : public AbstractExecutor {
             // std::copy(tmp_file_names.begin(), tmp_file_names.end(), res_file_names.begin());
         }
         assert(tmp_files.size() == 1);
-        res_file_ = tmp_files[0];
+        res_file_ = tmp_files.front();
         res_file_->open_read();
         current_tuple_ = RmRecord(prev_->tupleLen());
 
@@ -248,7 +248,7 @@ class SortExecutor : public AbstractExecutor {
         return index;
     }
     void mergeTmpFiles(std::vector<std::unique_ptr<RmRecord>>& datas, std::vector<std::shared_ptr<TupleBufFile>>& streams,
-                       std::vector<std::shared_ptr<TupleBufFile>>& res_files) {
+                       std::list<std::shared_ptr<TupleBufFile>>& res_files) {
         std::string output_file_name = "sort.tmp" + getTime();
         auto  output_file = std::make_shared<TupleBufFile>(output_file_name, prev_->tupleLen());
 
