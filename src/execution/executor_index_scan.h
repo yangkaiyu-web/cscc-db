@@ -81,7 +81,6 @@ class IndexScanExecutor : public AbstractExecutor {
     }
 
     void beginTuple() override {
-        std::cout << "index" << std::endl;
         IxManager *ix_manager = sm_manager_->get_ix_manager();
         IxIndexHandle *ix_hdl = sm_manager_->ihs_.at(ix_manager->get_index_name(tab_name_, index_col_names_)).get();
 

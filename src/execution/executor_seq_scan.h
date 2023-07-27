@@ -52,7 +52,6 @@ class SeqScanExecutor : public AbstractExecutor {
     }
 
     void beginTuple() override {
-        std::cout << "seq" << std::endl;
         scan_ = std::make_unique<RmScan>(fh_);
         for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
             rid = scan_->rid();
@@ -74,7 +73,7 @@ class SeqScanExecutor : public AbstractExecutor {
 
     void nextTuple() override {
         Rid rid;
-        if(!scan_->is_end()){
+        if (!scan_->is_end()) {
             scan_->next();
         }
         while (!scan_->is_end()) {

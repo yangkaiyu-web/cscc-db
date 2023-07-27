@@ -20,8 +20,8 @@ See the Mulan PSL v2 for more details. */
 #include "index/ix.h"
 #include "record/rm_defs.h"
 #include "system/sm.h"
-                            // b    k      m    g
-static int const BUF_SIZE = 1024 * 1024 * 1024 *1 ;
+// b    k      m    g
+static int const BUF_SIZE = 4 * 1024 * 1024 * 1;
 // 4
 struct MemBuf {
     char mem[BUF_SIZE];
@@ -32,10 +32,10 @@ struct MemBuf {
     size_t read_num;
     size_t write_num;
     RmRecord cur_rec;
-    MemBuf(std::unique_ptr<AbstractExecutor> inner) : inner_executor(std::move(inner)),cur_rec(RmRecord(inner_executor->tupleLen())) {
+    MemBuf(std::unique_ptr<AbstractExecutor> inner)
+        : inner_executor(std::move(inner)), cur_rec(RmRecord(inner_executor->tupleLen())) {
         total_tuple_num = read_num = write_num = 0;
         tuple_len = inner_executor->tupleLen();
-
     }
     void beginTuple() {
         memset(mem, 0, BUF_SIZE);
@@ -53,12 +53,12 @@ struct MemBuf {
         read_num++;
     };
 
-    void nextTuple(){
-        if(read_num <write_num){
-            cur_rec.SetData(mem+read_num * tuple_len);
-            read_num ++;
-        }else {
-            write_num = read_num  = 0;
+    void nextTuple() {
+        if (read_num < write_num) {
+            cur_rec.SetData(mem + read_num * tuple_len);
+            read_num++;
+        } else {
+            write_num = read_num = 0;
             memset(mem, 0, BUF_SIZE);
             for (; !inner_executor->is_end(); inner_executor->nextTuple()) {
                 auto rec = inner_executor->Next();
@@ -68,24 +68,24 @@ struct MemBuf {
                     break;
                 }
             }
-            cur_rec.SetData(mem+read_num * tuple_len);
-            read_num ++;
+            cur_rec.SetData(mem + read_num * tuple_len);
+            read_num++;
         }
     };
     std::unique_ptr<RmRecord> Next() { return std::make_unique<RmRecord>(cur_rec); };
 
-    const std::vector<ColMeta> &cols() const {return inner_executor->cols();}
-    size_t tupleLen() const {return tuple_len;}
+    const std::vector<ColMeta>& cols() const { return inner_executor->cols(); }
+    size_t tupleLen() const { return tuple_len; }
     bool is_end() const { return inner_executor->is_end() && read_num > write_num; }
 };
 class BlockNestedLoopJoinExecutor : public AbstractExecutor {
    private:
-    std::shared_ptr<MemBuf> right_;        // inner                      // 左儿子节点（需要join的表）
+    std::shared_ptr<MemBuf> right_;           // inner                      // 左儿子节点（需要join的表）
     std::unique_ptr<AbstractExecutor> left_;  // 右儿子节点（需要join的表）
-    ssize_t len_;                              // join后获得的每条记录的长度
-    std::vector<ColMeta> cols_;                // join后获得的记录的字段
+    ssize_t len_;                             // join后获得的每条记录的长度
+    std::vector<ColMeta> cols_;               // join后获得的记录的字段
 
-    std::vector<Condition> fed_conds_;  // join条件
+    std::vector<Condition> fed_conds_;        // join条件
     bool is_end_;
     RmRecord rec_;
 
@@ -97,7 +97,8 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
 
    public:
     BlockNestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> left, std::unique_ptr<AbstractExecutor> right,
-                                std::vector<Condition> conds) :right_(std::make_shared<MemBuf>(std::move(right))){
+                                std::vector<Condition> conds)
+        : right_(std::make_shared<MemBuf>(std::move(right))) {
         left_ = std::move(left);
         len_ = right_->inner_executor->tupleLen() + left_->tupleLen();
         cols_ = left_->cols();
