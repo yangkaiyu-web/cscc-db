@@ -81,7 +81,7 @@ class ProjectionExecutor : public AbstractExecutor {
         return ret;
     }
 
-    size_t tupleLen() const override { return len_; };
+    int tupleLen() const override { return len_; };
 
     const std::vector<ColMeta> &cols() const override { return cols_; };
 

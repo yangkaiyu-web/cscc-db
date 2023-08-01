@@ -18,7 +18,7 @@
 class AggExecutor : public AbstractExecutor {
    private:
     std::unique_ptr<AbstractExecutor> prev_;  // 投影节点的儿子节点
-    std::vector<ColMeta> res_cols_;               // 需要投影的字段
+    std::vector<ColMeta> res_cols_;           // 需要投影的字段
     ssize_t len_;                             // 字段总长度
     std::vector<ssize_t> sel_idxs_;
     ColMeta prev_col_;
@@ -29,71 +29,70 @@ class AggExecutor : public AbstractExecutor {
     Value sum_res_;
     Value count_res_;
     std::set<Value> count_sets_;
-    bool is_result_used_ ;
+    bool is_result_used_;
 
    public:
     AggExecutor(std::unique_ptr<AbstractExecutor> prev, TabCol &sel_col) {
-        count_sets_={};
-        is_result_used_=false;
+        count_sets_ = {};
+        is_result_used_ = false;
         assert(sel_col.has_agg);
         prev_ = std::move(prev);
         // ssize_t curr_offset = 0;
         sel_col_ = sel_col;
         ColMeta res_col;
-        res_col.offset=0;
+        res_col.offset = 0;
         // res_col.tab_name;
         // res_col.name;
         // res_col.type;
         // res_col.len;
-        res_col.index =false;
-    // std::string tab_name;  // 字段所属表名称
-    // std::string name;      // 字段名称
-    // ColType type;          // 字段类型
-    // int len;               // 字段长度
-    // int offset;            // 字段位于记录中的偏移量
-    // bool index;            /** unused */
-        
-    
+        res_col.index = false;
+        // std::string tab_name;  // 字段所属表名称
+        // std::string name;      // 字段名称
+        // ColType type;          // 字段类型
+        // int len;               // 字段长度
+        // int offset;            // 字段位于记录中的偏移量
+        // bool index;            /** unused */
+
         auto cols = prev_->cols();
 
         prev_col_ = cols[0];
-        if(cols.size()==1){
+        if (cols.size() == 1) {
             len_ = prev_col_.len;
-        }else { // count(*)
-            assert(sel_col_.aggregate_type==AggType::COUNT);
-            assert(sel_col_.col_name=="");
+        } else {  // count(*)
+            assert(sel_col_.aggregate_type == AggType::COUNT);
+            assert(sel_col_.col_name == "");
             len_ = sizeof(int);
         }
         switch (sel_col_.aggregate_type) {
             case AggType::MAX:
-                res_col.tab_name="";
-                res_col.name= sel_col_.another_name==""? "MAX("+sel_col.col_name+")":sel_col_.another_name;
-                res_col.type=prev_col_.type;
-                res_col.len=prev_col_.len;
+                res_col.tab_name = "";
+                res_col.name = sel_col_.another_name == "" ? "MAX(" + sel_col.col_name + ")" : sel_col_.another_name;
+                res_col.type = prev_col_.type;
+                res_col.len = prev_col_.len;
                 break;
             case AggType::MIN:
-                res_col.tab_name="";
-                res_col.name= sel_col_.another_name==""? "MIN("+sel_col.col_name+")":sel_col_.another_name;
-                res_col.type=prev_col_.type;
-                res_col.len=prev_col_.len;
+                res_col.tab_name = "";
+                res_col.name = sel_col_.another_name == "" ? "MIN(" + sel_col.col_name + ")" : sel_col_.another_name;
+                res_col.type = prev_col_.type;
+                res_col.len = prev_col_.len;
                 break;
             case AggType::SUM:
-                res_col.tab_name="";
-                res_col.name= sel_col_.another_name==""? "SUM("+sel_col.col_name+")":sel_col_.another_name;
-                res_col.type=prev_col_.type;
-                res_col.len=prev_col_.len;
+                res_col.tab_name = "";
+                res_col.name = sel_col_.another_name == "" ? "SUM(" + sel_col.col_name + ")" : sel_col_.another_name;
+                res_col.type = prev_col_.type;
+                res_col.len = prev_col_.len;
                 break;
             case AggType::COUNT:
-                res_col.tab_name="";
-                
-                res_col.name= sel_col_.another_name==""? "COUNT("+sel_col.col_name+")":sel_col_.another_name;
-                res_col.type=TYPE_INT;
-                res_col.len=sizeof(int);
+                res_col.tab_name = "";
+
+                res_col.name = sel_col_.another_name == "" ? "COUNT(" + sel_col.col_name + ")" : sel_col_.another_name;
+                res_col.type = TYPE_INT;
+                res_col.len = sizeof(int);
                 break;
             default:
                 throw InternalError("unsupported agg function");
         }
-        
+
         res_cols_.push_back(res_col);
     }
 
@@ -114,14 +113,16 @@ class AggExecutor : public AbstractExecutor {
             default:
                 throw InternalError("unsupported agg function");
         }
-        if( sel_col_.aggregate_type== AggType::COUNT||sel_col_.aggregate_type== AggType::MAX||sel_col_.aggregate_type== AggType::MIN){
-            bool type_match = prev_col_.type==TYPE_INT || prev_col_.type == TYPE_FLOAT || prev_col_.type == TYPE_STRING;
-            if(! type_match){
+        if (sel_col_.aggregate_type == AggType::COUNT || sel_col_.aggregate_type == AggType::MAX ||
+            sel_col_.aggregate_type == AggType::MIN) {
+            bool type_match =
+                prev_col_.type == TYPE_INT || prev_col_.type == TYPE_FLOAT || prev_col_.type == TYPE_STRING;
+            if (!type_match) {
                 throw InternalError("Agg function type not match");
             }
-        }else if(sel_col_.aggregate_type == AggType::SUM){
-            bool type_match = prev_col_.type==TYPE_INT || prev_col_.type == TYPE_FLOAT ;
-            if(! type_match){
+        } else if (sel_col_.aggregate_type == AggType::SUM) {
+            bool type_match = prev_col_.type == TYPE_INT || prev_col_.type == TYPE_FLOAT;
+            if (!type_match) {
                 throw InternalError("Agg function type not match");
             }
         }
@@ -129,12 +130,12 @@ class AggExecutor : public AbstractExecutor {
     void beginMax() {
         std::unique_ptr<RmRecord> rec;
         prev_->beginTuple();
-        if(!prev_->is_end()){
+        if (!prev_->is_end()) {
             rec = prev_->Next();
             max_res_ = Value::read_from_record(rec, prev_col_);
         }
         prev_->nextTuple();
-        for ( ;!prev_->is_end(); prev_->nextTuple()) {
+        for (; !prev_->is_end(); prev_->nextTuple()) {
             rec = prev_->Next();
             auto val = Value::read_from_record(rec, prev_col_);
             max_res_ = val > max_res_ ? val : max_res_;
@@ -142,45 +143,44 @@ class AggExecutor : public AbstractExecutor {
     }
 
     void beginMin() {
-        std::unique_ptr<RmRecord>  rec;
+        std::unique_ptr<RmRecord> rec;
         prev_->beginTuple();
-        if(!prev_->is_end()){
+        if (!prev_->is_end()) {
             rec = prev_->Next();
             min_res_ = Value::read_from_record(rec, prev_col_);
         }
         prev_->nextTuple();
-        for ( ;!prev_->is_end(); prev_->nextTuple()) {
+        for (; !prev_->is_end(); prev_->nextTuple()) {
             rec = prev_->Next();
             auto val = Value::read_from_record(rec, prev_col_);
             min_res_ = val < min_res_ ? val : min_res_;
         }
     }
-    void beginSum(){
-        if(prev_col_.type == TYPE_INT){
+    void beginSum() {
+        if (prev_col_.type == TYPE_INT) {
             sum_res_.set_int(0);
 
-        }else if(prev_col_.type == TYPE_FLOAT) {
+        } else if (prev_col_.type == TYPE_FLOAT) {
             sum_res_.set_float(0.0);
-        }
-        else {
+        } else {
             throw InternalError("Agg function type not match");
         }
 
         for (prev_->beginTuple(); !prev_->is_end(); prev_->nextTuple()) {
-            auto  rec = prev_->Next();
+            auto rec = prev_->Next();
 
             auto val = Value::read_from_record(rec, prev_col_);
-            sum_res_ = sum_res_+ val;
+            sum_res_ = sum_res_ + val;
         }
     };
-    void beginCount(){
+    void beginCount() {
         count_res_.set_int(0);
         // if(sel_col_.col_name == ""){
-            int res = 0;
-            for (prev_->beginTuple(); !prev_->is_end(); prev_->nextTuple()) {
-                res += 1;
-            }
-            count_res_.set_int(res);
+        int res = 0;
+        for (prev_->beginTuple(); !prev_->is_end(); prev_->nextTuple()) {
+            res += 1;
+        }
+        count_res_.set_int(res);
         // }
         // else{
         //     for (prev_->beginTuple(); !prev_->is_end(); prev_->nextTuple()) {
@@ -190,8 +190,6 @@ class AggExecutor : public AbstractExecutor {
         //     }
         //     count_res_.set_int(count_sets_.size());
         // }
-
-
     };
     void nextTuple() override {
         if (!prev_->is_end()) {
@@ -200,24 +198,24 @@ class AggExecutor : public AbstractExecutor {
     }
 
     std::unique_ptr<RmRecord> Next() override {
-        is_result_used_=true;
-        Value ret ;
+        is_result_used_ = true;
+        Value ret;
         int res_len;
         switch (sel_col_.aggregate_type) {
             case AggType::MAX:
-                ret  = max_res_;
+                ret = max_res_;
                 res_len = len_;
                 break;
             case AggType::MIN:
-                ret  = min_res_;
+                ret = min_res_;
                 res_len = len_;
                 break;
             case AggType::SUM:
-                ret  = sum_res_;
+                ret = sum_res_;
                 res_len = len_;
                 break;
             case AggType::COUNT:
-                ret  = count_res_;
+                ret = count_res_;
                 res_len = sizeof(int);
                 break;
             default:
@@ -228,18 +226,13 @@ class AggExecutor : public AbstractExecutor {
         ptr->SetData(ret.raw->data);
         return ptr;
     }
-    bool is_end() const override {
-        return is_result_used_;
-    }
+    bool is_end() const override { return is_result_used_; }
 
-    size_t tupleLen() const override { return len_; };
+    int tupleLen() const override { return len_; };
 
     const std::vector<ColMeta> &cols() const override { return res_cols_; };
 
-    ColMeta get_col_offset(const TabCol &target) override {
-        
-        throw UnreachableCodeError();
-    }
+    ColMeta get_col_offset(const TabCol &target) override { throw UnreachableCodeError(); }
     std::string getType() override { return "AggExecutor"; };
     Rid &rid() override { return _abstract_rid; }
 };

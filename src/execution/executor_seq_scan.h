@@ -112,7 +112,7 @@ class SeqScanExecutor : public AbstractExecutor {
         throw ColumnNotFoundError(target.col_name);
     }
     virtual const std::vector<ColMeta> &cols() const override { return cols_; }
-    size_t tupleLen() const override { return len_; };
+    int tupleLen() const override { return len_; };
     std::string getType() override { return "SeqScanExecutor"; }
     Rid &rid() override { return rid_; }
 };

@@ -96,7 +96,7 @@ class InsertExecutor : public AbstractExecutor {
     void nextTuple() override { throw UnreachableCodeError(); }
 
     bool is_end() const override { throw UnreachableCodeError(); }
-    size_t tupleLen() const override { throw UnreachableCodeError(); }
+    int tupleLen() const override { throw UnreachableCodeError(); }
     std::string getType() override { return "InsertExecutor"; }
 
     const std::vector<ColMeta> &cols() const override { throw UnreachableCodeError(); }

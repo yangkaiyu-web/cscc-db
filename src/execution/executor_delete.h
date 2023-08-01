@@ -70,7 +70,7 @@ class DeleteExecutor : public AbstractExecutor {
 
         return nullptr;
     }
-    size_t tupleLen() const override { throw UnreachableCodeError(); }
+    int tupleLen() const override { throw UnreachableCodeError(); }
 
     const std::vector<ColMeta> &cols() const override { throw UnreachableCodeError(); }
 

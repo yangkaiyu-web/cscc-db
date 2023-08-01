@@ -107,35 +107,30 @@ class ProjectionPlan : public Plan {
     std::vector<TabCol> sel_cols_;
 };
 
-class AggPlan : public Plan
-{
-    public:
-        AggPlan(PlanTag tag, std::shared_ptr<Plan> subplan, TabCol sel_col)
-        {
-            Plan::tag = tag;
-            subplan_ = std::move(subplan);
-            sel_col_ = std::move(sel_col);
-        }
-        ~AggPlan(){}
-        std::shared_ptr<Plan> subplan_;
-        TabCol sel_col_;
-        
+class AggPlan : public Plan {
+   public:
+    AggPlan(PlanTag tag, std::shared_ptr<Plan> subplan, TabCol sel_col) {
+        Plan::tag = tag;
+        subplan_ = std::move(subplan);
+        sel_col_ = std::move(sel_col);
+    }
+    ~AggPlan() {}
+    std::shared_ptr<Plan> subplan_;
+    TabCol sel_col_;
 };
-class SortPlan : public Plan
-{
-    public:
-        SortPlan(PlanTag tag, std::shared_ptr<Plan> subplan,std::vector< std::pair<TabCol,bool>> sel_cols, int limit_num)
-        {
-            Plan::tag = tag;
-            subplan_ = std::move(subplan);
-            order_bys = sel_cols;
-            limit_num_ = limit_num;
-        }
-        ~SortPlan(){}
-        std::shared_ptr<Plan> subplan_;
-        std::vector<std::pair<TabCol,bool>> order_bys;
-        int limit_num_;
-        
+class SortPlan : public Plan {
+   public:
+    SortPlan(PlanTag tag, std::shared_ptr<Plan> subplan, std::vector<std::pair<TabCol, bool>> sel_cols, int limit_num) {
+        Plan::tag = tag;
+        subplan_ = std::move(subplan);
+        order_bys = sel_cols;
+        limit_num_ = limit_num;
+    }
+    ~SortPlan() {}
+    std::shared_ptr<Plan> subplan_;
+    // pair.second为true时为desc
+    std::vector<std::pair<TabCol, bool>> order_bys;
+    int limit_num_;
 };
 
 // dml语句，包括insert; delete; update; select语句　

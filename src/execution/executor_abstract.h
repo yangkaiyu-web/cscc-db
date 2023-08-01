@@ -10,8 +10,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include "execution_defs.h"
 #include "common/common.h"
+#include "execution_defs.h"
 #include "index/ix.h"
 #include "system/sm.h"
 
@@ -23,9 +23,12 @@ class AbstractExecutor {
 
     virtual ~AbstractExecutor() = default;
 
-    virtual size_t tupleLen() const =0;
+    virtual int tupleLen() const = 0;
 
-    virtual const std::vector<ColMeta> &cols() const {static std::vector<ColMeta> cols;return cols;}
+    virtual const std::vector<ColMeta> &cols() const {
+        static std::vector<ColMeta> cols;
+        return cols;
+    }
     // virtual const std::vector<ColMeta> &cols() const {
     //     std::vector<ColMeta> *_cols = nullptr;
     //     return *_cols;
@@ -36,20 +39,19 @@ class AbstractExecutor {
 
     virtual void beginTuple() = 0;
 
-    virtual void nextTuple()=0;
+    virtual void nextTuple() = 0;
 
-    virtual bool is_end() const=0;
+    virtual bool is_end() const = 0;
 
     virtual Rid &rid() = 0;
 
     virtual std::unique_ptr<RmRecord> Next() = 0;
 
-
     // virtual ColMeta get_col_offset(const TabCol &target) =0;
     /**
-    * @description: 获取 tabcol 对应的 ColMeta
-    */
-    virtual ColMeta get_col_offset(const TabCol &target) { return ColMeta();};
+     * @description: 获取 tabcol 对应的 ColMeta
+     */
+    virtual ColMeta get_col_offset(const TabCol &target) { return ColMeta(); };
 
     std::vector<ColMeta>::const_iterator get_col(const std::vector<ColMeta> &rec_cols, const TabCol &target) {
         auto pos = std::find_if(rec_cols.begin(), rec_cols.end(), [&](const ColMeta &col) {

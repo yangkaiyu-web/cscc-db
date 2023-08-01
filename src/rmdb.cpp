@@ -14,16 +14,17 @@ See the Mulan PSL v2 for more details. */
 #include <setjmp.h>
 #include <signal.h>
 #include <unistd.h>
+
 #include <atomic>
 #include <cstring>
 
+#include "analyze/analyze.h"
 #include "errors.h"
 #include "optimizer/optimizer.h"
-#include "recovery/log_recovery.h"
 #include "optimizer/plan.h"
 #include "optimizer/planner.h"
 #include "portal.h"
-#include "analyze/analyze.h"
+#include "recovery/log_recovery.h"
 
 #define SOCK_PORT 8765
 #define MAX_CONN_LIMIT 8
@@ -35,7 +36,8 @@ auto disk_manager = std::make_unique<DiskManager>();
 auto buffer_pool_manager = std::make_unique<BufferPoolManager>(BUFFER_POOL_SIZE, disk_manager.get());
 auto rm_manager = std::make_unique<RmManager>(disk_manager.get(), buffer_pool_manager.get());
 auto ix_manager = std::make_unique<IxManager>(disk_manager.get(), buffer_pool_manager.get());
-auto sm_manager = std::make_unique<SmManager>(disk_manager.get(), buffer_pool_manager.get(), rm_manager.get(), ix_manager.get());
+auto sm_manager =
+    std::make_unique<SmManager>(disk_manager.get(), buffer_pool_manager.get(), rm_manager.get(), ix_manager.get());
 auto lock_manager = std::make_unique<LockManager>();
 auto txn_manager = std::make_unique<TransactionManager>(lock_manager.get(), sm_manager.get());
 auto ql_manager = std::make_unique<QlManager>(sm_manager.get(), txn_manager.get());
@@ -59,7 +61,7 @@ void sigint_handler(int signo) {
 // 判断当前正在执行的是显式事务还是单条SQL语句的事务，并更新事务ID
 void SetTransaction(txn_id_t *txn_id, Context *context) {
     context->txn_ = txn_manager->get_transaction(*txn_id);
-    if(context->txn_ == nullptr || context->txn_->get_state() == TransactionState::COMMITTED ||
+    if (context->txn_ == nullptr || context->txn_->get_state() == TransactionState::COMMITTED ||
         context->txn_->get_state() == TransactionState::ABORTED) {
         context->txn_ = txn_manager->begin(nullptr, context->log_mgr_);
         *txn_id = context->txn_->get_transaction_id();
@@ -98,7 +100,7 @@ void *client_handler(void *sock_fd) {
             std::cout << "Client read error!" << std::endl;
             break;
         }
-        
+
         printf("i_recvBytes: %d \n ", i_recvBytes);
 
         if (strcmp(data_recv, "exit") == 0) {
@@ -164,25 +166,24 @@ void *client_handler(void *sock_fd) {
 
                     // 将报错信息写入output.txt
                     std::fstream outfile;
-                    outfile.open("output.txt",std::ios::out | std::ios::app);
+                    outfile.open("output.txt", std::ios::out | std::ios::app);
                     outfile << "failure\n";
                     outfile.close();
                 }
             }
-        }
-        else {
-            const char* errmsg = "Parser Error";
+        } else {
+            const char *errmsg = "Parser Error";
             memcpy(data_send, errmsg, strlen(errmsg));
             data_send[strlen(errmsg)] = '\n';
-            data_send[strlen(errmsg)+1] = '\0';
-            offset = strlen(errmsg)+1;
+            data_send[strlen(errmsg) + 1] = '\0';
+            offset = strlen(errmsg) + 1;
 
             std::fstream outfile;
-            outfile.open("output.txt",std::ios::out | std::ios::app);
+            outfile.open("output.txt", std::ios::out | std::ios::app);
             outfile << "failure\n";
             outfile.close();
         }
-        if(finish_analyze == false) {
+        if (finish_analyze == false) {
             yy_delete_buffer(buf);
             pthread_mutex_unlock(buffer_mutex);
         }
@@ -257,20 +258,21 @@ void start_server() {
             std::cout << "Accept error!" << std::endl;
             continue;  // ignore current socket ,continue while loop.
         }
-        
+
         // 和客户端建立连接，并开启一个线程负责处理客户端请求
         if (pthread_create(&thread_id, nullptr, &client_handler, (void *)(&sockfd)) != 0) {
             std::cout << "Create thread fail!" << std::endl;
             break;  // break while loop
         }
-
     }
 
     // Clear
     std::cout << " Try to close all client-connection.\n";
     int ret = shutdown(sockfd_server, SHUT_WR);  // shut down the all or part of a full-duplex connection.
-    if(ret == -1) { printf("%s\n", strerror(errno)); }
-//    assert(ret != -1);
+    if (ret == -1) {
+        printf("%s\n", strerror(errno));
+    }
+    //    assert(ret != -1);
     sm_manager->close_db();
     std::cout << " DB has been closed.\n";
     std::cout << "Server shuts down." << std::endl;
@@ -301,6 +303,9 @@ int main(int argc, char **argv) {
         if (!sm_manager->is_dir(db_name)) {
             // Database not found, create a new one
             sm_manager->create_db(db_name);
+        } else {
+            sm_manager->drop_db(db_name);
+            sm_manager->create_db(db_name);
         }
         // Open database
         sm_manager->open_db(db_name);
@@ -309,7 +314,7 @@ int main(int argc, char **argv) {
         recovery->analyze();
         recovery->redo();
         recovery->undo();
-        
+
         // 开启服务端，开始接受客户端连接
         start_server();
     } catch (RMDBError &e) {

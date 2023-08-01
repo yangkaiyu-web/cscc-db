@@ -32,7 +32,6 @@ struct TabCol {
     std::string another_name = "";
     std::string agg_arg_col_name;
 
-
     friend bool operator<(const TabCol &x, const TabCol &y) {
         return std::make_pair(x.tab_name, x.col_name) < std::make_pair(y.tab_name, y.col_name);
     }
@@ -100,32 +99,31 @@ struct Value {
         }
         return ret;
     }
- // MyNumber operator+(const MyNumber& other) const {
- //        MyNumber result(value + other.value);
- //        return result;
- //    }
-    friend Value operator+(const Value &x, const Value &y) { 
-        Value ret ;
-        if(x.type==TYPE_FLOAT && y.type==TYPE_FLOAT){
+    // MyNumber operator+(const MyNumber& other) const {
+    //        MyNumber result(value + other.value);
+    //        return result;
+    //    }
+    friend Value operator+(const Value &x, const Value &y) {
+        Value ret;
+        if (x.type == TYPE_FLOAT && y.type == TYPE_FLOAT) {
             float tmp = x.float_val + y.float_val;
             ret.set_float(tmp);
-        }else if (x.type==TYPE_INT && y.type==TYPE_INT){
-            int tmp = x.int_val+y.int_val;
+        } else if (x.type == TYPE_INT && y.type == TYPE_INT) {
+            int tmp = x.int_val + y.int_val;
             ret.set_int(tmp);
-        }else {
+        } else {
             throw InternalError("error value plus operator type");
         }
         return ret;
-
     }
     friend bool operator<=(const Value &x, const Value &y) { return !(x > y); }
     friend bool operator>=(const Value &x, const Value &y) { return !(x < y); }
-    static Value read_from_record(std::unique_ptr<RmRecord> &record, ColMeta &col) {
+    static Value read_from_record(const std::unique_ptr<RmRecord> &record, ColMeta &col) {
         Value ret;
         if (col.type == TYPE_INT) {
             int int_val = *(int *)(record->data + col.offset);
             ret.set_int(int_val);
-        } else if (col.type == TYPE_BIGINT || col.type == TYPE_DATETIME) {
+        } else if (col.type == TYPE_BIGINT) {
             int64_t bigint_val = *(int64_t *)(record->data + col.offset);
             ret.set_bigint(bigint_val);
         } else if (col.type == TYPE_FLOAT) {
@@ -314,7 +312,7 @@ struct SetClause {
 };
 
 struct OrderByCaluse {
-    //                          is desc
+    // pair.second为true时是desc
     std::vector<std::pair<TabCol, bool>> orderby_pair;
 };
 struct LimitClause {

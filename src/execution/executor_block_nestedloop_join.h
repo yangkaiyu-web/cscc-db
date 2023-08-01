@@ -75,14 +75,14 @@ struct MemBuf {
     std::unique_ptr<RmRecord> Next() { return std::make_unique<RmRecord>(cur_rec); };
 
     const std::vector<ColMeta>& cols() const { return inner_executor->cols(); }
-    size_t tupleLen() const { return tuple_len; }
+    int tupleLen() const { return tuple_len; }
     bool is_end() const { return inner_executor->is_end() && read_num > write_num; }
 };
 class BlockNestedLoopJoinExecutor : public AbstractExecutor {
    private:
     std::shared_ptr<MemBuf> right_;           // inner                      // 左儿子节点（需要join的表）
     std::unique_ptr<AbstractExecutor> left_;  // 右儿子节点（需要join的表）
-    ssize_t len_;                             // join后获得的每条记录的长度
+    int len_;                                 // join后获得的每条记录的长度
     std::vector<ColMeta> cols_;               // join后获得的记录的字段
 
     std::vector<Condition> fed_conds_;        // join条件
@@ -175,7 +175,7 @@ class BlockNestedLoopJoinExecutor : public AbstractExecutor {
         return ret;
     }
 
-    size_t tupleLen() const override { return len_; };
+    int tupleLen() const override { return len_; };
 
     const std::vector<ColMeta>& cols() const override { return cols_; };
 

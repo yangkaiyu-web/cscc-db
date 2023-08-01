@@ -42,11 +42,11 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
             TabCol sel_col;
             sel_col.tab_name = sv_sel_col->tab_name;
             sel_col.col_name = sv_sel_col->col_name;
-            sel_col.has_agg=false;
+            sel_col.has_agg = false;
             if (sv_sel_col->aggregate_type != ast::AggregateType::NONE) {
-                sel_col.has_agg=true;
+                sel_col.has_agg = true;
                 sel_col.another_name = sv_sel_col->another_name;
-                sel_col.agg_arg_col_name=sel_col.col_name;
+                sel_col.agg_arg_col_name = sel_col.col_name;
                 switch (sv_sel_col->aggregate_type) {
                     case ast::AggregateType::MAX:
                         sel_col.aggregate_type = AggType::MAX;
@@ -77,7 +77,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         get_all_cols(query->tables, all_cols);
         // 处理select COUNT（*）
         for (auto &col : query->cols) {
-            if (col.col_name == "" ) {
+            if (col.col_name == "") {
                 if (col.another_name == "") {
                     col.another_name = "COUNT(*)";
                 }
@@ -280,6 +280,8 @@ void Analyze::get_limit_clause(const std::shared_ptr<ast::Limit> x_limit, LimitC
         }
 
         limit.val = val;
+    } else {
+        assert(false);
     }
 }
 /*

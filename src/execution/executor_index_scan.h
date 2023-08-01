@@ -204,7 +204,7 @@ class IndexScanExecutor : public AbstractExecutor {
 
     std::string getType() override { return "IndexScanExecutor"; }
 
-    size_t tupleLen() const override { throw UnreachableCodeError(); }
+    int tupleLen() const override { throw UnreachableCodeError(); }
 
     Rid &rid() override { return rid_; }
 
