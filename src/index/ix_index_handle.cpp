@@ -1073,7 +1073,7 @@ void IxIndexHandle::erase_leaf(IxNodeHandle *leaf) {
 }
 
 /**
- * @brief 删除node时，更新file_hdr_.num_pages
+ * @brief 删除node
  *
  * @param node
  */

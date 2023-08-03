@@ -116,10 +116,6 @@ class SortExecutor : public AbstractExecutor {
         is_end_ = false;
         buffer0_ = new char[tuple_len_ * tuple_num_per_step];
         prev_->beginTuple();
-        // TODO:后续可删除
-        if (!prev_->is_end()) {
-            assert(prev_->Next()->size == tuple_len_);
-        }
         // part data
         size_t tuple_num = 0;
         std::vector<std::unique_ptr<RmRecord>> tuples;
@@ -248,7 +244,7 @@ class SortExecutor : public AbstractExecutor {
                 return (col.second == false);
             }
         }
-        return true;
+        return false;
     }
 
     bool cmp_raw_data(const char* fir_data, const char* sec_data) {
@@ -258,9 +254,9 @@ class SortExecutor : public AbstractExecutor {
                     const int val1 = *(const int*)(fir_data + col.first.offset);
                     const int val2 = *(const int*)(sec_data + col.first.offset);
                     if (val1 > val2) {
-                        return col.second == false;
-                    } else if (val1 < val2) {
                         return col.second == true;
+                    } else if (val1 < val2) {
+                        return col.second == false;
                     }
                     break;
                 }
@@ -268,9 +264,9 @@ class SortExecutor : public AbstractExecutor {
                     const int64_t val1 = *(const int64_t*)(fir_data + col.first.offset);
                     const int64_t val2 = *(const int64_t*)(sec_data + col.first.offset);
                     if (val1 > val2) {
-                        return col.second == false;
-                    } else if (val1 < val2) {
                         return col.second == true;
+                    } else if (val1 < val2) {
+                        return col.second == false;
                     }
                     break;
                 }
@@ -278,9 +274,9 @@ class SortExecutor : public AbstractExecutor {
                     const uint64_t val1 = *(const uint64_t*)(fir_data + col.first.offset);
                     const uint64_t val2 = *(const uint64_t*)(sec_data + col.first.offset);
                     if (val1 > val2) {
-                        return col.second == false;
-                    } else if (val1 < val2) {
                         return col.second == true;
+                    } else if (val1 < val2) {
+                        return col.second == false;
                     }
                     break;
                 }
@@ -288,9 +284,9 @@ class SortExecutor : public AbstractExecutor {
                     const float val1 = *(const float*)(fir_data + col.first.offset);
                     const float val2 = *(const float*)(sec_data + col.first.offset);
                     if (val1 > val2) {
-                        return col.second == false;
-                    } else if (val1 < val2) {
                         return col.second == true;
+                    } else if (val1 < val2) {
+                        return col.second == false;
                     }
                     break;
                 }
@@ -299,9 +295,9 @@ class SortExecutor : public AbstractExecutor {
                     const char* val2 = sec_data + col.first.offset;
                     int res = strcmp(val1, val2);
                     if (res > 0) {
-                        return col.second == false;
-                    } else if (res < 0) {
                         return col.second == true;
+                    } else if (res < 0) {
+                        return col.second == false;
                     }
                     break;
                 }
@@ -413,7 +409,7 @@ class SortExecutor : public AbstractExecutor {
                     break;
                 }
                 buf1_idx = 0;
-                tuple_num_in_buf1 = fir_file->read(buffer1, tuple_num_per_step);
+                tuple_num_in_buf1 = sec_file->read(buffer1, tuple_num_per_step);
             }
             char* sec_ptr = buffer1 + buf1_idx * tuple_len_;
             ret_file->write(sec_ptr, tuple_num_in_buf1 - buf1_idx);

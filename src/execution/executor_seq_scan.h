@@ -31,11 +31,17 @@ class SeqScanExecutor : public AbstractExecutor {
     std::vector<Condition> fed_conds_;  // 同conds_，两个字段相同
 
     Rid rid_;
-    std::unique_ptr<RecScan> scan_;  // table_iterator
+    // std::unique_ptr<RecScan> scan_;  // table_iterator
 
     SmManager *sm_manager_;
+    std::vector<std::unique_ptr<RmRecord>> tuple_buffer;
+    std::vector<Rid> rids_buffer;
+    int curr_page_in_buffer;
+    size_t buffer_idx;
+    bool is_end_;
 
    public:
+    // TODO:可优化，针对update，delete之类的可以不需要tuple_buffer
     SeqScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, Context *context) {
         sm_manager_ = sm_manager;
         tab_name_ = std::move(tab_name);
@@ -47,61 +53,105 @@ class SeqScanExecutor : public AbstractExecutor {
         len_ = cols_.back().offset + cols_.back().len;
 
         context_ = context;
-
         fed_conds_ = conds_;
+        is_end_ = false;
+        assert(len_ == fh_->get_record_size());
     }
 
     void beginTuple() override {
-        scan_ = std::make_unique<RmScan>(fh_);
-        for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
-            rid = scan_->rid();
-            std::unique_ptr<RmRecord> record = fh_->get_record(rid, context_);
-            bool cond_flag = true;
-            // test conds
-            for (auto &cond : conds_) {
-                cond_flag = cond_flag && cond.test_record(tab_.cols, record);
-                if (!cond_flag) {
-                    break;
+        is_end_ = false;
+        tuple_buffer.clear();
+        rids_buffer.clear();
+        buffer_idx = 0;
+        bool may_found = false;
+        for (int i = 1; i < fh_->get_file_hdr().num_pages; ++i) {
+            RmPageHandle page_handle = fh_->fetch_page_handle(i);
+            std::vector<int> slots;
+            for (int j = 0; j < fh_->get_file_hdr().num_records_per_page &&
+                            slots.size() < static_cast<size_t>(page_handle.page_hdr->num_records);
+                 ++j) {
+                if (Bitmap::is_set(page_handle.bitmap, j)) {
+                    may_found = true;
+                    slots.push_back(j);
                 }
             }
-            if (cond_flag) {
-                rid_ = rid;
+            if (may_found) {
+                for (auto slot_no : slots) {
+                    char *data = page_handle.get_slot(slot_no);
+                    auto tmp = std::make_unique<RmRecord>(len_, data);
+                    // test conds
+                    bool cond_flag = true;
+                    for (auto &cond : conds_) {
+                        cond_flag = cond_flag && cond.test_record(cols_, tmp);
+                        if (!cond_flag) {
+                            break;
+                        }
+                    }
+                    if (cond_flag) {
+                        tuple_buffer.emplace_back(std::move(tmp));
+                        rids_buffer.push_back({i, slot_no});
+                    }
+                }
+            }
+            fh_->unpin_page(page_handle.page->get_page_id(), false);
+            if (tuple_buffer.size() > 0) {
+                curr_page_in_buffer = i;
+                buffer_idx = 0;
                 return;
             }
         }
+        is_end_ = true;
     }
 
     void nextTuple() override {
-        Rid rid;
-        if (!scan_->is_end()) {
-            scan_->next();
-        }
-        while (!scan_->is_end()) {
-            rid = scan_->rid();
-
-            std::unique_ptr<RmRecord> record = fh_->get_record(rid, context_);
-            bool cond_flag = true;
-            // test conds
-            for (auto &cond : conds_) {
-                cond_flag = cond_flag && cond.test_record(tab_.cols, record);
-                if (!cond_flag) {
-                    break;
+        ++buffer_idx;
+        if (buffer_idx == tuple_buffer.size()) {
+            tuple_buffer.clear();
+            rids_buffer.clear();
+            for (int i = curr_page_in_buffer + 1; i < fh_->get_file_hdr().num_pages; ++i) {
+                bool may_found = false;
+                RmPageHandle page_handle = fh_->fetch_page_handle(i);
+                std::vector<int> slots;
+                for (int j = 0; j < fh_->get_file_hdr().num_records_per_page &&
+                                slots.size() < static_cast<size_t>(page_handle.page_hdr->num_records);
+                     ++j) {
+                    if (Bitmap::is_set(page_handle.bitmap, j)) {
+                        may_found = true;
+                        slots.push_back(j);
+                    }
+                }
+                if (may_found) {
+                    for (auto slot_no : slots) {
+                        char *data = page_handle.get_slot(slot_no);
+                        auto tmp = std::make_unique<RmRecord>(len_, data);
+                        // test conds
+                        bool cond_flag = true;
+                        for (auto &cond : conds_) {
+                            cond_flag = cond_flag && cond.test_record(cols_, tmp);
+                            if (!cond_flag) {
+                                break;
+                            }
+                        }
+                        if (cond_flag) {
+                            tuple_buffer.emplace_back(std::move(tmp));
+                            rids_buffer.push_back({i, slot_no});
+                        }
+                    }
+                }
+                fh_->unpin_page(page_handle.page->get_page_id(), false);
+                if (tuple_buffer.size() > 0) {
+                    curr_page_in_buffer = i;
+                    buffer_idx = 0;
+                    return;
                 }
             }
-            if (cond_flag) {
-                rid_ = rid;
-                return;
-            }
-
-            scan_->next();
+            is_end_ = true;
         }
     }
-    bool is_end() const override {
-        bool ret = scan_->is_end();
-        return ret;
-    }
 
-    std::unique_ptr<RmRecord> Next() override { return fh_->get_record(rid_, context_); }
+    bool is_end() const override { return is_end_; }
+
+    std::unique_ptr<RmRecord> Next() override { return std::move(tuple_buffer[buffer_idx]); }
 
     ColMeta get_col_offset(const TabCol &target) override {
         for (auto &col : cols_) {
@@ -114,5 +164,5 @@ class SeqScanExecutor : public AbstractExecutor {
     virtual const std::vector<ColMeta> &cols() const override { return cols_; }
     int tupleLen() const override { return len_; };
     std::string getType() override { return "SeqScanExecutor"; }
-    Rid &rid() override { return rid_; }
+    Rid &rid() override { return rids_buffer[buffer_idx]; }
 };

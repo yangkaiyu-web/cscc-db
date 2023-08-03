@@ -65,44 +65,126 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
 
     void beginTuple() override {
         // TODO:  交换? 比如：select * from t1,t2 on t2.id = t1.id;
-        for (outer_begin(); !outer_is_end(); outer_next()) {
-            for (inner_begin(); !inner_is_end(); inner_next()) {
-                bool flag = true;
-                for (auto& cond : fed_conds_) {
-                    flag = flag && cond.test_join_record(left_cols_, left_record_save_[left_index_], right_cols_,
-                                                         right_record_save_[right_index_]);
-                }
-                if (flag) {
-                    return;
-                }
-            }
+        left_record_save_.clear();
+        left_->beginTuple();
+        while (left_record_save_.size() < OUTER_BUFFER_SIZE && !left_->is_end()) {
+            left_record_save_.emplace_back(left_->Next());
+            left_->nextTuple();
+        }
+        left_index_ = 0;
+        if (left_record_save_.size() == 0) {
+            assert(left_->is_end());
+            is_end_ = true;
+            return;
         }
 
-        if (outer_is_end()) {
+        right_record_save_.clear();
+        right_->beginTuple();
+        while (right_record_save_.size() < INNER_BUFFER_SIZE && !right_->is_end()) {
+            right_record_save_.emplace_back(right_->Next());
+            right_->nextTuple();
+        }
+        if (right_record_save_.size() == 0) {
+            assert(right_->is_end());
             is_end_ = true;
-        } else {
-            assert(false);
+            return;
+        }
+        right_index_ = 0;
+
+        while (true) {
+            for (; left_index_ < left_record_save_.size(); ++left_index_) {
+                for (; right_index_ < right_record_save_.size(); ++right_index_) {
+                    bool flag = true;
+                    for (auto& cond : fed_conds_) {
+                        flag = flag && cond.test_join_record(left_cols_, left_record_save_[left_index_], right_cols_,
+                                                             right_record_save_[right_index_]);
+                        if (flag == false) break;
+                    }
+                    if (flag) {
+                        return;
+                    }
+                }
+                right_index_ = 0;
+            }
+            left_index_ = 0;
+
+            right_record_save_.clear();
+            while (right_record_save_.size() < INNER_BUFFER_SIZE && !right_->is_end()) {
+                right_record_save_.emplace_back(right_->Next());
+                right_->nextTuple();
+            }
+            if (right_record_save_.size() == 0) {
+                // inner已经被全部遍历，outer需要装入下一个块
+                left_record_save_.clear();
+                while (left_record_save_.size() < OUTER_BUFFER_SIZE && !left_->is_end()) {
+                    left_record_save_.emplace_back(left_->Next());
+                    left_->nextTuple();
+                }
+                if (left_record_save_.size() == 0) {
+                    assert(left_->is_end());
+                    is_end_ = true;
+                    return;
+                }
+                left_index_ = 0;
+
+                // inner需要从头开始
+                right_->beginTuple();
+                while (right_record_save_.size() < INNER_BUFFER_SIZE && !right_->is_end()) {
+                    right_record_save_.emplace_back(right_->Next());
+                    right_->nextTuple();
+                }
+            }
+            // right_index_ = 0;
         }
     }
 
     void nextTuple() override {
-        for (outer_begin(); !outer_is_end(); outer_next()) {
-            for (inner_begin(); !inner_is_end(); inner_next()) {
-                auto flag = true;
-                for (auto& cond : fed_conds_) {
-                    flag = flag && cond.test_join_record(left_cols_, left_record_save_[left_index_], right_cols_,
-                                                         right_record_save_[right_index_]);
+        ++right_index_;
+        while (true) {
+            for (; left_index_ < left_record_save_.size(); ++left_index_) {
+                for (; right_index_ < right_record_save_.size(); ++right_index_) {
+                    bool flag = true;
+                    for (auto& cond : fed_conds_) {
+                        flag = flag && cond.test_join_record(left_cols_, left_record_save_[left_index_], right_cols_,
+                                                             right_record_save_[right_index_]);
+                        if (flag == false) break;
+                    }
+                    if (flag) {
+                        return;
+                    }
                 }
-                if (flag) {
+                right_index_ = 0;
+            }
+            left_index_ = 0;
+
+            right_record_save_.clear();
+            while (right_record_save_.size() < INNER_BUFFER_SIZE && !right_->is_end()) {
+                right_record_save_.emplace_back(right_->Next());
+                right_->nextTuple();
+            }
+            if (right_record_save_.size() == 0) {
+                assert(right_->is_end());
+                // inner已经被全部遍历，outer需要装入下一个块
+                left_record_save_.clear();
+                while (left_record_save_.size() < OUTER_BUFFER_SIZE && !left_->is_end()) {
+                    left_record_save_.emplace_back(left_->Next());
+                    left_->nextTuple();
+                }
+                if (left_record_save_.size() == 0) {
+                    assert(left_->is_end());
+                    is_end_ = true;
                     return;
                 }
-            }
-        }
+                left_index_ = 0;
 
-        if (outer_is_end()) {
-            is_end_ = true;
-        } else {
-            assert(false);
+                // inner需要从头开始
+                right_->beginTuple();
+                while (right_record_save_.size() < INNER_BUFFER_SIZE && !right_->is_end()) {
+                    right_record_save_.emplace_back(right_->Next());
+                    right_->nextTuple();
+                }
+            }
+            // right_index_ = 0;
         }
     }
 
@@ -168,10 +250,13 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
     bool inner_is_end_ = false;
     // 负责维护right_index
     void inner_begin() {
+        inner_is_end_ = false;
         right_record_save_.clear();
         right_->beginTuple();
         while (right_record_save_.size() < INNER_BUFFER_SIZE && !right_->is_end()) {
-            right_record_save_.emplace_back(right_->Next());
+            auto res = right_->Next();
+            assert(res->allocated_ == true);
+            right_record_save_.emplace_back(std::move(res));
             right_->nextTuple();
         }
         right_index_ = 0;

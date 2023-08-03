@@ -45,6 +45,7 @@ class AbstractExecutor {
 
     virtual Rid &rid() = 0;
 
+    // 不可随便调用，seq scan方法中使用了move语义，仅能调用一次
     virtual std::unique_ptr<RmRecord> Next() = 0;
 
     // virtual ColMeta get_col_offset(const TabCol &target) =0;
