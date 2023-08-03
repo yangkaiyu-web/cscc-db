@@ -300,8 +300,21 @@ struct Condition {
             auto real_rhs_val = Value::read_from_record(right_rec, cond_rhs_col_meta);
             auto cond_lhs_col_meta = ColMeta::find_from_cols(left_cols, lhs_col.col_name);
             auto real_lhs_val = Value::read_from_record(left_rec, cond_lhs_col_meta);
-
-            return real_lhs_val == real_rhs_val;
+            bool ret = false;
+            if (op == OP_EQ) {
+                ret = real_lhs_val == real_rhs_val;
+            } else if (OP_NE == op) {
+                ret = real_lhs_val != real_rhs_val;
+            } else if (OP_LT == op) {
+                ret = real_lhs_val < real_rhs_val;
+            } else if (OP_GT == op) {
+                ret = real_lhs_val > real_rhs_val;
+            } else if (OP_LE == op) {
+                ret = real_lhs_val <= real_rhs_val;
+            } else if (OP_GE == op) {
+                ret = real_lhs_val >= real_rhs_val;
+            }
+            return ret;
         }
     }
 };

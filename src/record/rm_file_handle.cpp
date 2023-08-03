@@ -194,13 +194,8 @@ RmPageHandle RmFileHandle::create_page_handle() {
     return page_hdl;
 }
 
-/**
- * @description:
- * 当一个页面从没有空闲空间的状态变为有空闲空间状态时，更新文件头和页头中空闲页面相关的元数据
- */
-void RmFileHandle::release_page_handle(RmPageHandle &page_handle) {
-    // Todo:
-    // 当page从已满变成未满，考虑如何更新：
-    // 1. page_handle.page_hdr->next_free_page_no
-    // 2. file_hdr_.first_free_page_no
+void RmFileHandle::unpin_page(PageId page_id, bool is_dirty) const {
+    if (!buffer_pool_manager_->unpin_page(page_id, is_dirty)) {
+        assert(false);
+    }
 }
