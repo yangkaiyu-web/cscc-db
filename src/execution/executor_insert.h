@@ -86,6 +86,12 @@ class InsertExecutor : public AbstractExecutor {
             ih->dfs();
             delete[] key;
         }
+        if (context_->txn_->get_state() == TransactionState::DEFAULT) 
+        {
+			WriteRecord *delRec = new WriteRecord{WType::INSERT_TUPLE, tab_name_, rid_};
+			context_->txn_->append_write_record(delRec);
+		}
+
         return nullptr;
     }
 

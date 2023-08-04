@@ -43,6 +43,7 @@ class DeleteExecutor : public AbstractExecutor {
     std::unique_ptr<RmRecord> Next() override {
         for (auto &rid : rids_) {
             std::unique_ptr<RmRecord> record = fh_->get_record(rid, context_);
+            std::unique_ptr<RmRecord> old_record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
             for (auto &cond : conds_) {
@@ -65,6 +66,11 @@ class DeleteExecutor : public AbstractExecutor {
                     ih->delete_entry(key, context_->txn_);
                     delete[] key;
                 }
+            }
+            if(context_->txn_->get_state() == TransactionState::DEFAULT)
+            {
+                WriteRecord *delRec = new WriteRecord{WType::DELETE_TUPLE,tab_name_,rid,*old_record};
+                context_->txn_->append_write_record(delRec);
             }
         }
 

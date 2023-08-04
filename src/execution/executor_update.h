@@ -75,6 +75,7 @@ class UpdateExecutor : public AbstractExecutor {
 
         for (auto &rid : rids_) {
             auto record = fh_->get_record(rid, context_);
+            auto old_record = fh_->get_record(rid, context_);
             char *old_raw_data = new char[record->size];
             memcpy(old_raw_data, record->data, record->size);
 
@@ -88,6 +89,12 @@ class UpdateExecutor : public AbstractExecutor {
                 memcpy(record->data + col.offset, val.raw->data, col.len);
             }
             fh_->update_record(rid, record->data, context_);
+            //更新事务
+			if (context_->txn_->get_state() == TransactionState::DEFAULT) 
+            {
+				auto WriteRec = new WriteRecord(WType::UPDATE_TUPLE, tab_name_, rid, *old_record);
+				context_->txn_->append_write_record(WriteRec);
+			}
 
             // 更新索引项
             for (auto &index : tab_.indexes) {
