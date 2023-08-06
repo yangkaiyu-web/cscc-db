@@ -68,7 +68,11 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
  */
 void RmFileHandle::insert_record(const Rid &rid, char *buf) {
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
-    if (!Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {
+    // update的rollback
+    if (Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {
+        memcpy(page_handle.get_slot(rid.slot_no), buf, file_hdr_.record_size);
+    } else {
+        // delete的rollback
         memcpy(page_handle.get_slot(rid.slot_no), buf, file_hdr_.record_size);
         Bitmap::set(page_handle.bitmap, rid.slot_no);
         auto &page_hdr = page_handle.page_hdr;
@@ -76,8 +80,6 @@ void RmFileHandle::insert_record(const Rid &rid, char *buf) {
         if (page_hdr->num_records == file_hdr_.num_records_per_page) {
             file_hdr_.first_free_page_no = page_hdr->next_free_page_no;
         }
-    } else {
-        assert(false);
     }
     buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), true);
 }

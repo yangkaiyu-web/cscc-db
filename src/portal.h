@@ -19,7 +19,6 @@ See the Mulan PSL v2 for more details. */
 #include "execution/execution_sort.h"
 #include "execution/executor_abstract.h"
 #include "execution/executor_agg.h"
-#include "execution/executor_block_nestedloop_join.h"
 #include "execution/executor_delete.h"
 #include "execution/executor_index_scan.h"
 #include "execution/executor_insert.h"

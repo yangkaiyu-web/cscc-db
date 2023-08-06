@@ -33,8 +33,7 @@ class DiskManager {
 
     ~DiskManager() = default;
 
-    void write_page(int fd, page_id_t page_no, const char *offset,
-                    int num_bytes);
+    void write_page(int fd, page_id_t page_no, const char *offset, int num_bytes);
 
     void read_page(int fd, page_id_t page_no, char *offset, int num_bytes);
 
@@ -69,7 +68,7 @@ class DiskManager {
     /*日志操作*/
     int read_log(char *log_data, int size, int offset);
 
-    void write_log(char *log_data, int size);
+    void write_log(const char *log_data, int size);
 
     void SetLogFd(int log_fd) { log_fd_ = log_fd; }
 
@@ -81,9 +80,7 @@ class DiskManager {
      * @param {int} start_page_no
      * 已经分配的页面个数，即文件接下来从start_page_no开始分配页面编号
      */
-    void set_fd2pageno(int fd, int start_page_no) {
-        fd2pageno_[fd] = start_page_no;
-    }
+    void set_fd2pageno(int fd, int start_page_no) { fd2pageno_[fd] = start_page_no; }
 
     /**
      * @description:
@@ -97,14 +94,11 @@ class DiskManager {
 
    private:
     // 文件打开列表，用于记录文件是否被打开
-    std::unordered_map<std::string, int>
-        path2fd_;  //<Page文件磁盘路径,Page fd>哈希表
-    std::unordered_map<int, std::string>
-        fd2path_;  //<Page fd,Page文件磁盘路径>哈希表
+    std::unordered_map<std::string, int> path2fd_;  //<Page文件磁盘路径,Page fd>哈希表
+    std::unordered_map<int, std::string> fd2path_;  //<Page fd,Page文件磁盘路径>哈希表
     std::unordered_map<int, std::mutex> fd2latch_;
     std::mutex latch_;
 
     int log_fd_ = -1;  // WAL日志文件的文件句柄，默认为-1，代表未打开日志文件
-    std::atomic<page_id_t>
-        fd2pageno_[MAX_FD]{};  // 文件中已经分配的页面个数，初始值为0
+    std::atomic<page_id_t> fd2pageno_[MAX_FD]{};  // 文件中已经分配的页面个数，初始值为0
 };
