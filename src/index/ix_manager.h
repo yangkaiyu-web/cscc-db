@@ -28,6 +28,7 @@ class IxManager {
     IxManager(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager)
         : disk_manager_(disk_manager), buffer_pool_manager_(buffer_pool_manager) {}
 
+    // index name即index filename
     std::string get_index_name(const std::string &filename, const std::vector<std::string> &index_cols) {
         std::string index_name = filename;
         for (size_t i = 0; i < index_cols.size(); ++i) index_name += "_" + index_cols[i];
@@ -55,6 +56,7 @@ class IxManager {
     }
 
     // TODO:应当加锁？
+    /*主要负责创建索引文件，计算tree order，初始化header page和root page*/
     void create_index(const std::string &filename, const std::vector<ColMeta> &index_cols) {
         std::string ix_name = get_index_name(filename, index_cols);
         // Create index file

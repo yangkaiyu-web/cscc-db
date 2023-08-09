@@ -28,11 +28,13 @@ struct ColDef {
 /* 系统管理器，负责元数据管理和DDL语句的执行 */
 class SmManager {
    public:
-    DbMeta db_;  // 当前打开的数据库的元数据
+    DbMeta db_;                // 当前打开的数据库的元数据
     std::unordered_map<std::string, std::unique_ptr<RmFileHandle>>
-        fhs_;    // file name -> record file handle, 当前数据库中每张表的数据文件
+        fhs_;                  // file name -> record file handle, 当前数据库中每张表的数据文件
     std::unordered_map<std::string, std::unique_ptr<IxIndexHandle>>
-        ihs_;    // file name -> index file handle, 当前数据库中每个索引的文件
+        ihs_;                  // file name -> index file handle, 当前数据库中每个索引的文件
+    std::shared_mutex latch_;  // 保护fhs_和ihs_
+
    private:
     DiskManager* disk_manager_;
     BufferPoolManager* buffer_pool_manager_;

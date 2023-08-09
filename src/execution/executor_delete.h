@@ -33,14 +33,26 @@ class DeleteExecutor : public AbstractExecutor {
                    std::vector<Rid> rids, Context *context) {
         sm_manager_ = sm_manager;
         tab_name_ = tab_name;
+        sm_manager_->db_.RLatch();
         tab_ = sm_manager_->db_.get_table(tab_name);
+        sm_manager_->db_.RUnLatch();
+        sm_manager_->latch_.lock_shared();
         fh_ = sm_manager_->fhs_.at(tab_name).get();
+        sm_manager_->latch_.unlock_shared();
         conds_ = conds;
         rids_ = rids;
         context_ = context;
     }
 
     std::unique_ptr<RmRecord> Next() override {
+        std::vector<IxIndexHandle *> idx_hdls;
+        sm_manager_->latch_.lock_shared();
+        for (const IndexMeta &index : tab_.indexes) {
+            idx_hdls.push_back(sm_manager_->ihs_.at(index.get_index_name()).get());
+        }
+        sm_manager_->latch_.unlock_shared();
+        auto &indexes = tab_.indexes;
+
         for (auto &rid : rids_) {
             std::unique_ptr<RmRecord> record = fh_->get_record(rid, context_);
             std::unique_ptr<RmRecord> old_record = fh_->get_record(rid, context_);
@@ -55,21 +67,19 @@ class DeleteExecutor : public AbstractExecutor {
             if (cond_flag) {
                 fh_->delete_record(rid, context_);
 
-                for (auto &index : tab_.indexes) {
-                    auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
-                    char *key = new char[index.col_tot_len];
+                for (size_t i = 0; i < indexes.size(); ++i) {
+                    char *key = new char[indexes[i].col_tot_len];
                     int offset = 0;
-                    for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
-                        memcpy(key + offset, record->data + index.cols[j].offset, index.cols[j].len);
-                        offset += index.cols[j].len;
+                    for (size_t j = 0; j < static_cast<size_t>(indexes[i].col_num); ++j) {
+                        memcpy(key + offset, record->data + indexes[i].cols[j].offset, indexes[i].cols[j].len);
+                        offset += indexes[i].cols[j].len;
                     }
-                    ih->delete_entry(key, context_->txn_);
+                    idx_hdls[i]->delete_entry(key, context_->txn_);
                     delete[] key;
                 }
             }
-            if(context_->txn_->get_state() == TransactionState::DEFAULT)
-            {
-                WriteRecord *delRec = new WriteRecord{WType::DELETE_TUPLE,tab_name_,rid,*old_record};
+            if (context_->txn_->get_state() == TransactionState::DEFAULT) {
+                WriteRecord *delRec = new WriteRecord{WType::DELETE_TUPLE, tab_name_, rid, *old_record};
                 context_->txn_->append_write_record(delRec);
             }
         }

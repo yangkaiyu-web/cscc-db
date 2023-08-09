@@ -43,12 +43,18 @@ class IndexScanExecutor : public AbstractExecutor {
         sm_manager_ = sm_manager;
         context_ = context;
         tab_name_ = std::move(tab_name);
+
+        sm_manager_->db_.RLatch();
         tab_ = sm_manager_->db_.get_table(tab_name_);
+        sm_manager_->db_.RUnLatch();
+
         conds_ = std::move(conds);
         // index_no_ = index_no;
         index_col_names_ = index_col_names;
         index_meta_ = *(tab_.get_index_meta(index_col_names_));
+        sm_manager_->latch_.lock_shared();
         fh_ = sm_manager_->fhs_.at(tab_name_).get();
+        sm_manager_->latch_.unlock_shared();
         cols_ = tab_.cols;
         len_ = cols_.back().offset + cols_.back().len;
         std::map<CompOp, CompOp> swap_op = {
@@ -82,7 +88,9 @@ class IndexScanExecutor : public AbstractExecutor {
 
     void beginTuple() override {
         IxManager *ix_manager = sm_manager_->get_ix_manager();
+        sm_manager_->latch_.lock_shared();
         IxIndexHandle *ix_hdl = sm_manager_->ihs_.at(ix_manager->get_index_name(tab_name_, index_col_names_)).get();
+        sm_manager_->latch_.unlock_shared();
 
         Iid def_lower_bound = ix_hdl->leaf_begin(), def_upper_bound = ix_hdl->leaf_end();
 

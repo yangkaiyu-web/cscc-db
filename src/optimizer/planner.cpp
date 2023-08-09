@@ -39,11 +39,12 @@ bool Planner::get_index_cols(std::string tab_name, std::vector<Condition> &curr_
     if (idx_conds.size() == 0) return false;
 
     index_col_names.clear();
-    TabMeta &tab = sm_manager_->db_.get_table(tab_name);
+    sm_manager_->db_.RLatch();
+    const TabMeta &tab = sm_manager_->db_.get_table(tab_name);
 
     // 对表上建立的所有索引进行搜索，看哪一个索引"从最左边列"开始"连续"与fed_conds中的列相匹配
     bool found = false;
-    for (auto &index : tab.indexes) {
+    for (const IndexMeta &index : tab.indexes) {
         // 保存与index连续匹配的conds
         std::vector<Condition> tmp_conds;
         for (int i = 0; i < index.col_num; ++i) {
@@ -70,6 +71,7 @@ bool Planner::get_index_cols(std::string tab_name, std::vector<Condition> &curr_
         }
         break;
     }
+    sm_manager_->db_.RUnLatch();
     if (found) {
         return true;
     }
@@ -332,12 +334,14 @@ std::shared_ptr<Plan> Planner::generate_select_plan(std::shared_ptr<Query> query
         sel_cols.clear();
         std::vector<ColMeta> all_cols;
         for (const auto &sel_tab_name : query->tables) {
+            sm_manager_->db_.RLatch();
             // 这里db_不能写成get_db(), 注意要传指针
             const auto &sel_tab_cols = sm_manager_->db_.get_table(sel_tab_name).cols;
             for (const auto &col : sel_tab_cols) {
                 TabCol sel_col = {.tab_name = col.tab_name, .col_name = col.name};
                 sel_cols.emplace_back(sel_col);
             }
+            sm_manager_->db_.RUnLatch();
         }
     }
     plannerRoot = std::make_shared<ProjectionPlan>(T_Projection, std::move(plannerRoot), std::move(sel_cols));

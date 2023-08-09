@@ -216,7 +216,7 @@ std::string DiskManager::get_file_name(int fd) {
  */
 int DiskManager::get_file_fd(const std::string &file_name) {
     if (!path2fd_.count(file_name)) {
-        return open_file(file_name);
+        assert(false);
     }
     return path2fd_[file_name];
 }

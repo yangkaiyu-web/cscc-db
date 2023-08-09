@@ -115,8 +115,10 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
             set_clause.lhs = {.tab_name = x->tab_name, .col_name = set_clause_ptr->col_name};
             // Infer table name from column name
             set_clause.lhs = check_column(all_cols, set_clause.lhs);
+            sm_manager_->db_.RLatch();
             TabMeta &lhs_tab = sm_manager_->db_.get_table(set_clause.lhs.tab_name);
             auto lhs_col = lhs_tab.get_col(set_clause.lhs.col_name);
+            sm_manager_->db_.RUnLatch();
 
             set_clause.rhs = convert_sv_value(set_clause_ptr->val, lhs_col);
             query->set_clauses.push_back(set_clause);
@@ -164,8 +166,10 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
         assert(all_cols.size() == x->vals.size());
         // 处理insert 的values值
         for (size_t i = 0; i < all_cols.size(); ++i) {
+            sm_manager_->db_.RLatch();
             TabMeta &tab = sm_manager_->db_.get_table(x->tab_name);
             auto col = tab.get_col(all_cols[i].name);
+            sm_manager_->db_.RUnLatch();
             query->values.push_back(convert_sv_value(x->vals[i], col));
         }
     } else {
@@ -213,8 +217,10 @@ TabCol Analyze::check_column(const std::vector<ColMeta> &all_cols, TabCol target
 void Analyze::get_all_cols(const std::vector<std::string> &tab_names, std::vector<ColMeta> &all_cols) {
     for (auto &sel_tab_name : tab_names) {
         // 这里db_不能写成get_db(), 注意要传指针
+        sm_manager_->db_.RLatch();
         const auto &sel_tab_cols = sm_manager_->db_.get_table(sel_tab_name).cols;
         all_cols.insert(all_cols.end(), sel_tab_cols.begin(), sel_tab_cols.end());
+        sm_manager_->db_.RUnLatch();
     }
 }
 
@@ -232,8 +238,10 @@ void Analyze::get_check_clause(const std::vector<std::shared_ptr<ast::BinaryExpr
         cond.lhs_col = {.tab_name = expr->lhs->tab_name, .col_name = expr->lhs->col_name};
         // Infer table name from column name
         cond.lhs_col = check_column(all_cols, cond.lhs_col);
+        sm_manager_->db_.RLatch();
         TabMeta &lhs_tab = sm_manager_->db_.get_table(cond.lhs_col.tab_name);
         auto lhs_col = lhs_tab.get_col(cond.lhs_col.col_name);
+        sm_manager_->db_.RUnLatch();
         ColType lhs_type = lhs_col->type;
         ColType rhs_type;
         if (auto rhs_val = std::dynamic_pointer_cast<ast::Value>(expr->rhs)) {
@@ -244,8 +252,10 @@ void Analyze::get_check_clause(const std::vector<std::shared_ptr<ast::BinaryExpr
             cond.rhs_col = {.tab_name = rhs_col->tab_name, .col_name = rhs_col->col_name};
             // Infer table name from column name
             cond.rhs_col = check_column(all_cols, cond.rhs_col);
+            sm_manager_->db_.RLatch();
             TabMeta &rhs_tab = sm_manager_->db_.get_table(cond.rhs_col.tab_name);
             rhs_type = rhs_tab.get_col(cond.rhs_col.col_name)->type;
+            sm_manager_->db_.RUnLatch();
             if (!type_compatible(lhs_type, rhs_type)) {
                 throw CastTypeError(coltype2str(lhs_type), coltype2str(rhs_type));
             }

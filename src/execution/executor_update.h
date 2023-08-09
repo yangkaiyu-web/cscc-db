@@ -34,13 +34,24 @@ class UpdateExecutor : public AbstractExecutor {
         sm_manager_ = sm_manager;
         tab_name_ = tab_name;
         set_clauses_ = set_clauses;
+        sm_manager_->db_.RLatch();
         tab_ = sm_manager_->db_.get_table(tab_name);
+        sm_manager_->db_.RUnLatch();
+        sm_manager_->latch_.lock_shared();
         fh_ = sm_manager_->fhs_.at(tab_name).get();
+        sm_manager_->latch_.unlock_shared();
         conds_ = conds;
         rids_ = rids;
         context_ = context;
     }
     std::unique_ptr<RmRecord> Next() override {
+        std::vector<IxIndexHandle *> idx_hdls;
+        sm_manager_->latch_.lock_shared();
+        for (const IndexMeta &index : tab_.indexes) {
+            idx_hdls.push_back(sm_manager_->ihs_.at(index.get_index_name()).get());
+        }
+        sm_manager_->latch_.unlock_shared();
+        auto &indexes = tab_.indexes;
         // 检查索引唯一性
         for (auto &rid : rids_) {
             auto record = fh_->get_record(rid, context_);
@@ -54,17 +65,16 @@ class UpdateExecutor : public AbstractExecutor {
                 memcpy(record->data + col.offset, val.raw->data, col.len);
             }
 
-            for (auto &index : tab_.indexes) {
-                auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
-                char *key = new char[index.col_tot_len];
+            for (size_t i = 0; i < indexes.size(); ++i) {
+                char *key = new char[indexes[i].col_tot_len];
                 int offset = 0;
-                for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
-                    memcpy(key + offset, record->data + index.cols[j].offset, index.cols[j].len);
-                    offset += index.cols[j].len;
+                for (size_t j = 0; j < static_cast<size_t>(indexes[i].col_num); ++j) {
+                    memcpy(key + offset, record->data + indexes[i].cols[j].offset, indexes[i].cols[j].len);
+                    offset += indexes[i].cols[j].len;
                 }
 
                 std::vector<Rid> result;
-                if (ih->get_value(key, result, nullptr) && result[0] != rid) {
+                if (idx_hdls[i]->get_value(key, result, nullptr) && result[0] != rid) {
                     assert(result.size() == 1);
                     delete[] key;
                     throw IndexEntryNotUniqueError();
@@ -96,22 +106,22 @@ class UpdateExecutor : public AbstractExecutor {
             }
 
             // 更新索引项
-            for (auto &index : tab_.indexes) {
-                auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
-                char *key = new char[index.col_tot_len];
+
+            for (size_t i = 0; i < indexes.size(); ++i) {
+                char *key = new char[indexes[i].col_tot_len];
                 int offset = 0;
-                for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
-                    memcpy(key + offset, old_raw_data + index.cols[j].offset, index.cols[j].len);
-                    offset += index.cols[j].len;
+                for (size_t j = 0; j < static_cast<size_t>(indexes[i].col_num); ++j) {
+                    memcpy(key + offset, old_raw_data + indexes[i].cols[j].offset, indexes[i].cols[j].len);
+                    offset += indexes[i].cols[j].len;
                 }
-                ih->delete_entry(key, context_->txn_);
+                idx_hdls[i]->delete_entry(key, context_->txn_);
 
                 offset = 0;
-                for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
-                    memcpy(key + offset, record->data + index.cols[j].offset, index.cols[j].len);
-                    offset += index.cols[j].len;
+                for (size_t j = 0; j < static_cast<size_t>(indexes[i].col_num); ++j) {
+                    memcpy(key + offset, record->data + indexes[i].cols[j].offset, indexes[i].cols[j].len);
+                    offset += indexes[i].cols[j].len;
                 }
-                ih->insert_entry(key, rid, context_->txn_);
+                idx_hdls[i]->insert_entry(key, rid, context_->txn_);
             }
         }
 

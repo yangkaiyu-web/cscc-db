@@ -28,13 +28,17 @@ class InsertExecutor : public AbstractExecutor {
    public:
     InsertExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Value> values, Context *context) {
         sm_manager_ = sm_manager;
+        sm_manager_->db_.RLatch();
         tab_ = sm_manager_->db_.get_table(tab_name);
+        sm_manager_->db_.RUnLatch();
         values_ = values;
         tab_name_ = tab_name;
         if (values.size() != tab_.cols.size()) {
             throw InvalidValueCountError();
         }
+        sm_manager_->latch_.lock_shared();
         fh_ = sm_manager_->fhs_.at(tab_name).get();
+        sm_manager_->latch_.unlock_shared();
         context_ = context;
     };
 
@@ -50,10 +54,16 @@ class InsertExecutor : public AbstractExecutor {
             memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
 
+        std::vector<IxIndexHandle *> idx_hdls;
+        sm_manager_->latch_.lock_shared();
+        for (const IndexMeta &index : tab_.indexes) {
+            idx_hdls.push_back(sm_manager_->ihs_.at(index.get_index_name()).get());
+        }
+        sm_manager_->latch_.unlock_shared();
+
         // 检查以符合索引唯一性
         for (size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto &index = tab_.indexes[i];
-            auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
             char *key = new char[index.col_tot_len];
             int offset = 0;
             assert(index.col_num >= 0);
@@ -61,7 +71,7 @@ class InsertExecutor : public AbstractExecutor {
                 memcpy(key + offset, rec.data + index.cols[j].offset, index.cols[j].len);
                 offset += index.cols[j].len;
             }
-            if (ih->is_exist(key, context_->txn_)) {
+            if (idx_hdls[i]->is_exist(key, context_->txn_)) {
                 delete[] key;
                 throw IndexEntryNotUniqueError();
             }
@@ -74,7 +84,6 @@ class InsertExecutor : public AbstractExecutor {
         // Insert into index file
         for (size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto &index = tab_.indexes[i];
-            auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
             char *key = new char[index.col_tot_len];
             int offset = 0;
             assert(index.col_num >= 0);
@@ -82,15 +91,14 @@ class InsertExecutor : public AbstractExecutor {
                 memcpy(key + offset, rec.data + index.cols[j].offset, index.cols[j].len);
                 offset += index.cols[j].len;
             }
-            ih->insert_entry(key, rid_, context_->txn_);
-            ih->dfs();
+            idx_hdls[i]->insert_entry(key, rid_, context_->txn_);
+            // ih->dfs();
             delete[] key;
         }
-        if (context_->txn_->get_state() == TransactionState::DEFAULT) 
-        {
-			WriteRecord *delRec = new WriteRecord{WType::INSERT_TUPLE, tab_name_, rid_};
-			context_->txn_->append_write_record(delRec);
-		}
+        if (context_->txn_->get_state() == TransactionState::DEFAULT) {
+            WriteRecord *ins_rec = new WriteRecord(WType::INSERT_TUPLE, tab_name_, rid_);
+            context_->txn_->append_write_record(ins_rec);
+        }
 
         return nullptr;
     }

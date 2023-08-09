@@ -55,6 +55,7 @@ void TransactionManager::commit(Transaction *txn, LogManager *log_manager) {
     // 5. 更新事务状态
     assert(txn != nullptr);
     txn->set_state(TransactionState::COMMITTED);
+    // TODO:提交写操作(写日志？)
     auto write_set = txn->get_write_set();
     auto lock_set = txn->get_lock_set();
     for (auto lock : *lock_set) {
@@ -123,19 +124,28 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
  * @param txn 需要回滚的事务
  */
 void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid &rid, Transaction *txn) {
-    auto table = sm_manager_->db_.get_table(tab_name_);
-    auto rec = sm_manager_->fhs_.at(tab_name_).get()->get_record(rid, nullptr);
+    sm_manager_->db_.RLatch();
+    const TabMeta table = sm_manager_->db_.get_table(tab_name_);
+    sm_manager_->db_.RUnLatch();
+
+    std::vector<IxIndexHandle *> idx_hdls;
+    sm_manager_->latch_.lock_shared();
     auto fh = sm_manager_->fhs_.at(tab_name_).get();
+    for (const IndexMeta &index : table.indexes) {
+        idx_hdls.push_back(sm_manager_->ihs_.at(index.get_index_name()).get());
+    }
+    sm_manager_->latch_.unlock_shared();
+
+    auto rec = fh->get_record(rid, nullptr);
     for (size_t i = 0; i < table.indexes.size(); ++i) {
-        auto &index = table.indexes[i];
-        auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
+        const IndexMeta &index = table.indexes[i];
         std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
         int offset = 0;
         for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
             memcpy(key->data + offset, rec->data + index.cols[i].offset, index.cols[i].len);
             offset += index.cols[i].len;
         }
-        ih->delete_entry(key->data, txn);
+        idx_hdls[i]->delete_entry(key->data, txn);
     }
     fh->delete_record(rid, nullptr);
 }
@@ -148,18 +158,27 @@ void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid
  */
 void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid &rid, const RmRecord &rec,
                                          Transaction *txn) {
-    auto table = sm_manager_->db_.get_table(tab_name_);
+    sm_manager_->db_.RLatch();
+    const TabMeta table = sm_manager_->db_.get_table(tab_name_);
+    sm_manager_->db_.RUnLatch();
+
+    std::vector<IxIndexHandle *> idx_hdls;
+    sm_manager_->latch_.lock_shared();
     auto fh = sm_manager_->fhs_.at(tab_name_).get();
+    for (const IndexMeta &index : table.indexes) {
+        idx_hdls.push_back(sm_manager_->ihs_.at(index.get_index_name()).get());
+    }
+    sm_manager_->latch_.unlock_shared();
+
     for (size_t i = 0; i < table.indexes.size(); ++i) {
         auto &index = table.indexes[i];
-        auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
         std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
         int offset = 0;
         for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
             memcpy(key->data + offset, rec.data + index.cols[i].offset, index.cols[i].len);
             offset += index.cols[i].len;
         }
-        ih->insert_entry(key->data, rid, nullptr);
+        idx_hdls[i]->insert_entry(key->data, rid, nullptr);
     }
     fh->insert_record(rid, rec.data);
 }
@@ -173,30 +192,38 @@ void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid
  */
 void TransactionManager::rollback_update(const std::string &tab_name_, const Rid &rid, const RmRecord &record,
                                          Transaction *txn) {
+    sm_manager_->db_.RLatch();
     auto table = sm_manager_->db_.get_table(tab_name_);
-    auto rec = sm_manager_->fhs_.at(tab_name_).get()->get_record(rid, nullptr);
+    sm_manager_->db_.RUnLatch();
+
+    std::vector<IxIndexHandle *> idx_hdls;
+    sm_manager_->latch_.lock_shared();
     auto fh = sm_manager_->fhs_.at(tab_name_).get();
+    for (IndexMeta &index : table.indexes) {
+        idx_hdls.push_back(sm_manager_->ihs_.at(index.get_index_name()).get());
+    }
+    sm_manager_->latch_.unlock_shared();
+
+    auto rec = fh->get_record(rid, nullptr);
     for (size_t i = 0; i < table.indexes.size(); ++i) {
         auto &index = table.indexes[i];
-        auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
         std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
         int offset = 0;
         for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
             memcpy(key->data + offset, rec->data + index.cols[i].offset, index.cols[i].len);
             offset += index.cols[i].len;
         }
-        ih->delete_entry(key->data, txn);
+        idx_hdls[i]->delete_entry(key->data, txn);
     }
     fh->insert_record(rid, record.data);
     for (size_t i = 0; i < table.indexes.size(); ++i) {
         auto &index = table.indexes[i];
-        auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
         std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
         int offset = 0;
         for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
             memcpy(key->data + offset, record.data + index.cols[i].offset, index.cols[i].len);
             offset += index.cols[i].len;
         }
-        ih->insert_entry(key->data, rid, nullptr);
+        idx_hdls[i]->insert_entry(key->data, rid, nullptr);
     }
 }
