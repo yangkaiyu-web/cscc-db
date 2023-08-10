@@ -11,6 +11,7 @@ See the Mulan PSL v2 for more details. */
 #include "log_manager.h"
 
 #include <cstring>
+#include <memory>
 #include "transaction/transaction.h"
 
 /**
@@ -41,25 +42,52 @@ void LogManager::flush_log_to_disk() {
     log_buffer_.offset_=0;
     latch_.unlock();
 }
-lsn_t LogManager::gen_log_from_write_set(Transaction* txn){
-    LogRecord * log =nullptr;
+void LogManager::gen_logs_from_write_set(Transaction* txn){
     for(auto& write_rec :*(txn->get_write_set()) ){
+        std::unique_ptr<LogRecord>  log ;
         switch (write_rec->GetWriteType()) {
             case WType::INSERT_TUPLE:
-                log = new InsertLogRecord(txn_id,write_rec.GetRecord(),write_rec.GetRid(),write_rec.GetTableName());
+                log = std::make_unique< InsertLogRecord>(txn->get_transaction_id(),write_rec->GetRecord(),write_rec->GetRid(),write_rec->GetTableName());
+                break;                                                        
+            case WType::DELETE_TUPLE:                                        
+
+                log =  std::make_unique<DeleteLogRecord>(txn->get_transaction_id(),write_rec->GetRecord(),write_rec->GetRid(),write_rec->GetTableName());
+                break;                                                        
+            case WType::UPDATE_TUPLE:                                         
+                log = std::make_unique< UpdateLogRecord>(txn->get_transaction_id(),write_rec->GetRecord(),write_rec->GetNewRecord(),write_rec->GetRid(),write_rec->GetTableName());
                 break;
-            case WType::DELETE_TUPLE:
-                log = new DeleteLogRecord(txn_id,write_rec.GetRecord(),write_rec.GetRid(),write_rec.GetTableName());
-                break;
-            case WType::UPDATE_TUPLE:
-                log = new UpdateLogRecord(txn_id,write_rec.GetRecord(),write_rec.GetNewRecord(),write_rec.GetRid(),write_rec.GetTableName());
-                break;
+            default:
+                assert(false);
         }
         log->lsn_=alloc_lsn(); // 虽然是 atomic 但还是要加锁
         log->prev_lsn_ = txn->get_so_far_lsn();
-
-        txn->set_so_far_lsn( add_log_to_buffer(log));
+        txn->set_so_far_lsn( add_log_to_buffer(log.get()));
     }
-    return ret;
+
+
+}
+
+void LogManager::gen_log_bein(Transaction* txn){
+    auto log_record =
+        std::make_unique< BeginLogRecord>(alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
+    txn->set_so_far_lsn(log_record->lsn_);
+
+    add_log_to_buffer(log_record.get());
+}
+
+void LogManager::gen_log_commit(Transaction* txn){
+    auto log_record =
+        std::make_unique< CommitLogRecord>(alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
+    txn->set_so_far_lsn(log_record->lsn_);
+    add_log_to_buffer(log_record.get());
+
+}
+
+void LogManager::gen_log_abort(Transaction* txn){
+    auto log_record =
+        std::make_unique< AbortLogRecord>(alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
+    txn->set_so_far_lsn(log_record->lsn_);
+    add_log_to_buffer(log_record.get());
+
 }
 

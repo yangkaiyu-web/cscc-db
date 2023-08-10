@@ -116,8 +116,8 @@ class UpdateExecutor : public AbstractExecutor {
             fh_->update_record(rid, record->data, context_);
             // 更新事务
             if (context_->txn_->get_state() == TransactionState::DEFAULT) {
-                auto WriteRec = new WriteRecord(WType::UPDATE_TUPLE, tab_name_, rid, *old_record,*record);
-                context_->txn_->append_write_record(WriteRec);
+                auto WriteRec = std::make_unique< WriteRecord>(WType::UPDATE_TUPLE, tab_name_, rid, *old_record,*record);
+                context_->txn_->append_write_record(std::move(WriteRec));
             }
 
             // 更新索引项

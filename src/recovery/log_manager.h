@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "record/rm_defs.h"
 #include "transaction/transaction.h"
 #include "transaction/txn_defs.h"
+
 class Transaction;
 class WriteRecord;
 
@@ -403,7 +404,10 @@ class LogManager {
     LogBuffer* get_log_buffer() { return &log_buffer_; }
 
     inline lsn_t alloc_lsn() { return global_lsn_++; }
-    lsn_t gen_log_from_write_set(Transaction* txn);
+    void gen_logs_from_write_set(Transaction* txn);
+    void gen_log_bein(Transaction* txn);
+    void gen_log_commit(Transaction* txn);
+    void gen_log_abort(Transaction* txn);
 
    private:
     std::atomic<lsn_t> global_lsn_{0};  // 全局lsn，递增，用于为每条记录分发lsn

@@ -25,8 +25,15 @@ void RecoveryManager::redo() {
 }
 
 /**
- * @description: 回滚未完成的事务
+ * @description: 回滚未完成的事务 
+ *
  */
 void RecoveryManager::undo() {
 
+    /*
+    * NOTE: 好像只有一种情况需要 undo
+    *       1. 就是 buffer pool manager 满了之后会刷盘。
+    *       2. 数据库关闭时，会刷盘，这个时候没 commit 的语句需要 undo 之后再落盘。 但是这种情况感觉会很少出现。
+    *       似乎不存在其他情况会刷盘。
+    */
 }

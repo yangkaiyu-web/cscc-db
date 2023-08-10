@@ -95,9 +95,10 @@ class DeleteExecutor : public AbstractExecutor {
                     delete[] key;
                 }
             }
-            if (context_->txn_->get_state() == TransactionState::DEFAULT) {
-                WriteRecord *delRec = new WriteRecord{WType::DELETE_TUPLE, tab_name_, rid, *old_record};
-                context_->txn_->append_write_record(delRec);
+            if(context_->txn_->get_state() == TransactionState::DEFAULT)
+            {
+                auto delRec = std::make_unique < WriteRecord >(WType::DELETE_TUPLE,tab_name_,rid,*old_record);
+                context_->txn_->append_write_record(std::move(delRec));
             }
         }
 

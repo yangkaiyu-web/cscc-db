@@ -32,9 +32,7 @@ Transaction *TransactionManager::begin(Transaction *txn, LogManager *log_manager
         txn->set_start_ts(next_timestamp_++);
         txn->set_state(TransactionState::DEFAULT);
         txn_map[txn_id] = txn;
-        LogRecord *log_record =
-            new BeginLogRecord(log_manager->alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
-        txn->set_so_far_lsn(log_record->lsn_);
+        log_manager->gen_log_bein(txn);
         return txn;
     } else {
         // TODO:目前还不知道怎么处理
@@ -68,15 +66,11 @@ void TransactionManager::commit(Transaction *txn, LogManager *log_manager) {
     index_deleted_page_set->clear();
     index_latch_page_set->clear();
     // TODO:4 5
-    for(auto & write_rec : *write_records){
-        auto lsn = log_manager->gen_log_from_write_set(txn->get_transaction_id(), write_rec);
-        txn->set_so_far_lsn(lsn);
-    }
-    write_records->clear();
+    log_manager->gen_logs_from_write_set(txn);
 
-    CommitLogRecord log_record(log_manager->alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
-    txn->set_so_far_lsn(log_record.lsn_);
-    log_manager->add_log_to_buffer(&log_record);
+    write_records->clear();
+    log_manager->gen_log_commit(txn);
+
     log_manager->flush_log_to_disk();
 
 }
@@ -139,12 +133,8 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
     release_locks(txn);
     write_records->clear();
     //write_indexes->clear();
-
-
-    LogRecord *log_record =
-        new AbortLogRecord(log_manager->alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
-    txn->set_so_far_lsn(log_record->lsn_);
-    log_manager->add_log_to_buffer(log_record);
+    // TODO:4 5
+    log_manager->gen_log_abort(txn);
     log_manager->flush_log_to_disk();
     txn->set_state(TransactionState::ABORTED);
 }
