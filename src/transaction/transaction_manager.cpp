@@ -9,6 +9,8 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "transaction_manager.h"
+#include "recovery/log_manager.h"
+#include "transaction/txn_defs.h"
 
 std::unordered_map<txn_id_t, Transaction *> TransactionManager::txn_map = {};
 
@@ -65,12 +67,18 @@ void TransactionManager::commit(Transaction *txn, LogManager *log_manager) {
     //write_indexes->clear();
     index_deleted_page_set->clear();
     index_latch_page_set->clear();
+    // TODO:4 5
+    for(auto & write_rec : *write_records){
+        auto lsn = log_manager->gen_log_from_write_set(txn->get_transaction_id(), write_rec);
+        txn->set_so_far_lsn(lsn);
+    }
+    write_records->clear();
 
-    LogRecord *log_record =
-        new CommitLogRecord(log_manager->alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
-    txn->set_so_far_lsn(log_record->lsn_);
-    log_manager->add_log_to_buffer(log_record);
+    CommitLogRecord log_record(log_manager->alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
+    txn->set_so_far_lsn(log_record.lsn_);
+    log_manager->add_log_to_buffer(&log_record);
     log_manager->flush_log_to_disk();
+
 }
 
 /**

@@ -17,6 +17,8 @@ See the Mulan PSL v2 for more details. */
 #include "common/config.h"
 #include "log_defs.h"
 #include "record/rm_defs.h"
+#include "transaction/transaction.h"
+#include "transaction/txn_defs.h"
 class Transaction;
 class WriteRecord;
 
@@ -24,6 +26,11 @@ class WriteRecord;
 enum LogType : int { UPDATE = 0, INSERT, DELETE, BEGIN, COMMIT, ABORT };
 static std::string LogTypeStr[] = {"UPDATE", "INSERT", "DELETE", "BEGIN", "COMMIT", "ABORT"};
 
+/*
+ *-----------------------------------------------------------
+ * | log_type_ | lsn_ | log_tot_len_ | log_tid_ | prev_lsn_ |
+ *-----------------------------------------------------------
+ */
 class LogRecord {
    public:
     LogType log_type_;     /* 日志对应操作的类型 */
@@ -138,6 +145,12 @@ class AbortLogRecord : public LogRecord {
     }
 };
 
+/*
+ * InsertLogRecord
+ * -------------------------------------------------------------------------------
+ * | LogRecord | insert_value_size | insert_value | rid | table_name_size_ | table_name|
+ * -------------------------------------------------------------------------------
+ */
 class InsertLogRecord : public LogRecord {
    public:
     RmRecord insert_value_;   // 插入的记录
@@ -203,16 +216,164 @@ class InsertLogRecord : public LogRecord {
     }
 };
 
-/**
- * TODO: delete操作的日志记录
+/*
+ * DeleteLogRecord  same as InsertLogRecord
+ * -------------------------------------------------------------------------------
+ * | LogRecord | insert_value_size | insert_value | rid | table_name_size_ | table_name|
+ * -------------------------------------------------------------------------------
  */
-class DeleteLogRecord : public LogRecord {};
+class DeleteLogRecord : public LogRecord {
+   public:
+    RmRecord delete_value_;   // 被删除的记录
+    Rid rid_;                 // 记录插入的位置
+    char* table_name_;        // 插入记录的表名称
+    size_t table_name_size_;  // 表名称的大小
 
-/**
- * TODO: update操作的日志记录
+    DeleteLogRecord() {
+        log_type_ = LogType::DELETE;
+        lsn_ = INVALID_LSN;
+        log_tot_len_ = LOG_HEADER_SIZE;
+        log_tid_ = INVALID_TXN_ID;
+        prev_lsn_ = INVALID_LSN;
+        table_name_ = nullptr;
+    }
+
+    DeleteLogRecord(txn_id_t txn_id, RmRecord& delete_value, Rid& rid, std::string table_name) : DeleteLogRecord() {
+        log_tid_ = txn_id;
+        delete_value_  = delete_value;
+        rid_ = rid;
+        log_tot_len_ += sizeof(int);
+        log_tot_len_ += delete_value_.size;
+        log_tot_len_ += sizeof(Rid);
+        table_name_size_ = table_name.length();
+        table_name_ = new char[table_name_size_];
+        memcpy(table_name_, table_name.c_str(), table_name_size_);
+        log_tot_len_ += sizeof(size_t) + table_name_size_;
+    }
+
+    // 把insert日志记录序列化到dest中
+    void serialize(char* dest) const override {
+        LogRecord::serialize(dest);
+        int offset = OFFSET_LOG_DATA;
+        memcpy(dest + offset, &delete_value_.size, sizeof(int));
+        offset += sizeof(int);
+        memcpy(dest + offset, delete_value_.data, delete_value_.size);
+        offset += delete_value_.size;
+        memcpy(dest + offset, &rid_, sizeof(Rid));
+        offset += sizeof(Rid);
+        memcpy(dest + offset, &table_name_size_, sizeof(size_t));
+        offset += sizeof(size_t);
+        memcpy(dest + offset, table_name_, table_name_size_);
+    }
+    // 从src中反序列化出一条Insert日志记录
+    void deserialize(const char* src) override {
+        LogRecord::deserialize(src);
+        delete_value_.Deserialize(src + OFFSET_LOG_DATA);
+        int offset = OFFSET_LOG_DATA + delete_value_.size + sizeof(int);
+        rid_ = *reinterpret_cast<const Rid*>(src + offset);
+        offset += sizeof(Rid);
+        table_name_size_ = *reinterpret_cast<const size_t*>(src + offset);
+        offset += sizeof(size_t);
+        table_name_ = new char[table_name_size_];
+        memcpy(table_name_, src + offset, table_name_size_);
+    }
+
+    void format_print() override {
+        printf("delete record\n");
+        LogRecord::format_print();
+        printf("delete_value: %s\n", delete_value_.data);
+        printf("delete rid: %d, %d\n", rid_.page_no, rid_.slot_no);
+        printf("table name: %s\n", table_name_);
+    }
+};
+
+/*
+ * UpdateLogRecord      
+ * -------------------------------------------------------------------------------
+ * | LogRecord | value_size | old_value | value_size | new_value | rid | table_name_size_ | table_name|
+ * -------------------------------------------------------------------------------
+ * 记录两份 value_size 是因为 RmRecord 结构体的 deserialize 函数导致的。写两遍算了，不差这点空间
  */
-class UpdateLogRecord : public LogRecord {};
+class UpdateLogRecord : public LogRecord {
+   public:
+    RmRecord old_value_;   // 修改前的记录
+    RmRecord new_value_;   // 修改后的记录
+    Rid rid_;                 // 记录插入的位置
+    char* table_name_;        // 插入记录的表名称
+    size_t table_name_size_;  // 表名称的大小
 
+    UpdateLogRecord() {
+        log_type_ = LogType::DELETE;
+        lsn_ = INVALID_LSN;
+        log_tot_len_ = LOG_HEADER_SIZE;
+        log_tid_ = INVALID_TXN_ID;
+        prev_lsn_ = INVALID_LSN;
+        table_name_ = nullptr;
+    }
+
+    UpdateLogRecord(txn_id_t txn_id, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string table_name) : UpdateLogRecord  () {
+        log_tid_ = txn_id;
+        old_value_  = old_value;
+        new_value_  = new_value;
+        rid_ = rid;
+        log_tot_len_ += sizeof(int);
+        log_tot_len_ += old_value_.size;
+        log_tot_len_ += new_value.size;
+        log_tot_len_ += sizeof(Rid);
+        table_name_size_ = table_name.length();
+        table_name_ = new char[table_name_size_];
+        memcpy(table_name_, table_name.c_str(), table_name_size_);
+        log_tot_len_ += sizeof(size_t) + table_name_size_;
+    }
+
+    // 把insert日志记录序列化到dest中
+    void serialize(char* dest) const override {
+        LogRecord::serialize(dest);
+        int offset = OFFSET_LOG_DATA;
+        memcpy(dest + offset, &old_value_.size, sizeof(int));
+
+        offset += sizeof(int);
+        memcpy(dest + offset, old_value_.data, old_value_.size);
+
+        offset += old_value_.size;
+        memcpy(dest + offset, &new_value_.size, sizeof(int));
+
+        offset += sizeof(int);
+        memcpy(dest + offset, new_value_.data, old_value_.size);
+
+        offset += new_value_.size;
+        memcpy(dest + offset, &rid_, sizeof(Rid));
+        offset += sizeof(Rid);
+        memcpy(dest + offset, &table_name_size_, sizeof(size_t));
+        offset += sizeof(size_t);
+        memcpy(dest + offset, table_name_, table_name_size_);
+    }
+    // 从src中反序列化出一条Insert日志记录
+    void deserialize(const char* src) override {
+        LogRecord::deserialize(src);
+        old_value_.Deserialize(src + OFFSET_LOG_DATA);
+
+        int offset = OFFSET_LOG_DATA  + sizeof(int)+ old_value_.size;
+        new_value_.Deserialize(src+offset);
+
+        offset +=  sizeof(int)+ new_value_.size ;
+        rid_ = *reinterpret_cast<const Rid*>(src + offset);
+        offset += sizeof(Rid);
+        table_name_size_ = *reinterpret_cast<const size_t*>(src + offset);
+        offset += sizeof(size_t);
+        table_name_ = new char[table_name_size_];
+        memcpy(table_name_, src + offset, table_name_size_);
+    }
+
+    void format_print() override {
+        printf("update record\n");
+        LogRecord::format_print();
+        printf("old_value: %s\n", old_value_.data);
+        printf("new_value: %s\n", new_value_.data);
+        printf("update rid: %d, %d\n", rid_.page_no, rid_.slot_no);
+        printf("table name: %s\n", table_name_);
+    }
+};
 /* 日志缓冲区，只有一个buffer，因此需要阻塞地去把日志写入缓冲区中 */
 
 class LogBuffer {
@@ -242,6 +403,7 @@ class LogManager {
     LogBuffer* get_log_buffer() { return &log_buffer_; }
 
     inline lsn_t alloc_lsn() { return global_lsn_++; }
+    lsn_t gen_log_from_write_set(Transaction* txn);
 
    private:
     std::atomic<lsn_t> global_lsn_{0};  // 全局lsn，递增，用于为每条记录分发lsn

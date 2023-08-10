@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "defs.h"
 //#include "index/ix_index_handle.h"
 #include "record/rm_defs.h"
+#include "recovery/log_manager.h"
 
 /* 标识事务状态 */
 enum class TransactionState { DEFAULT, GROWING, SHRINKING, COMMITTED, ABORTED };
@@ -34,10 +35,10 @@ enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE };
  * --------------------------------
  * | wtype | tab_name | tuple_rid |
  * --------------------------------
- * DELETE / UPDATE
- * ----------------------------------------------
- * | wtype | tab_name | tuple_rid | tuple_value |
- * ----------------------------------------------
+ * DELETE / UPDATE  
+ * ----------------------------------------------------------------
+ * | wtype | tab_name | tuple_rid | tuple_value | new_tuple_value |
+ * ----------------------------------------------------------------
  */
 class WriteRecord {
    public:
@@ -50,6 +51,9 @@ class WriteRecord {
     WriteRecord(WType wtype, std::string &tab_name, const Rid &rid, const RmRecord &record)
         : wtype_(wtype), tab_name_(tab_name), rid_(rid), record_(record) {}
 
+    WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, const RmRecord &record ,const RmRecord& new_record)
+        : wtype_(wtype), tab_name_(tab_name), rid_(rid), record_(record),new_record_(new_record) {}
+
     ~WriteRecord() = default;
 
     inline RmRecord &GetRecord() { return record_; }
@@ -58,13 +62,15 @@ class WriteRecord {
 
     inline WType &GetWriteType() { return wtype_; }
 
-    inline std::string& GetTableName() { return tab_name_; }
+    inline std::string &GetTableName() { return tab_name_; }
+    inline RmRecord &GetNewRecord() { return new_record_; }
 
    private:
     WType wtype_;
     std::string tab_name_;
     Rid rid_;
     RmRecord record_;
+    RmRecord new_record_;
 };
 
 // class WriteIndex {
