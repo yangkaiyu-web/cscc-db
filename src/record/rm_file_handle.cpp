@@ -9,6 +9,8 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "rm_file_handle.h"
+#include "recovery/log_manager.h"
+#include "transaction/transaction.h"
 
 /**
  * @description: 获取当前表中记录号为rid的记录
@@ -85,7 +87,7 @@ void RmFileHandle::insert_record(const Rid &rid, char *buf) {
     if (Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {
         memcpy(page_handle.get_slot(rid.slot_no), buf, file_hdr_.record_size);
     } else {
-        // delete的rollback
+
         memcpy(page_handle.get_slot(rid.slot_no), buf, file_hdr_.record_size);
         Bitmap::set(page_handle.bitmap, rid.slot_no);
         auto &page_hdr = page_handle.page_hdr;
@@ -112,6 +114,31 @@ void RmFileHandle::delete_record(const Rid &rid, Context *context) {
     if(!page_handle.page->is_dirty()&& context != nullptr){
         page_handle.page_hdr->rec_lsn = context->txn_->get_so_far_lsn();
     }
+    if (Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {
+        Bitmap::reset(page_handle.bitmap, rid.slot_no);
+        auto &page_hdr = page_handle.page_hdr;
+        --page_hdr->num_records;
+        if (page_hdr->num_records == file_hdr_.num_records_per_page - 1) {
+            page_hdr->next_free_page_no = file_hdr_.first_free_page_no;
+            file_hdr_.first_free_page_no = rid.page_no;
+        }
+    } else {
+        assert(false);
+    }
+    buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), true);
+}
+/**
+ * @description: 删除记录文件中记录号为rid的记录 用于恢复
+ * @param {Rid&} rid 要删除的记录的记录号（位置）
+ * @param {Context*} context
+ */
+void RmFileHandle::delete_record(const Rid &rid, LogManager * log_manager,Transaction* txn) {
+    // Todo:
+    // 1. 获取指定记录所在的page handle
+    // 2. 更新page_handle.page_hdr中的数据结构
+    // 注意考虑删除一条记录后页面未满的情况，需要调用release_page_handle()
+    RmPageHandle page_handle = fetch_page_handle(rid.page_no);
+
     if (Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {
         Bitmap::reset(page_handle.bitmap, rid.slot_no);
         auto &page_hdr = page_handle.page_hdr;

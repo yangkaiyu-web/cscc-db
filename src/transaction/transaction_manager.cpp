@@ -92,7 +92,7 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
     while (!write_set->empty()) {
         switch (write_set->back()->GetWriteType()) {
             case WType::INSERT_TUPLE:
-                rollback_insert(write_set->back()->GetTableName(), write_set->back()->GetRid(), txn);
+                rollback_insert(write_set->back()->GetTableName(), write_set->back()->GetRid(), txn,log_manager);
                 log_manager->gen_log_insert_CLR(txn, write_set->back()->GetRecord(), write_set->back()->GetRid() , write_set->back()->GetTableName());
                 break;
             case WType::DELETE_TUPLE:
@@ -191,7 +191,7 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
  * @param rid
  * @param txn 需要回滚的事务
  */
-void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid &rid, Transaction *txn) {
+void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid &rid, Transaction *txn,LogManager* log_manager) {
     auto table = sm_manager_->db_.get_table(tab_name_);
     auto rec = sm_manager_->fhs_.at(tab_name_).get()->get_record(rid, nullptr);
     auto fh = sm_manager_->fhs_.at(tab_name_).get();
@@ -206,7 +206,7 @@ void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid
         }
         ih->delete_entry(key->data, txn);
     }
-    fh->delete_record(rid ,nullptr);
+    fh->delete_record(rid, log_manager);
 }
 
 /**
@@ -216,7 +216,7 @@ void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid
  * @param txn 需要回滚的事务
  */
 void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid &rid, const RmRecord &rec,
-                                         Transaction *txn) {
+                                         Transaction *txn,LogManager* log_manager) {
     auto table = sm_manager_->db_.get_table(tab_name_);
     auto fh = sm_manager_->fhs_.at(tab_name_).get();
     for (size_t i = 0; i < table.indexes.size(); ++i) {
@@ -230,7 +230,7 @@ void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid
         }
         ih->insert_entry(key->data, rid, nullptr);
     }
-    fh->insert_record(rid, rec.data);
+    fh->insert_record(rid, rec.data,log_manager);
 }
 
 /**
@@ -241,7 +241,7 @@ void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid
  * @param txn 需要回滚的事务
  */
 void TransactionManager::rollback_update(const std::string &tab_name_, const Rid &rid, const RmRecord &record,
-                                         Transaction *txn) {
+                                         Transaction *txn,LogManager* log_manager) {
     auto table = sm_manager_->db_.get_table(tab_name_);
     auto rec = sm_manager_->fhs_.at(tab_name_).get()->get_record(rid, nullptr);
     auto fh = sm_manager_->fhs_.at(tab_name_).get();
@@ -256,7 +256,7 @@ void TransactionManager::rollback_update(const std::string &tab_name_, const Rid
         }
         ih->delete_entry(key->data, txn);
     }
-    fh->insert_record(rid, record.data);
+    fh->insert_record(rid, record.data,log_manager);
 
     for (size_t i = 0; i < table.indexes.size(); ++i) {
         auto &index = table.indexes[i];

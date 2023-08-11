@@ -38,6 +38,7 @@ class LogRecord {
     uint32_t log_tot_len_; /* 整个日志记录的长度 */
     txn_id_t log_tid_;     /* 创建当前日志的事务ID */
     lsn_t prev_lsn_;       /* 事务创建的前一条日志记录的lsn，用于undo ,在 clr 日志中就表示 undo next*/
+    lsn_t undo_next_ ;    /*  用于 clr 类型的 日志*/
 
     void setCLR(){
         switch (log_type_) {
@@ -61,6 +62,7 @@ class LogRecord {
         memcpy(dest + OFFSET_LOG_TOT_LEN, &log_tot_len_, sizeof(uint32_t));
         memcpy(dest + OFFSET_LOG_TID, &log_tid_, sizeof(txn_id_t));
         memcpy(dest + OFFSET_PREV_LSN, &prev_lsn_, sizeof(lsn_t));
+        memcpy(dest + OFFSET_UNDO_NEXT, &undo_next_, sizeof(lsn_t));
     }
     // 从src中反序列化出一条日志记录
     virtual void deserialize(const char* src) {
@@ -69,6 +71,7 @@ class LogRecord {
         log_tot_len_ = *reinterpret_cast<const uint32_t*>(src + OFFSET_LOG_TOT_LEN);
         log_tid_ = *reinterpret_cast<const txn_id_t*>(src + OFFSET_LOG_TID);
         prev_lsn_ = *reinterpret_cast<const lsn_t*>(src + OFFSET_PREV_LSN);
+        undo_next_ = *reinterpret_cast<const lsn_t*>(src + OFFSET_UNDO_NEXT);
     }
     // used for debug
     virtual void format_print() {
@@ -79,6 +82,7 @@ class LogRecord {
         printf("log_tot_len: %d\n", log_tot_len_);
         printf("log_tid: %d\n", log_tid_);
         printf("prev_lsn: %d\n", prev_lsn_);
+        printf("undo_next: %d\n", undo_next_);
     }
 };
 
@@ -90,6 +94,7 @@ class BeginLogRecord : public LogRecord {
         log_tot_len_ = LOG_HEADER_SIZE;
         log_tid_ = INVALID_TXN_ID;
         prev_lsn_ = INVALID_LSN;
+        undo_next_ = INVALID_LSN;
     }
     BeginLogRecord(lsn_t lsn, lsn_t prev_lsn, txn_id_t txn_id) : BeginLogRecord() {
         lsn_ = lsn;
@@ -117,6 +122,7 @@ class CommitLogRecord : public LogRecord {
         log_tot_len_ = LOG_HEADER_SIZE;
         log_tid_ = INVALID_TXN_ID;
         prev_lsn_ = INVALID_LSN;
+        undo_next_=INVALID_LSN;
     }
     CommitLogRecord(lsn_t lsn, lsn_t prev_lsn, txn_id_t txn_id) : CommitLogRecord() {
         lsn_ = lsn;
@@ -144,6 +150,7 @@ class AbortLogRecord : public LogRecord {
         log_tot_len_ = LOG_HEADER_SIZE;
         log_tid_ = INVALID_TXN_ID;
         prev_lsn_ = INVALID_LSN;
+        undo_next_ = INVALID_LSN;
     }
     AbortLogRecord(lsn_t lsn, lsn_t prev_lsn, txn_id_t txn_id) : AbortLogRecord() {
         lsn_ = lsn;
@@ -178,6 +185,7 @@ class InsertLogRecord : public LogRecord {
         log_tot_len_ = LOG_HEADER_SIZE;
         log_tid_ = INVALID_TXN_ID;
         prev_lsn_ = INVALID_LSN;
+        undo_next_ = INVALID_LSN;
         table_name_ = nullptr;
     }
 
@@ -249,6 +257,7 @@ class DeleteLogRecord : public LogRecord {
         log_tot_len_ = LOG_HEADER_SIZE;
         log_tid_ = INVALID_TXN_ID;
         prev_lsn_ = INVALID_LSN;
+        undo_next_ = INVALID_LSN;
         table_name_ = nullptr;
     }
 
@@ -322,6 +331,7 @@ class UpdateLogRecord : public LogRecord {
         log_tot_len_ = LOG_HEADER_SIZE;
         log_tid_ = INVALID_TXN_ID;
         prev_lsn_ = INVALID_LSN;
+        undo_next_ = INVALID_LSN;
         table_name_ = nullptr;
     }
 
@@ -425,6 +435,9 @@ class LogManager {
     lsn_t gen_log_upadte_CLR(Transaction*txn, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name);
     lsn_t gen_log_insert_CLR(Transaction*txn, RmRecord& insert_value, Rid& rid, std::string &table_name);
     lsn_t gen_log_delete_CLR(Transaction*txn, RmRecord& delete_value, Rid& rid, std::string& table_name);
+    lsn_t gen_log_upadte(Transaction*txn, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name);
+    lsn_t gen_log_insert(Transaction*txn, RmRecord& insert_value, Rid& rid, std::string &table_name);
+    lsn_t gen_log_delete(Transaction*txn, RmRecord& delete_value, Rid& rid, std::string& table_name);
 
    private:
     std::atomic<lsn_t> global_lsn_{0};  // 全局lsn，递增，用于为每条记录分发lsn

@@ -46,4 +46,5 @@ private:
     std::unordered_set<txn_id_t> undo_list_;
     std::unordered_map<page_id_t,txn_id_t> dirty_page_table_;
     std::unordered_map<lsn_t, int> lsn_offset_table_;
+    std::list<int > offset_list_;
 };

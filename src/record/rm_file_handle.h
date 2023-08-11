@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "recovery/log_manager.h"
 #include "rm_defs.h"
 #include "transaction/transaction.h"
+
 class RmManager;
 
 /* 对表数据文件中的页面进行封装 */
@@ -92,10 +93,12 @@ class RmFileHandle {
     std::unique_ptr<RmRecord> get_record(const Rid &rid, Context *context) const;
 
     Rid insert_record(char *buf, Context *context);
-
-    void insert_record(const Rid &rid, char *buf);
+    // used for recovery
+    void insert_record(const Rid &rid, char *buf,LogManager * log_manager,Transaction* txn);
 
     void delete_record(const Rid &rid, Context *context);
+    // used for recovery
+    void delete_record(const Rid &rid, LogManager* log_manager,Transaction* txn);
 
     void update_record(const Rid &rid, char *buf, Context *context);
 
