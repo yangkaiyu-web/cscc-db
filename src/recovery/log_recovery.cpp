@@ -9,19 +9,55 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "log_recovery.h"
+#include <readline/readline.h>
+#include <utility>
+#include "recovery/log_defs.h"
+#include "recovery/log_manager.h"
 
 /**
  * @description: analyze阶段，需要获得脏页表（DPT）和未完成的事务列表（ATT）
  */
 void RecoveryManager::analyze() {
- 
+    int offset = 0;
+    char log_hdr[LOG_HEADER_SIZE];
+    while(disk_manager_->read_log(log_hdr,LOG_HEADER_SIZE , offset)> 0){
+
+        LogRecord  log;
+        log.deserialize(log_hdr);
+        lsn_offset_table_.insert(std::make_pair(log.lsn_, offset));
+        offset += log.log_tot_len_;
+    }
+
 }
 
 /**
  * @description: 重做所有未落盘的操作
  */
 void RecoveryManager::redo() {
+    int offset = 0;
+    char log_hdr[LOG_HEADER_SIZE];
+    while(disk_manager_->read_log(log_hdr,LOG_HEADER_SIZE , offset)> 0){
+        LogRecord  log;
+        log.deserialize(log_hdr);
+        lsn_offset_table_.insert(std::make_pair(log.lsn_, offset));
+        char * log_buf = new char[log.log_tot_len_];
+        disk_manager_->read_log(log_buf, log.log_tot_len_, offset);
+        offset += log.log_tot_len_;
+        if(log.log_type_ == LogType:: DELETE || log.log_type_ == LogType:: CLR_DELETE){
+            DeleteLogRecord del_log ;
+            del_log.deserialize(log_buf);
+            std::string tab_name(del_log.table_name_,del_log.table_name_size_);
+            auto fh = sm_manager_->fhs_.at(tab_name).get();
+            fh->delete_record(del_log.rid_,nullptr );
+        }else if(log.log_type_ == LogType::INSERT || log.log_type_ == LogType:: CLR_INSERT){
+                InsertLogRecord insert_log ;
+                insert_log.deserialize(log_buf);
+                std::string tab_name(insert_log.table_name_,insert_log.table_name_size_);
+                auto fh = sm_manager_->fhs_.at(tab_name).get();
+                fh->insert_record(insert_log.rid_,insert_log.insert_value_.data);
+        } else if()
 
+    }
 }
 
 /**

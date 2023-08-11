@@ -22,10 +22,9 @@ See the Mulan PSL v2 for more details. */
 
 class Transaction;
 class WriteRecord;
-
-/* 日志记录对应操作的类型 */
-enum LogType : int { UPDATE = 0, INSERT, DELETE, BEGIN, COMMIT, ABORT };
-static std::string LogTypeStr[] = {"UPDATE", "INSERT", "DELETE", "BEGIN", "COMMIT", "ABORT"};
+/* 日志记录对应操作的类型 */                                        //  for undo 
+enum LogType : int { UPDATE = 0, INSERT, DELETE, BEGIN, COMMIT, ABORT ,CLR_UPDATE,CLR_INSERT,CLR_DELETE};
+static std::string LogTypeStr[] = {"UPDATE", "INSERT", "DELETE", "BEGIN", "COMMIT", "ABORT","CLR_UPDATE","CLR_INSERT","CLR_DELETE"};
 
 /*
  *-----------------------------------------------------------
@@ -35,11 +34,26 @@ static std::string LogTypeStr[] = {"UPDATE", "INSERT", "DELETE", "BEGIN", "COMMI
 class LogRecord {
    public:
     LogType log_type_;     /* 日志对应操作的类型 */
-    lsn_t lsn_;            /* 当前日志的lsn */
+    lsn_t lsn_;            /* 当前日志的lsn  log seq number */ 
     uint32_t log_tot_len_; /* 整个日志记录的长度 */
     txn_id_t log_tid_;     /* 创建当前日志的事务ID */
-    lsn_t prev_lsn_;       /* 事务创建的前一条日志记录的lsn，用于undo */
+    lsn_t prev_lsn_;       /* 事务创建的前一条日志记录的lsn，用于undo ,在 clr 日志中就表示 undo next*/
 
+    void setCLR(){
+        switch (log_type_) {
+            case LogType::UPDATE:
+                log_type_ = CLR_UPDATE;
+                break;
+            case LogType::DELETE:
+                log_type_ = CLR_DELETE;
+                break;
+            case LogType::INSERT:
+                log_type_ = CLR_INSERT;
+                break;
+            default:
+                assert(false);
+        }
+    }
     // 把日志记录序列化到dest中
     virtual void serialize(char* dest) const {
         memcpy(dest + OFFSET_LOG_TYPE, &log_type_, sizeof(LogType));
@@ -158,7 +172,6 @@ class InsertLogRecord : public LogRecord {
     Rid rid_;                 // 记录插入的位置
     char* table_name_;        // 插入记录的表名称
     size_t table_name_size_;  // 表名称的大小
-
     InsertLogRecord() {
         log_type_ = LogType::INSERT;
         lsn_ = INVALID_LSN;
@@ -168,7 +181,7 @@ class InsertLogRecord : public LogRecord {
         table_name_ = nullptr;
     }
 
-    InsertLogRecord(txn_id_t txn_id, RmRecord& insert_value, Rid& rid, std::string table_name) : InsertLogRecord() {
+    InsertLogRecord(txn_id_t txn_id, RmRecord& insert_value, Rid& rid, std::string &table_name) : InsertLogRecord() {
         log_tid_ = txn_id;
         insert_value_ = insert_value;
         rid_ = rid;
@@ -239,7 +252,7 @@ class DeleteLogRecord : public LogRecord {
         table_name_ = nullptr;
     }
 
-    DeleteLogRecord(txn_id_t txn_id, RmRecord& delete_value, Rid& rid, std::string table_name) : DeleteLogRecord() {
+    DeleteLogRecord(txn_id_t txn_id, RmRecord& delete_value, Rid& rid, std::string& table_name) : DeleteLogRecord() {
         log_tid_ = txn_id;
         delete_value_  = delete_value;
         rid_ = rid;
@@ -252,7 +265,7 @@ class DeleteLogRecord : public LogRecord {
         log_tot_len_ += sizeof(size_t) + table_name_size_;
     }
 
-    // 把insert日志记录序列化到dest中
+    // 把delete日志记录序列化到dest中
     void serialize(char* dest) const override {
         LogRecord::serialize(dest);
         int offset = OFFSET_LOG_DATA;
@@ -312,7 +325,7 @@ class UpdateLogRecord : public LogRecord {
         table_name_ = nullptr;
     }
 
-    UpdateLogRecord(txn_id_t txn_id, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string table_name) : UpdateLogRecord  () {
+    UpdateLogRecord(txn_id_t txn_id, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name) : UpdateLogRecord  () {
         log_tid_ = txn_id;
         old_value_  = old_value;
         new_value_  = new_value;
@@ -327,7 +340,7 @@ class UpdateLogRecord : public LogRecord {
         log_tot_len_ += sizeof(size_t) + table_name_size_;
     }
 
-    // 把insert日志记录序列化到dest中
+    // 把 delete 日志记录序列化到dest中
     void serialize(char* dest) const override {
         LogRecord::serialize(dest);
         int offset = OFFSET_LOG_DATA;
@@ -404,10 +417,14 @@ class LogManager {
     LogBuffer* get_log_buffer() { return &log_buffer_; }
 
     inline lsn_t alloc_lsn() { return global_lsn_++; }
-    void gen_logs_from_write_set(Transaction* txn);
-    void gen_log_bein(Transaction* txn);
-    void gen_log_commit(Transaction* txn);
-    void gen_log_abort(Transaction* txn);
+
+    lsn_t gen_log_from_write_set(Transaction* txn,WriteRecord*write_rec);
+    lsn_t gen_log_bein(Transaction* txn);
+    lsn_t gen_log_commit(Transaction* txn);
+    lsn_t gen_log_abort(Transaction* txn);
+    lsn_t gen_log_upadte_CLR(Transaction*txn, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name);
+    lsn_t gen_log_insert_CLR(Transaction*txn, RmRecord& insert_value, Rid& rid, std::string &table_name);
+    lsn_t gen_log_delete_CLR(Transaction*txn, RmRecord& delete_value, Rid& rid, std::string& table_name);
 
    private:
     std::atomic<lsn_t> global_lsn_{0};  // 全局lsn，递增，用于为每条记录分发lsn

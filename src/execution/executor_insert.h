@@ -96,15 +96,16 @@ class InsertExecutor : public AbstractExecutor {
             //     context_->txn_->append_write_index(ins_rec);
             // }
         }
-        // Insert into record file
-        rid_ = fh_->insert_record(rec.data, context_);
 
         if (context_->txn_->get_state() == TransactionState::DEFAULT) 
         {
 			auto insertRec = std::make_unique < WriteRecord > (WType::INSERT_TUPLE, tab_name_, rid_,rec);
 			context_->txn_->append_write_record(std::move(insertRec));
-		}
-
+		}else {
+            assert(false);
+        }
+        // Insert into record file
+        rid_ = fh_->insert_record(rec.data, context_);
         return nullptr;
     }
 

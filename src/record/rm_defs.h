@@ -10,6 +10,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include "common/config.h"
 #include "defs.h"
 #include "storage/buffer_pool_manager.h"
 
@@ -29,6 +30,8 @@ struct RmFileHdr {
 
 /* 表数据文件中每个页面的页头，记录每个页面的元信息 */
 struct RmPageHdr {
+    lsn_t page_lsn; // 对这个页面最新的更改对应的 lsn
+    lsn_t rec_lsn;  // 上次刷新之后，第一次更新对应的 lsn
     int next_free_page_no;  // 当前页面满了之后，下一个包含空闲空间的页面号（初始化为-1）
     int num_records;        // 当前页面中当前已经存储的记录个数（初始化为0）
 };

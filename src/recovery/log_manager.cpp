@@ -12,7 +12,9 @@ See the Mulan PSL v2 for more details. */
 
 #include <cstring>
 #include <memory>
+#include "common/config.h"
 #include "transaction/transaction.h"
+#include "transaction/txn_defs.h"
 
 /**
  * @description: 添加日志记录到日志缓冲区中，并返回日志记录号
@@ -20,15 +22,12 @@ See the Mulan PSL v2 for more details. */
  * @return {lsn_t} 返回该日志的日志记录号
  */
 lsn_t LogManager::add_log_to_buffer(LogRecord* log_record) {
-    latch_.lock();
-
     if (log_buffer_.is_full(log_record->log_tot_len_)) {
         flush_log_to_disk();
     } 
     log_record->serialize(log_buffer_.buffer_ + log_buffer_.offset_);
     log_buffer_.offset_ += log_record->log_tot_len_;
     buffer_lsn_ = log_record->lsn_;
-    latch_.unlock();
     return log_record->lsn_;
 }
 
@@ -42,52 +41,102 @@ void LogManager::flush_log_to_disk() {
     log_buffer_.offset_=0;
     latch_.unlock();
 }
-void LogManager::gen_logs_from_write_set(Transaction* txn){
-    for(auto& write_rec :*(txn->get_write_set()) ){
-        std::unique_ptr<LogRecord>  log ;
-        switch (write_rec->GetWriteType()) {
-            case WType::INSERT_TUPLE:
-                log = std::make_unique< InsertLogRecord>(txn->get_transaction_id(),write_rec->GetRecord(),write_rec->GetRid(),write_rec->GetTableName());
-                break;                                                        
-            case WType::DELETE_TUPLE:                                        
+lsn_t LogManager::gen_log_from_write_set(Transaction* txn,WriteRecord* write_rec){
 
-                log =  std::make_unique<DeleteLogRecord>(txn->get_transaction_id(),write_rec->GetRecord(),write_rec->GetRid(),write_rec->GetTableName());
-                break;                                                        
-            case WType::UPDATE_TUPLE:                                         
-                log = std::make_unique< UpdateLogRecord>(txn->get_transaction_id(),write_rec->GetRecord(),write_rec->GetNewRecord(),write_rec->GetRid(),write_rec->GetTableName());
-                break;
-            default:
-                assert(false);
-        }
-        log->lsn_=alloc_lsn(); // 虽然是 atomic 但还是要加锁
-        log->prev_lsn_ = txn->get_so_far_lsn();
-        txn->set_so_far_lsn( add_log_to_buffer(log.get()));
+    std::unique_ptr<LogRecord>  log ;
+    switch (write_rec->GetWriteType()) {
+        case WType::INSERT_TUPLE:
+            log = std::make_unique< InsertLogRecord>(txn->get_transaction_id(),write_rec->GetRecord(),write_rec->GetRid(),write_rec->GetTableName());
+            break;
+        case WType::DELETE_TUPLE:
+
+            log =  std::make_unique<DeleteLogRecord>(txn->get_transaction_id(),write_rec->GetRecord(),write_rec->GetRid(),write_rec->GetTableName());
+            break;
+        case WType::UPDATE_TUPLE:
+            log = std::make_unique< UpdateLogRecord>(txn->get_transaction_id(),write_rec->GetRecord(),write_rec->GetNewRecord(),write_rec->GetRid(),write_rec->GetTableName());
+            break;
+        default:
+            assert(false);
     }
+    latch_.lock();
+    log->lsn_=alloc_lsn();
+    add_log_to_buffer(log.get());
+    latch_.unlock();
 
+    log->prev_lsn_ = txn->get_so_far_lsn();
+    txn->set_so_far_lsn(log->lsn_);
+    return log->lsn_;
 
 }
+lsn_t LogManager::gen_log_upadte_CLR(Transaction*txn, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name){
+    // NOTE: 这里 new_value 和 old value 调换了一下;
+    auto log = std::make_unique< UpdateLogRecord>(txn->get_transaction_id(),new_value,old_value,rid,table_name);
+    log->setCLR();
 
-void LogManager::gen_log_bein(Transaction* txn){
+    latch_.lock();
+    log->lsn_=alloc_lsn();
+    add_log_to_buffer(log.get());
+    latch_.unlock();
+
+    log->prev_lsn_ = txn->get_so_far_lsn();
+    txn->set_so_far_lsn(log->lsn_);
+    return log->lsn_;
+}
+
+lsn_t LogManager::gen_log_insert_CLR(Transaction*txn, RmRecord& insert_value, Rid& rid, std::string &table_name){
+    auto log = std::make_unique< InsertLogRecord>(txn->get_transaction_id(),insert_value,rid,table_name);
+    log->setCLR();
+    latch_.lock();
+    log->lsn_=alloc_lsn();
+    add_log_to_buffer(log.get());
+    latch_.unlock();
+
+    log->prev_lsn_ = txn->get_so_far_lsn();
+    txn->set_so_far_lsn(log->lsn_);
+    return log->lsn_;
+}
+lsn_t LogManager::gen_log_delete_CLR(Transaction*txn, RmRecord& delete_value, Rid& rid, std::string& table_name){
+    auto log = std::make_unique< InsertLogRecord>(txn->get_transaction_id(),delete_value,rid,table_name);
+    log->setCLR();
+
+    latch_.lock();
+    log->lsn_=alloc_lsn();
+    add_log_to_buffer(log.get());
+    latch_.unlock();
+
+    log->prev_lsn_ = txn->get_so_far_lsn();
+    txn->set_so_far_lsn(log->lsn_);
+    return log->lsn_;
+}
+lsn_t LogManager::gen_log_bein(Transaction* txn){
+    latch_.lock();
     auto log_record =
         std::make_unique< BeginLogRecord>(alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
-    txn->set_so_far_lsn(log_record->lsn_);
 
     add_log_to_buffer(log_record.get());
+    latch_.unlock();
+    txn->set_so_far_lsn(log_record->lsn_);
+    return log_record->lsn_;
 }
 
-void LogManager::gen_log_commit(Transaction* txn){
+lsn_t LogManager::gen_log_commit(Transaction* txn){
+    latch_.lock();
     auto log_record =
         std::make_unique< CommitLogRecord>(alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
-    txn->set_so_far_lsn(log_record->lsn_);
     add_log_to_buffer(log_record.get());
+    latch_.unlock();
+    txn->set_so_far_lsn(log_record->lsn_);
+    return log_record->lsn_;
 
 }
 
-void LogManager::gen_log_abort(Transaction* txn){
+lsn_t LogManager::gen_log_abort(Transaction* txn){
+    latch_.lock();
     auto log_record =
         std::make_unique< AbortLogRecord>(alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
-    txn->set_so_far_lsn(log_record->lsn_);
     add_log_to_buffer(log_record.get());
-
+    latch_.unlock();
+    txn->set_so_far_lsn(log_record->lsn_);
+    return log_record->lsn_;
 }
 

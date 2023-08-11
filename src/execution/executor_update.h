@@ -113,12 +113,15 @@ class UpdateExecutor : public AbstractExecutor {
                 }
                 memcpy(record->data + col.offset, val.raw->data, col.len);
             }
-            fh_->update_record(rid, record->data, context_);
             // 更新事务
             if (context_->txn_->get_state() == TransactionState::DEFAULT) {
                 auto WriteRec = std::make_unique< WriteRecord>(WType::UPDATE_TUPLE, tab_name_, rid, *old_record,*record);
+                context_->log_mgr_->gen_log_from_write_set(context_->txn_,WriteRec.get());
                 context_->txn_->append_write_record(std::move(WriteRec));
+            }else {
+                assert(false);
             }
+            fh_->update_record(rid, record->data, context_);
 
             // 更新索引项
 
@@ -138,6 +141,7 @@ class UpdateExecutor : public AbstractExecutor {
                 }
                 idx_hdls[i]->insert_entry(key, rid, context_->txn_);
             }
+            // TODO : add index log
         }
 
         return nullptr;

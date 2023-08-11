@@ -56,7 +56,7 @@ void TransactionManager::commit(Transaction *txn, LogManager *log_manager) {
     assert(txn != nullptr);
     txn->set_state(TransactionState::COMMITTED);
     // TODO:提交写操作(写日志？)
-    auto write_records = txn->get_write_records();
+    auto write_records = txn->get_write_set();
     // auto write_indexes = txn->get_write_indexes();
     auto index_deleted_page_set = txn->get_index_deleted_page_set();
     auto index_latch_page_set = txn->get_index_latch_page_set();
@@ -66,7 +66,6 @@ void TransactionManager::commit(Transaction *txn, LogManager *log_manager) {
     index_deleted_page_set->clear();
     index_latch_page_set->clear();
     // TODO:4 5
-    log_manager->gen_logs_from_write_set(txn);
 
     write_records->clear();
     log_manager->gen_log_commit(txn);
@@ -89,28 +88,25 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
     // 5. 更新事务状态
     assert(txn != nullptr);
     txn->set_state(TransactionState::ABORTED);
-    auto write_records = txn->get_write_records();
-    while (!write_records->empty()) {
-        switch (write_records->back()->GetWriteType()) {
+    auto write_set = txn->get_write_set();
+    while (!write_set->empty()) {
+        switch (write_set->back()->GetWriteType()) {
             case WType::INSERT_TUPLE:
-                //rollback_insert_record(write_records->back()->GetTableName(), write_records->back()->GetRid(), txn);
-                rollback_insert(write_records->back()->GetTableName(), write_records->back()->GetRid(), txn);
+                rollback_insert(write_set->back()->GetTableName(), write_set->back()->GetRid(), txn);
+                log_manager->gen_log_insert_CLR(txn, write_set->back()->GetRecord(), write_set->back()->GetRid() , write_set->back()->GetTableName());
                 break;
             case WType::DELETE_TUPLE:
-                rollback_delete(write_records->back()->GetTableName(), write_records->back()->GetRid(),
-                                write_records->back()->GetRecord(), txn);
-                // rollback_delete_record(write_records->back()->GetTableName(), write_records->back()->GetRid(),
-                //                        write_records->back()->GetRecord(), txn);
+                rollback_delete(write_set->back()->GetTableName(), write_set->back()->GetRid(),
+                                write_set->back()->GetRecord(), txn);
+                log_manager->gen_log_delete_CLR(txn, write_set->back()->GetRecord(), write_set->back()->GetRid() , write_set->back()->GetTableName());
                 break;
             case WType::UPDATE_TUPLE:
-
-                rollback_update(write_records->back()->GetTableName(), write_records->back()->GetRid(),
-                                write_records->back()->GetRecord(), txn);
-                // rollback_update_record(write_records->back()->GetTableName(), write_records->back()->GetRid(),
-                //                        write_records->back()->GetRecord(), txn);
+                rollback_update(write_set->back()->GetTableName(), write_set->back()->GetRid(),
+                                write_set->back()->GetRecord(), txn);
+                log_manager->gen_log_upadte_CLR(txn, write_set->back()->GetRecord(), write_set->back()->GetNewRecord(),write_set->back()->GetRid() , write_set->back()->GetTableName());
                 break;
         }
-        write_records->pop_back();
+        write_set->pop_back();
     }
 
     //auto write_indexes = txn->get_write_indexes();
@@ -131,7 +127,7 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
     //     write_indexes->pop_back();
     //}
     release_locks(txn);
-    write_records->clear();
+    write_set->clear();
     //write_indexes->clear();
     // TODO:4 5
     log_manager->gen_log_abort(txn);

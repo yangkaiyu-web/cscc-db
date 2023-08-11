@@ -82,6 +82,13 @@ class DeleteExecutor : public AbstractExecutor {
                     throw TransactionAbortException(context_->txn_->get_transaction_id(),AbortReason::GET_LOCK_FAILED);
                 }
 
+                if(context_->txn_->get_state() == TransactionState::DEFAULT)
+                {
+                    auto delRec = std::make_unique < WriteRecord >(WType::DELETE_TUPLE,tab_name_,rid,*old_record);
+                    context_->txn_->append_write_record(std::move(delRec));
+                }else {
+                    assert(false);
+                }
                 fh_->delete_record(rid, context_);
 
                 for (size_t i = 0; i < indexes.size(); ++i) {
@@ -94,11 +101,6 @@ class DeleteExecutor : public AbstractExecutor {
                     idx_hdls[i]->delete_entry(key, context_->txn_);
                     delete[] key;
                 }
-            }
-            if(context_->txn_->get_state() == TransactionState::DEFAULT)
-            {
-                auto delRec = std::make_unique < WriteRecord >(WType::DELETE_TUPLE,tab_name_,rid,*old_record);
-                context_->txn_->append_write_record(std::move(delRec));
             }
         }
 
