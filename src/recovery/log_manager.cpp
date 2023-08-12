@@ -116,7 +116,7 @@ lsn_t LogManager::gen_log_delete_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& de
 lsn_t LogManager::gen_log_bein(Transaction* txn){
     latch_.lock();
     auto log_record =
-        std::make_unique< BeginLogRecord>(alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
+        std::make_unique< BeginLogRecord>(alloc_lsn(), txn->get_so_far_lsn(), txn->get_transaction_id());
 
     add_log_to_buffer(log_record.get());
     latch_.unlock();
@@ -127,7 +127,7 @@ lsn_t LogManager::gen_log_bein(Transaction* txn){
 lsn_t LogManager::gen_log_commit(Transaction* txn){
     latch_.lock();
     auto log_record =
-        std::make_unique< CommitLogRecord>(alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
+        std::make_unique< CommitLogRecord>(alloc_lsn(), txn->get_so_far_lsn(), txn->get_transaction_id());
     add_log_to_buffer(log_record.get());
     latch_.unlock();
     txn->set_so_far_lsn(log_record->lsn_);
@@ -138,7 +138,7 @@ lsn_t LogManager::gen_log_commit(Transaction* txn){
 lsn_t LogManager::gen_log_abort(Transaction* txn){
     latch_.lock();
     auto log_record =
-        std::make_unique< AbortLogRecord>(alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
+        std::make_unique< AbortLogRecord>(alloc_lsn(), txn->get_so_far_lsn(), txn->get_transaction_id());
     add_log_to_buffer(log_record.get());
     latch_.unlock();
     txn->set_so_far_lsn(log_record->lsn_);

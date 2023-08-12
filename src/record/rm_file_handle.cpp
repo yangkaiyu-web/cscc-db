@@ -82,6 +82,10 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
  */
 void RmFileHandle::insert_record(const Rid &rid, char *buf) {
     std::unique_lock<std::shared_mutex> lock(hdr_latch_);
+    RmPageHandle new_page_handle = fetch_free_page_handle();
+    while(new_page_handle.page->get_page_id().page_no<rid.page_no){
+        new_page_handle = fetch_free_page_handle();
+    }
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
     // update的rollback
     if (Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {

@@ -28,6 +28,7 @@ void RecoveryManager::analyze() {
         log.deserialize(log_hdr);
         lsn_offset_table_.insert(std::make_pair(log.lsn_, offset));
         lsn_prevlsn_table_.insert(std::make_pair(log.lsn_,log.prev_lsn_));
+        log.format_print();
         offset += log.log_tot_len_;
     }
 
@@ -46,13 +47,13 @@ void RecoveryManager::redo() {
         char * log_buf = new char[log.log_tot_len_];
         disk_manager_->read_log(log_buf, log.log_tot_len_, offset);
         offset += log.log_tot_len_;
-        if(log.log_type_ == LogType:: DELETE || log.log_type_ == LogType:: CLR_DELETE){
+        if(log.log_type_ == LogType:: DELETE || log.log_type_ == LogType:: CLR_INSERT){
             DeleteLogRecord del_log ;
             del_log.deserialize(log_buf);
             std::string tab_name(del_log.table_name_,del_log.table_name_size_);
             auto fh = sm_manager_->fhs_.at(tab_name).get();
             fh->delete_record(del_log.rid_ );
-        }else if(log.log_type_ == LogType::INSERT || log.log_type_ == LogType:: CLR_INSERT){
+        }else if(log.log_type_ == LogType::INSERT || log.log_type_ == LogType:: CLR_DELETE){
                 InsertLogRecord insert_log ;
                 insert_log.deserialize(log_buf);
                 std::string tab_name(insert_log.table_name_,insert_log.table_name_size_);
