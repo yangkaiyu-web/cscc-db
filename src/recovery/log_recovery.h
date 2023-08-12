@@ -27,10 +27,11 @@ public:
 
 class RecoveryManager {
 public:
-    RecoveryManager(DiskManager* disk_manager, BufferPoolManager* buffer_pool_manager, SmManager* sm_manager) {
+    RecoveryManager(DiskManager* disk_manager, BufferPoolManager* buffer_pool_manager, SmManager* sm_manager,LogManager* log_manager) {
         disk_manager_ = disk_manager;
         buffer_pool_manager_ = buffer_pool_manager;
         sm_manager_ = sm_manager;
+        log_manager_ = log_manager;
     }
 
     void analyze();
@@ -41,10 +42,13 @@ private:
     DiskManager* disk_manager_;                                     // 用来读写文件
     BufferPoolManager* buffer_pool_manager_;                        // 对页面进行读写
     SmManager* sm_manager_;                                         // 访问数据库元数据
+    LogManager* log_manager_;
     //
     std::unordered_map<txn_id_t,lsn_t> active_transaction_table_;
     std::unordered_set<txn_id_t> undo_list_;
     std::unordered_map<page_id_t,txn_id_t> dirty_page_table_;
     std::unordered_map<lsn_t, int> lsn_offset_table_;
+    std::unordered_map<lsn_t, int> lsn_prevlsn_table_;
     std::list<int > offset_list_;
+
 };

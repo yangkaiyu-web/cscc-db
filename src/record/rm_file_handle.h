@@ -94,11 +94,11 @@ class RmFileHandle {
 
     Rid insert_record(char *buf, Context *context);
     // used for recovery
-    void insert_record(const Rid &rid, char *buf,LogManager * log_manager,Transaction* txn);
+    void insert_record(const Rid &rid, char *buf);
 
     void delete_record(const Rid &rid, Context *context);
     // used for recovery
-    void delete_record(const Rid &rid, LogManager* log_manager,Transaction* txn);
+    void delete_record(const Rid &rid);
 
     void update_record(const Rid &rid, char *buf, Context *context);
 

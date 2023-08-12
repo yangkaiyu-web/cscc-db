@@ -11,6 +11,7 @@ See the Mulan PSL v2 for more details. */
 #include "log_recovery.h"
 #include <readline/readline.h>
 #include <utility>
+#include "common/config.h"
 #include "recovery/log_defs.h"
 #include "recovery/log_manager.h"
 
@@ -26,6 +27,7 @@ void RecoveryManager::analyze() {
         LogRecord  log;
         log.deserialize(log_hdr);
         lsn_offset_table_.insert(std::make_pair(log.lsn_, offset));
+        lsn_prevlsn_table_.insert(std::make_pair(log.lsn_,log.prev_lsn_));
         offset += log.log_tot_len_;
     }
 
@@ -49,13 +51,13 @@ void RecoveryManager::redo() {
             del_log.deserialize(log_buf);
             std::string tab_name(del_log.table_name_,del_log.table_name_size_);
             auto fh = sm_manager_->fhs_.at(tab_name).get();
-            fh->delete_record(del_log.rid_,nullptr );
+            fh->delete_record(del_log.rid_ );
         }else if(log.log_type_ == LogType::INSERT || log.log_type_ == LogType:: CLR_INSERT){
                 InsertLogRecord insert_log ;
                 insert_log.deserialize(log_buf);
                 std::string tab_name(insert_log.table_name_,insert_log.table_name_size_);
                 auto fh = sm_manager_->fhs_.at(tab_name).get();
-                fh->insert_record(insert_log.rid_,insert_log.insert_value_.data,);
+                fh->insert_record(insert_log.rid_,insert_log.insert_value_.data);
         } else if(log.log_type_ == LogType::UPDATE || log.log_type_ == LogType :: CLR_UPDATE){
                 UpdateLogRecord update_log ;
                 update_log.deserialize(log_buf);
@@ -92,45 +94,56 @@ void RecoveryManager::undo() {
     *   一般日志对应  < lsn_t -> prev_lsn_t >
     *   clr 日志需要设置 undo next
     *   需要知道 clr 对应的 lsn_t   <clr_lsn_t -> lsn_t >
-
-    * /
+    * 
+    */
 
     for (auto offset_it = offset_list_.rbegin(); offset_it != offset_list_.rend(); ++offset_it) {
         int offset = *offset_it;
         char log_hdr[LOG_HEADER_SIZE];
         int ret = disk_manager_->read_log(log_hdr,LOG_HEADER_SIZE , offset);
         assert(ret > 0);
+            
 
 
         LogRecord  log;
         log.deserialize(log_hdr);
+
+        if( undo_list_.find(log.log_tid_)== undo_list_.end()){
+            continue;
+        }
         char * log_buf = new char[log.log_tot_len_];
         disk_manager_->read_log(log_buf, log.log_tot_len_, offset);
-
+        
         if(log.log_type_ == LogType:: DELETE ){
             DeleteLogRecord del_log ;
             del_log.deserialize(log_buf);
             std::string tab_name(del_log.table_name_,del_log.table_name_size_);
             auto fh = sm_manager_->fhs_.at(tab_name).get();
-            fh->delete_record(del_log.rid_,nullptr );
+            fh->insert_record(del_log.rid_, del_log.delete_value_.data);
+            log_manager_->gen_log_delete_CLR(del_log.log_tid_,lsn_prevlsn_table_[del_log.lsn_], del_log.delete_value_, del_log.rid_ , tab_name);
 
-        }else if(log.log_type_ == LogType::INSERT || log.log_type_ == LogType:: CLR_INSERT){
+        }else if(log.log_type_ == LogType::INSERT ){
                 InsertLogRecord insert_log ;
                 insert_log.deserialize(log_buf);
                 std::string tab_name(insert_log.table_name_,insert_log.table_name_size_);
                 auto fh = sm_manager_->fhs_.at(tab_name).get();
-                fh->insert_record(insert_log.rid_,insert_log.insert_value_.data);
-        } else if(log.log_type_ == LogType::UPDATE || log.log_type_ == LogType :: CLR_UPDATE){
+            fh->delete_record(insert_log.rid_ );
+                log_manager_->gen_log_insert_CLR(insert_log.log_tid_,lsn_prevlsn_table_[insert_log.prev_lsn_], insert_log.insert_value_, insert_log.rid_ , tab_name);
+        } else if(log.log_type_ == LogType::UPDATE){
                 UpdateLogRecord update_log ;
                 update_log.deserialize(log_buf);
                 std::string tab_name(update_log.table_name_,update_log.table_name_size_);
                 auto fh = sm_manager_->fhs_.at(tab_name).get();
-                fh->insert_record(update_log.rid_,update_log.new_value_.data);
+            fh->insert_record(update_log.rid_, update_log.old_value_.data);
+                log_manager_->gen_log_upadte_CLR(update_log.log_tid_,lsn_prevlsn_table_[update_log.lsn_], update_log.old_value_, update_log.new_value_,update_log.rid_ , tab_name);
         }else if(log.log_type_ == LogType::BEGIN){
-
              undo_list_.erase( log.log_tid_);
+            assert(log.prev_lsn_==INVALID_LSN);
         }else if(log.log_type_ == LogType::COMMIT || log.log_type_ == LogType::ABORT){
+            // undo should not found 
             assert(false);
+        }else if(log.log_type_ == LogType::CLR_DELETE||log.log_type_ == LogType::CLR_UPDATE||log.log_type_ == LogType::CLR_INSERT){
+            // do nothing
         }
     }
 

@@ -90,20 +90,22 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
     txn->set_state(TransactionState::ABORTED);
     auto write_set = txn->get_write_set();
     while (!write_set->empty()) {
+        auto lsn = log_manager->write_rec_to_lsn_table_.find(write_set->back().get())->second ;
+        auto undo_next = log_manager->lsn_prevlsn_table_[lsn];
         switch (write_set->back()->GetWriteType()) {
             case WType::INSERT_TUPLE:
-                rollback_insert(write_set->back()->GetTableName(), write_set->back()->GetRid(), txn,log_manager);
-                log_manager->gen_log_insert_CLR(txn, write_set->back()->GetRecord(), write_set->back()->GetRid() , write_set->back()->GetTableName());
+                rollback_insert(write_set->back()->GetTableName(), write_set->back()->GetRid(), txn);
+                log_manager->gen_log_insert_CLR(txn->get_transaction_id(),undo_next, write_set->back()->GetRecord(), write_set->back()->GetRid() , write_set->back()->GetTableName());
                 break;
             case WType::DELETE_TUPLE:
                 rollback_delete(write_set->back()->GetTableName(), write_set->back()->GetRid(),
                                 write_set->back()->GetRecord(), txn);
-                log_manager->gen_log_delete_CLR(txn, write_set->back()->GetRecord(), write_set->back()->GetRid() , write_set->back()->GetTableName());
+                log_manager->gen_log_delete_CLR(txn->get_transaction_id(),undo_next, write_set->back()->GetRecord(), write_set->back()->GetRid() , write_set->back()->GetTableName());
                 break;
             case WType::UPDATE_TUPLE:
                 rollback_update(write_set->back()->GetTableName(), write_set->back()->GetRid(),
                                 write_set->back()->GetRecord(), txn);
-                log_manager->gen_log_upadte_CLR(txn, write_set->back()->GetRecord(), write_set->back()->GetNewRecord(),write_set->back()->GetRid() , write_set->back()->GetTableName());
+                log_manager->gen_log_upadte_CLR(txn->get_transaction_id(),undo_next, write_set->back()->GetRecord(), write_set->back()->GetNewRecord(),write_set->back()->GetRid() , write_set->back()->GetTableName());
                 break;
         }
         write_set->pop_back();
@@ -191,7 +193,7 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
  * @param rid
  * @param txn 需要回滚的事务
  */
-void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid &rid, Transaction *txn,LogManager* log_manager) {
+void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid &rid, Transaction *txn) {
     auto table = sm_manager_->db_.get_table(tab_name_);
     auto rec = sm_manager_->fhs_.at(tab_name_).get()->get_record(rid, nullptr);
     auto fh = sm_manager_->fhs_.at(tab_name_).get();
@@ -206,7 +208,7 @@ void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid
         }
         ih->delete_entry(key->data, txn);
     }
-    fh->delete_record(rid, log_manager);
+    fh->delete_record(rid );
 }
 
 /**
@@ -216,7 +218,7 @@ void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid
  * @param txn 需要回滚的事务
  */
 void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid &rid, const RmRecord &rec,
-                                         Transaction *txn,LogManager* log_manager) {
+                                         Transaction *txn) {
     auto table = sm_manager_->db_.get_table(tab_name_);
     auto fh = sm_manager_->fhs_.at(tab_name_).get();
     for (size_t i = 0; i < table.indexes.size(); ++i) {
@@ -230,7 +232,7 @@ void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid
         }
         ih->insert_entry(key->data, rid, nullptr);
     }
-    fh->insert_record(rid, rec.data,log_manager);
+    fh->insert_record(rid, rec.data);
 }
 
 /**
@@ -241,7 +243,7 @@ void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid
  * @param txn 需要回滚的事务
  */
 void TransactionManager::rollback_update(const std::string &tab_name_, const Rid &rid, const RmRecord &record,
-                                         Transaction *txn,LogManager* log_manager) {
+                                         Transaction *txn) {
     auto table = sm_manager_->db_.get_table(tab_name_);
     auto rec = sm_manager_->fhs_.at(tab_name_).get()->get_record(rid, nullptr);
     auto fh = sm_manager_->fhs_.at(tab_name_).get();
@@ -256,7 +258,7 @@ void TransactionManager::rollback_update(const std::string &tab_name_, const Rid
         }
         ih->delete_entry(key->data, txn);
     }
-    fh->insert_record(rid, record.data,log_manager);
+    fh->insert_record(rid, record.data);
 
     for (size_t i = 0; i < table.indexes.size(); ++i) {
         auto &index = table.indexes[i];

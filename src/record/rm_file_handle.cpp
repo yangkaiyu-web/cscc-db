@@ -132,7 +132,7 @@ void RmFileHandle::delete_record(const Rid &rid, Context *context) {
  * @param {Rid&} rid 要删除的记录的记录号（位置）
  * @param {Context*} context
  */
-void RmFileHandle::delete_record(const Rid &rid, LogManager * log_manager,Transaction* txn) {
+void RmFileHandle::delete_record(const Rid &rid) {
     // Todo:
     // 1. 获取指定记录所在的page handle
     // 2. 更新page_handle.page_hdr中的数据结构

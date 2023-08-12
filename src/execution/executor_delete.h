@@ -85,6 +85,7 @@ class DeleteExecutor : public AbstractExecutor {
                 if(context_->txn_->get_state() == TransactionState::DEFAULT)
                 {
                     auto delRec = std::make_unique < WriteRecord >(WType::DELETE_TUPLE,tab_name_,rid,*old_record);
+                context_->log_mgr_->gen_log_from_write_set(context_->txn_,delRec.get());
                     context_->txn_->append_write_record(std::move(delRec));
                 }else {
                     assert(false);

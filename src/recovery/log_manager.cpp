@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <cstring>
 #include <memory>
+#include <utility>
 #include "common/config.h"
 #include "transaction/transaction.h"
 #include "transaction/txn_defs.h"
@@ -58,45 +59,48 @@ lsn_t LogManager::gen_log_from_write_set(Transaction* txn,WriteRecord* write_rec
         default:
             assert(false);
     }
+    log->prev_lsn_ = txn->get_so_far_lsn();
     latch_.lock();
     log->lsn_=alloc_lsn();
+    lsn_prevlsn_table_.insert(std::make_pair(log->lsn_, log->prev_lsn_));
+    write_rec_to_lsn_table_.insert(std::make_pair(write_rec,log->lsn_));
     add_log_to_buffer(log.get());
     latch_.unlock();
-
-    log->prev_lsn_ = txn->get_so_far_lsn();
     txn->set_so_far_lsn(log->lsn_);
+
     return log->lsn_;
 
 }
-lsn_t LogManager::gen_log_upadte_CLR(Transaction*txn, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name){
+lsn_t LogManager::gen_log_upadte_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name){
     // NOTE: 这里 new_value 和 old value 调换了一下;
-    auto log = std::make_unique< UpdateLogRecord>(txn->get_transaction_id(),new_value,old_value,rid,table_name);
+    auto log = std::make_unique< UpdateLogRecord>(tid,new_value,old_value,rid,table_name);
     log->setCLR();
 
     latch_.lock();
     log->lsn_=alloc_lsn();
     add_log_to_buffer(log.get());
     latch_.unlock();
-
-    log->prev_lsn_ = txn->get_so_far_lsn();
-    txn->set_so_far_lsn(log->lsn_);
+    log->undo_next_ = undo_next;
+    // log->prev_lsn_ = txn->get_so_far_lsn();
+    // txn->set_so_far_lsn(log->lsn_);
     return log->lsn_;
 }
 
-lsn_t LogManager::gen_log_insert_CLR(Transaction*txn, RmRecord& insert_value, Rid& rid, std::string &table_name){
-    auto log = std::make_unique< InsertLogRecord>(txn->get_transaction_id(),insert_value,rid,table_name);
+lsn_t LogManager::gen_log_insert_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& insert_value, Rid& rid, std::string &table_name){
+    auto log = std::make_unique< InsertLogRecord>(tid,insert_value,rid,table_name);
     log->setCLR();
     latch_.lock();
     log->lsn_=alloc_lsn();
     add_log_to_buffer(log.get());
     latch_.unlock();
 
-    log->prev_lsn_ = txn->get_so_far_lsn();
-    txn->set_so_far_lsn(log->lsn_);
+    // log->prev_lsn_ = txn->get_so_far_lsn();
+    // txn->set_so_far_lsn(log->lsn_);
+    log->undo_next_ = undo_next;
     return log->lsn_;
 }
-lsn_t LogManager::gen_log_delete_CLR(Transaction*txn, RmRecord& delete_value, Rid& rid, std::string& table_name){
-    auto log = std::make_unique< InsertLogRecord>(txn->get_transaction_id(),delete_value,rid,table_name);
+lsn_t LogManager::gen_log_delete_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& delete_value, Rid& rid, std::string& table_name){
+    auto log = std::make_unique< InsertLogRecord>(tid,delete_value,rid,table_name);
     log->setCLR();
 
     latch_.lock();
@@ -104,8 +108,9 @@ lsn_t LogManager::gen_log_delete_CLR(Transaction*txn, RmRecord& delete_value, Ri
     add_log_to_buffer(log.get());
     latch_.unlock();
 
-    log->prev_lsn_ = txn->get_so_far_lsn();
-    txn->set_so_far_lsn(log->lsn_);
+    // log->prev_lsn_ = txn->get_so_far_lsn();
+    // txn->set_so_far_lsn(log->lsn_);
+    log->undo_next_ = undo_next;
     return log->lsn_;
 }
 lsn_t LogManager::gen_log_bein(Transaction* txn){

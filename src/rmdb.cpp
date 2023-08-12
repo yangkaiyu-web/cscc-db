@@ -42,7 +42,7 @@ auto lock_manager = std::make_unique<LockManager>();
 auto txn_manager = std::make_unique<TransactionManager>(lock_manager.get(), sm_manager.get());
 auto ql_manager = std::make_unique<QlManager>(sm_manager.get(), txn_manager.get());
 auto log_manager = std::make_unique<LogManager>(disk_manager.get());
-auto recovery = std::make_unique<RecoveryManager>(disk_manager.get(), buffer_pool_manager.get(), sm_manager.get());
+auto recovery = std::make_unique<RecoveryManager>(disk_manager.get(), buffer_pool_manager.get(), sm_manager.get(),log_manager.get());
 auto planner = std::make_unique<Planner>(sm_manager.get());
 auto optimizer = std::make_unique<Optimizer>(sm_manager.get(), planner.get());
 auto portal = std::make_unique<Portal>(sm_manager.get());
@@ -119,7 +119,8 @@ void *client_handler(void *sock_fd) {
 
         // 开启事务，初始化系统所需的上下文信息（包括事务对象指针、锁管理器指针、日志管理器指针、存放结果的buffer、记录结果长度的变量）
         Context *context = new Context(lock_manager.get(), log_manager.get(), nullptr, data_send, &offset);
-        // FIXME: 暂时注释掉，防止段错误
+
+        // 填充 context 里的 transaction
         SetTransaction(&txn_id, context);
 
         // 用于判断是否已经调用了yy_delete_buffer来删除buf
@@ -278,6 +279,7 @@ void start_server() {
     }
     //    assert(ret != -1);
     sm_manager->close_db();
+    log_manager->flush_log_to_disk();
     std::cout << " DB has been closed.\n";
     std::cout << "Server shuts down." << std::endl;
 }

@@ -432,18 +432,21 @@ class LogManager {
     lsn_t gen_log_bein(Transaction* txn);
     lsn_t gen_log_commit(Transaction* txn);
     lsn_t gen_log_abort(Transaction* txn);
-    lsn_t gen_log_upadte_CLR(Transaction*txn, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name);
-    lsn_t gen_log_insert_CLR(Transaction*txn, RmRecord& insert_value, Rid& rid, std::string &table_name);
-    lsn_t gen_log_delete_CLR(Transaction*txn, RmRecord& delete_value, Rid& rid, std::string& table_name);
+    lsn_t gen_log_upadte_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name);
+    lsn_t gen_log_insert_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& insert_value, Rid& rid, std::string &table_name);
+    lsn_t gen_log_delete_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& delete_value, Rid& rid, std::string& table_name);
     lsn_t gen_log_upadte(Transaction*txn, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name);
     lsn_t gen_log_insert(Transaction*txn, RmRecord& insert_value, Rid& rid, std::string &table_name);
     lsn_t gen_log_delete(Transaction*txn, RmRecord& delete_value, Rid& rid, std::string& table_name);
 
+    std::unordered_map<lsn_t,lsn_t> lsn_prevlsn_table_;
+    std::unordered_map<WriteRecord*,lsn_t> write_rec_to_lsn_table_;
    private:
     std::atomic<lsn_t> global_lsn_{0};  // 全局lsn，递增，用于为每条记录分发lsn
     std::mutex latch_;                  // 用于对log_buffer_的互斥访问
     LogBuffer log_buffer_;              // 日志缓冲区
     lsn_t buffer_lsn_;                  // 记录写入buffer的最后一条日志的日志号
     lsn_t persist_lsn_;                 // 记录已经持久化到磁盘中的最后一条日志的日志号
+
     DiskManager* disk_manager_;
 };
