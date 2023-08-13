@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "common/context.h"
 #include "index/ix.h"
+#include <shared_mutex>
 #include "record/rm_file_handle.h"
 #include "sm_defs.h"
 #include "sm_meta.h"

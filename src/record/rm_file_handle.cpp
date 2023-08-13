@@ -21,8 +21,10 @@ std::unique_ptr<RmRecord> RmFileHandle::get_record(const Rid &rid, Context *cont
     // 1. 获取指定记录所在的page handle
     // 2. 初始化一个指向RmRecord的指针（赋值其内部的data和size）
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
+
+    int record_size = get_record_size();
+
     page_handle.RLatch();
-    int record_size = page_handle.file_hdr->record_size;
     char *data = page_handle.get_slot(rid.slot_no);
     auto res = std::make_unique<RmRecord>(record_size, data);
     const PageId &page_id = page_handle.page->get_page_id();

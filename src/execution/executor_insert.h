@@ -44,7 +44,9 @@ class InsertExecutor : public AbstractExecutor {
 
     std::unique_ptr<RmRecord> Next() override {
         // Make record buffer
-        RmRecord rec(fh_->get_file_hdr().record_size);
+        fh_->RLatch();
+        RmRecord rec(fh_->get_record_size());
+        fh_->RUnLatch();
         for (size_t i = 0; i < values_.size(); i++) {
             auto &col = tab_.cols[i];
             auto &val = values_[i];

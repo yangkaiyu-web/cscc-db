@@ -56,11 +56,12 @@ class RmFileHandle {
    private:
     DiskManager *disk_manager_;
     BufferPoolManager *buffer_pool_manager_;
-    int fd_;                       // 打开文件后产生的文件句柄
+    const int fd_;                       // 打开文件后产生的文件句柄
     RmFileHdr file_hdr_;           // 文件头，维护当前表文件的元数据
     std::shared_mutex hdr_latch_;  // 保护file_hdr_中的num_pages和first_free_page_no
 
    public:
+
     RmFileHandle(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager, int fd)
         : disk_manager_(disk_manager), buffer_pool_manager_(buffer_pool_manager), fd_(fd) {
         // 注意：这里从磁盘中读出文件描述符为fd的文件的file_hdr，读到内存中
@@ -71,7 +72,7 @@ class RmFileHandle {
         disk_manager_->set_fd2pageno(fd, file_hdr_.num_pages);
     }
 
-    const RmFileHdr &get_file_hdr() { return file_hdr_; }
+    const RmFileHdr &get_file_hdr() const { return file_hdr_; }
     int GetFd() { return fd_; }
 
     // 无需加锁
@@ -101,6 +102,13 @@ class RmFileHandle {
 
     void unpin_page(PageId page_id, bool is_dirty) const;
 
+    inline void RLatch() { hdr_latch_.lock_shared(); }
+
+    inline void RUnLatch() { hdr_latch_.unlock_shared(); }
+
+    inline void WLatch() { hdr_latch_.lock(); }
+
+    inline void WUnLatch() { hdr_latch_.unlock(); }
    private:
     RmPageHandle create_page_handle_for_insert();
 };

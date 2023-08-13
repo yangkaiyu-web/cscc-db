@@ -73,6 +73,7 @@ class SeqScanExecutor : public AbstractExecutor {
         rids_buffer.clear();
         buffer_idx = 0;
         bool may_found = false;
+        // TODO: 利用 2pl 维护 file_hdr().num_pages
         for (int i = 1; i < fh_->get_file_hdr().num_pages; ++i) {
             RmPageHandle page_handle = fh_->fetch_page_handle(i);
             std::vector<int> slots;
