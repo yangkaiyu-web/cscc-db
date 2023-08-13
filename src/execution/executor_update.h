@@ -31,6 +31,18 @@ class UpdateExecutor : public AbstractExecutor {
    public:
     UpdateExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<SetClause> set_clauses,
                    std::vector<Condition> conds, std::vector<Rid> rids, Context *context) {
+        if (!(rids.size() > 10000 &&
+              context->lock_mgr_->lock_exclusive_on_table(context->txn_, fh_->GetFd()) == true)) {
+            for (auto &rid : rids) {
+                if (context->lock_mgr_->lock_exclusive_on_record(context->txn_, rid, fh_->GetFd()) == false) {
+                    // TODO:其他死锁避免方法
+                    // no-wait
+                    throw TransactionAbortException(context_->txn_->get_transaction_id(),
+                                                    AbortReason::DEADLOCK_PREVENTION);
+                }
+            }
+        }
+
         sm_manager_ = sm_manager;
         tab_name_ = tab_name;
         set_clauses_ = set_clauses;

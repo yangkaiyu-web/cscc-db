@@ -56,14 +56,21 @@ void TransactionManager::commit(Transaction *txn, LogManager *log_manager) {
     assert(txn != nullptr);
     txn->set_state(TransactionState::COMMITTED);
     // TODO:提交写操作(写日志？)
-    auto write_set = txn->get_write_set();
+    auto write_records = txn->get_write_records();
+    auto write_indexes = txn->get_write_indexes();
+    auto index_deleted_page_set = txn->get_index_deleted_page_set();
+    auto index_latch_page_set = txn->get_index_latch_page_set();
     auto lock_set = txn->get_lock_set();
+
     for (auto lock : *lock_set) {
         lock_manager_->unlock(txn, lock);
     }
-    write_set->clear();
+    write_records->clear();
+    write_indexes->clear();
+    index_deleted_page_set->clear();
+    index_latch_page_set->clear();
     lock_set->clear();
-    // TODO:4 5
+
     LogRecord *log_record =
         new CommitLogRecord(log_manager->alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
     txn->set_so_far_lsn(log_record->lsn_);
@@ -85,30 +92,49 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
     // 5. 更新事务状态
     assert(txn != nullptr);
     txn->set_state(TransactionState::ABORTED);
-    auto write_set = txn->get_write_set();
-    while (!write_set->empty()) {
-        switch (write_set->back()->GetWriteType()) {
+    auto write_records = txn->get_write_records();
+    while (!write_records->empty()) {
+        switch (write_records->back()->GetWriteType()) {
             case WType::INSERT_TUPLE:
-                rollback_insert(write_set->back()->GetTableName(), write_set->back()->GetRid(), txn);
+                rollback_insert_record(write_records->back()->GetHdl(), write_records->back()->GetRid(), txn);
                 break;
             case WType::DELETE_TUPLE:
-                rollback_delete(write_set->back()->GetTableName(), write_set->back()->GetRid(),
-                                write_set->back()->GetRecord(), txn);
+                rollback_delete_record(write_records->back()->GetHdl(), write_records->back()->GetRid(),
+                                       write_records->back()->GetRecord(), txn);
                 break;
             case WType::UPDATE_TUPLE:
-                rollback_update(write_set->back()->GetTableName(), write_set->back()->GetRid(),
-                                write_set->back()->GetRecord(), txn);
+                rollback_update_record(write_records->back()->GetHdl(), write_records->back()->GetRid(),
+                                       write_records->back()->GetRecord(), txn);
                 break;
         }
-        write_set->pop_back();
+        write_records->pop_back();
+    }
+
+    auto write_indexes = txn->get_write_indexes();
+    while (!write_indexes->empty()) {
+        switch (write_indexes->back()->GetWriteType()) {
+            case WType::INSERT_INDEX:
+                rollback_insert_index(write_indexes->back()->GetHdl(), write_indexes->back()->MoveOldKey(), txn);
+                break;
+            case WType::DELETE_INDEX:
+                rollback_delete_index(write_indexes->back()->GetHdl(), write_indexes->back()->GetRid(),
+                                      write_indexes->back()->MoveOldKey(), txn);
+                break;
+            case WType::UPDATE_INDEX:
+                rollback_update_index(write_indexes->back()->GetHdl(), write_indexes->back()->GetRid(),
+                                      write_indexes->back()->MoveOldKey(), write_indexes->back()->MoveNewKey(), txn);
+                break;
+        }
+        write_indexes->pop_back();
     }
     auto lock_set = txn->get_lock_set();
     for (auto lock : *lock_set) {
         lock_manager_->unlock(txn, lock);
     }
-    write_set->clear();
+    write_records->clear();
+    write_indexes->clear();
     lock_set->clear();
-    // TODO:4 5
+
     LogRecord *log_record =
         new AbortLogRecord(log_manager->alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
     txn->set_so_far_lsn(log_record->lsn_);
@@ -123,31 +149,8 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
  * @param rid
  * @param txn 需要回滚的事务
  */
-void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid &rid, Transaction *txn) {
-    sm_manager_->db_.RLatch();
-    const TabMeta table = sm_manager_->db_.get_table(tab_name_);
-    sm_manager_->db_.RUnLatch();
-
-    std::vector<IxIndexHandle *> idx_hdls;
-    sm_manager_->latch_.lock_shared();
-    auto fh = sm_manager_->fhs_.at(tab_name_).get();
-    for (const IndexMeta &index : table.indexes) {
-        idx_hdls.push_back(sm_manager_->ihs_.at(index.get_index_name()).get());
-    }
-    sm_manager_->latch_.unlock_shared();
-
-    auto rec = fh->get_record(rid, nullptr);
-    for (size_t i = 0; i < table.indexes.size(); ++i) {
-        const IndexMeta &index = table.indexes[i];
-        std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
-        int offset = 0;
-        for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
-            memcpy(key->data + offset, rec->data + index.cols[i].offset, index.cols[i].len);
-            offset += index.cols[i].len;
-        }
-        idx_hdls[i]->delete_entry(key->data, txn);
-    }
-    fh->delete_record(rid, nullptr);
+void TransactionManager::rollback_insert_record(RmFileHandle *rm_hdl, const Rid &rid, Transaction *txn) {
+    rm_hdl->delete_record(rid, nullptr);
 }
 
 /**
@@ -156,31 +159,9 @@ void TransactionManager::rollback_insert(const std::string &tab_name_, const Rid
  * @param rid
  * @param txn 需要回滚的事务
  */
-void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid &rid, const RmRecord &rec,
-                                         Transaction *txn) {
-    sm_manager_->db_.RLatch();
-    const TabMeta table = sm_manager_->db_.get_table(tab_name_);
-    sm_manager_->db_.RUnLatch();
-
-    std::vector<IxIndexHandle *> idx_hdls;
-    sm_manager_->latch_.lock_shared();
-    auto fh = sm_manager_->fhs_.at(tab_name_).get();
-    for (const IndexMeta &index : table.indexes) {
-        idx_hdls.push_back(sm_manager_->ihs_.at(index.get_index_name()).get());
-    }
-    sm_manager_->latch_.unlock_shared();
-
-    for (size_t i = 0; i < table.indexes.size(); ++i) {
-        auto &index = table.indexes[i];
-        std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
-        int offset = 0;
-        for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
-            memcpy(key->data + offset, rec.data + index.cols[i].offset, index.cols[i].len);
-            offset += index.cols[i].len;
-        }
-        idx_hdls[i]->insert_entry(key->data, rid, nullptr);
-    }
-    fh->insert_record(rid, rec.data);
+void TransactionManager::rollback_delete_record(RmFileHandle *rm_hdl, const Rid &rid, const RmRecord &record,
+                                                Transaction *txn) {
+    rm_hdl->insert_record(rid, record.data);
 }
 
 /**
@@ -190,40 +171,22 @@ void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid
  * @param record 记录
  * @param txn 需要回滚的事务
  */
-void TransactionManager::rollback_update(const std::string &tab_name_, const Rid &rid, const RmRecord &record,
-                                         Transaction *txn) {
-    sm_manager_->db_.RLatch();
-    auto table = sm_manager_->db_.get_table(tab_name_);
-    sm_manager_->db_.RUnLatch();
+void TransactionManager::rollback_update_record(RmFileHandle *rm_hdl, const Rid &rid, const RmRecord &record,
+                                                Transaction *txn) {
+    rm_hdl->insert_record(rid, record.data);
+}
 
-    std::vector<IxIndexHandle *> idx_hdls;
-    sm_manager_->latch_.lock_shared();
-    auto fh = sm_manager_->fhs_.at(tab_name_).get();
-    for (IndexMeta &index : table.indexes) {
-        idx_hdls.push_back(sm_manager_->ihs_.at(index.get_index_name()).get());
-    }
-    sm_manager_->latch_.unlock_shared();
+void TransactionManager::rollback_insert_index(IxIndexHandle *idx_hdl, std::unique_ptr<char[]> key, Transaction *txn) {
+    idx_hdl->delete_entry(key.get(), txn);
+}
 
-    auto rec = fh->get_record(rid, nullptr);
-    for (size_t i = 0; i < table.indexes.size(); ++i) {
-        auto &index = table.indexes[i];
-        std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
-        int offset = 0;
-        for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
-            memcpy(key->data + offset, rec->data + index.cols[i].offset, index.cols[i].len);
-            offset += index.cols[i].len;
-        }
-        idx_hdls[i]->delete_entry(key->data, txn);
-    }
-    fh->insert_record(rid, record.data);
-    for (size_t i = 0; i < table.indexes.size(); ++i) {
-        auto &index = table.indexes[i];
-        std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
-        int offset = 0;
-        for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
-            memcpy(key->data + offset, record.data + index.cols[i].offset, index.cols[i].len);
-            offset += index.cols[i].len;
-        }
-        idx_hdls[i]->insert_entry(key->data, rid, nullptr);
-    }
+void TransactionManager::rollback_delete_index(IxIndexHandle *idx_hdl, const Rid &rid, std::unique_ptr<char[]> key,
+                                               Transaction *txn) {
+    idx_hdl->insert_entry(key.get(), rid, txn);
+}
+
+void TransactionManager::rollback_update_index(IxIndexHandle *idx_hdl, const Rid &rid, std::unique_ptr<char[]> old_key,
+                                               std::unique_ptr<char[]> new_key, Transaction *txn) {
+    idx_hdl->delete_entry(old_key.get(), txn);
+    idx_hdl->insert_entry(new_key.get(), rid, txn);
 }

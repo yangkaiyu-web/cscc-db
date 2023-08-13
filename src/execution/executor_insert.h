@@ -64,39 +64,46 @@ class InsertExecutor : public AbstractExecutor {
         // 检查以符合索引唯一性
         for (size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto &index = tab_.indexes[i];
-            char *key = new char[index.col_tot_len];
+            std::unique_ptr<char[]> key(new char[index.col_tot_len], std::default_delete<char[]>());
             int offset = 0;
             assert(index.col_num >= 0);
             for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
-                memcpy(key + offset, rec.data + index.cols[j].offset, index.cols[j].len);
+                memcpy(key.get() + offset, rec.data + index.cols[j].offset, index.cols[j].len);
                 offset += index.cols[j].len;
             }
-            if (idx_hdls[i]->is_exist(key, context_->txn_)) {
-                delete[] key;
+            if (idx_hdls[i]->is_exist(key.get(), context_->txn_)) {
                 throw IndexEntryNotUniqueError();
             }
-            delete[] key;
+        }
+
+        if (tab_.indexes.size() == 0) {
+            if (context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd()) == false) {
+                throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::DEADLOCK_PREVENTION);
+            }
+        } else {
+            // Insert into index file
+            for (size_t i = 0; i < tab_.indexes.size(); ++i) {
+                auto &index = tab_.indexes[i];
+                std::unique_ptr<char[]> key(new char[index.col_tot_len], std::default_delete<char[]>());
+                int offset = 0;
+                assert(index.col_num >= 0);
+                for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
+                    memcpy(key.get() + offset, rec.data + index.cols[j].offset, index.cols[j].len);
+                    offset += index.cols[j].len;
+                }
+                idx_hdls[i]->insert_entry(key.get(), rid_, context_->txn_);
+                if (context_->txn_->get_state() == TransactionState::DEFAULT) {
+                    WriteIndex *ins_rec = new WriteIndex(WType::INSERT_INDEX, idx_hdls[i], rid_, std::move(key));
+                    context_->txn_->append_write_index(ins_rec);
+                }
+            }
         }
 
         // Insert into record file
         rid_ = fh_->insert_record(rec.data, context_);
 
-        // Insert into index file
-        for (size_t i = 0; i < tab_.indexes.size(); ++i) {
-            auto &index = tab_.indexes[i];
-            char *key = new char[index.col_tot_len];
-            int offset = 0;
-            assert(index.col_num >= 0);
-            for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
-                memcpy(key + offset, rec.data + index.cols[j].offset, index.cols[j].len);
-                offset += index.cols[j].len;
-            }
-            idx_hdls[i]->insert_entry(key, rid_, context_->txn_);
-            // ih->dfs();
-            delete[] key;
-        }
         if (context_->txn_->get_state() == TransactionState::DEFAULT) {
-            WriteRecord *ins_rec = new WriteRecord(WType::INSERT_TUPLE, tab_name_, rid_);
+            WriteRecord *ins_rec = new WriteRecord(WType::INSERT_TUPLE, fh_, rid_);
             context_->txn_->append_write_record(ins_rec);
         }
 

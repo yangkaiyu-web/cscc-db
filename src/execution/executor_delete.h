@@ -31,6 +31,19 @@ class DeleteExecutor : public AbstractExecutor {
    public:
     DeleteExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Condition> conds,
                    std::vector<Rid> rids, Context *context) {
+        // 如果需要上锁的record多于10000，直接加X锁
+        if (!(rids.size() > 10000 &&
+              context->lock_mgr_->lock_exclusive_on_table(context->txn_, fh_->GetFd()) == true)) {
+            for (auto &rid : rids) {
+                if (context->lock_mgr_->lock_exclusive_on_record(context->txn_, rid, fh_->GetFd()) == false) {
+                    // TODO:其他死锁避免方法
+                    // no-wait
+                    throw TransactionAbortException(context_->txn_->get_transaction_id(),
+                                                    AbortReason::DEADLOCK_PREVENTION);
+                }
+            }
+        }
+
         sm_manager_ = sm_manager;
         tab_name_ = tab_name;
         sm_manager_->db_.RLatch();

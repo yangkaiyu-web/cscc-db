@@ -23,7 +23,7 @@ enum class TransactionState { DEFAULT, GROWING, SHRINKING, COMMITTED, ABORTED };
 enum class IsolationLevel { READ_UNCOMMITTED, REPEATABLE_READ, READ_COMMITTED, SERIALIZABLE };
 
 /* 事务写操作类型，包括插入、删除、更新三种操作 */
-enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE };
+enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE, INSERT_INDEX, DELETE_INDEX, UPDATE_INDEX };
 
 /**
  * @brief 事务的写操作记录，用于事务的回滚
@@ -41,12 +41,11 @@ class WriteRecord {
     WriteRecord() = default;
 
     // constructor for insert operation
-    WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid)
-        : wtype_(wtype), tab_name_(tab_name), rid_(rid) {}
+    WriteRecord(WType wtype, RmFileHandle *rm_hdl, const Rid &rid) : wtype_(wtype), rm_hdl_(rm_hdl), rid_(rid) {}
 
     // constructor for delete & update operation
-    WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, const RmRecord &record)
-        : wtype_(wtype), tab_name_(tab_name), rid_(rid), record_(record) {}
+    WriteRecord(WType wtype, RmFileHandle *rm_hdl, const Rid &rid, const RmRecord &record)
+        : wtype_(wtype), rm_hdl_(rm_hdl), rid_(rid), record_(record) {}
 
     ~WriteRecord() = default;
 
@@ -56,13 +55,52 @@ class WriteRecord {
 
     inline WType &GetWriteType() { return wtype_; }
 
-    inline std::string &GetTableName() { return tab_name_; }
+    inline RmFileHandle *GetHdl() { return rm_hdl_; }
 
    private:
     WType wtype_;
-    std::string tab_name_;
+    RmFileHandle *rm_hdl_;
     Rid rid_;
     RmRecord record_;
+};
+
+class WriteIndex {
+   public:
+    WriteIndex() = default;
+
+    // constructor for insert & delete operation
+    WriteIndex(WType wtype, IxIndexHandle *ix_hdl, const Rid &rid, std::unique_ptr<char[]> old_key)
+        : wtype_(wtype), ix_hdl_(ix_hdl), rid_(rid) {
+        old_key_ = std::move(old_key);
+    }
+
+    // constructor for update operation
+    WriteIndex(WType wtype, IxIndexHandle *ix_hdl, const Rid &rid, std::unique_ptr<char[]> old_key,
+               std::unique_ptr<char[]> new_key)
+        : wtype_(wtype), ix_hdl_(ix_hdl), rid_(rid) {
+        old_key_ = std::move(old_key);
+        new_key_ = std::move(new_key);
+    }
+
+    ~WriteIndex() = default;
+
+    inline Rid &GetRid() { return rid_; }
+
+    inline WType &GetWriteType() { return wtype_; }
+
+    inline IxIndexHandle *GetHdl() { return ix_hdl_; }
+
+    // 只能调用一次
+    inline std::unique_ptr<char[]> MoveOldKey() { return std::move(old_key_); }
+    // 只能调用一次
+    inline std::unique_ptr<char[]> MoveNewKey() { return std::move(new_key_); }
+
+   private:
+    WType wtype_;
+    IxIndexHandle *ix_hdl_;
+    Rid rid_;
+    std::unique_ptr<char[]> old_key_;
+    std::unique_ptr<char[]> new_key_;
 };
 
 /* 多粒度锁，加锁对象的类型，包括记录和表 */

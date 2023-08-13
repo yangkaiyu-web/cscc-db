@@ -43,6 +43,11 @@ class SeqScanExecutor : public AbstractExecutor {
    public:
     // TODO:可优化，针对update，delete之类的可以不需要tuple_buffer
     SeqScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, Context *context) {
+        if (context_->lock_mgr_->lock_shared_on_table(context_->txn_, fh_->GetFd()) == false) {
+            // TODO:其他死锁避免方法
+            // no-wait
+            throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::DEADLOCK_PREVENTION);
+        }
         sm_manager_ = sm_manager;
         tab_name_ = std::move(tab_name);
         conds_ = std::move(conds);

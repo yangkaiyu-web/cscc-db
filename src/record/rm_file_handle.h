@@ -27,6 +27,7 @@ struct RmPageHandle {
     RmPageHdr *page_hdr;  // page->data的第一部分，存储页面元信息，指针指向首地址，长度为sizeof(RmPageHdr)
     char *bitmap;  // page->data的第二部分，存储页面的bitmap，指针指向首地址，长度为file_hdr->bitmap_size
     char *slots;  // page->data的第三部分，存储表的记录，指针指向首地址，每个slot的长度为file_hdr->record_size
+    RmPageHandle() = default;
 
     RmPageHandle(const RmFileHdr *fhdr_, Page *page_) : file_hdr(fhdr_), page(page_) {
         page_hdr = reinterpret_cast<RmPageHdr *>(page->get_data() + page->OFFSET_PAGE_HDR);
@@ -39,6 +40,11 @@ struct RmPageHandle {
         return slots + slot_no * file_hdr->record_size;  // slots的首地址 + slot个数 *
                                                          // 每个slot的大小(每个record的大小)
     }
+
+    inline void RLatch() { page->RLatch(); }
+    inline void RUnLatch() { page->RUnLatch(); }
+    inline void WLatch() { page->WLatch(); }
+    inline void WUnLatch() { page->WUnLatch(); }
 };
 
 /* 每个RmFileHandle对应一个表的数据文件，里面有多个page，每个page的数据封装在RmPageHandle中
@@ -50,8 +56,9 @@ class RmFileHandle {
    private:
     DiskManager *disk_manager_;
     BufferPoolManager *buffer_pool_manager_;
-    int fd_;              // 打开文件后产生的文件句柄
-    RmFileHdr file_hdr_;  // 文件头，维护当前表文件的元数据
+    int fd_;                       // 打开文件后产生的文件句柄
+    RmFileHdr file_hdr_;           // 文件头，维护当前表文件的元数据
+    std::shared_mutex hdr_latch_;  // 保护file_hdr_中的num_pages和first_free_page_no
 
    public:
     RmFileHandle(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager, int fd)
@@ -67,6 +74,7 @@ class RmFileHandle {
     const RmFileHdr &get_file_hdr() { return file_hdr_; }
     int GetFd() { return fd_; }
 
+    // 无需加锁
     inline int get_record_size() const { return file_hdr_.record_size; }
 
     /* 判断指定位置上是否已经存在一条记录，通过Bitmap来判断 */
@@ -94,5 +102,5 @@ class RmFileHandle {
     void unpin_page(PageId page_id, bool is_dirty) const;
 
    private:
-    RmPageHandle create_page_handle();
+    RmPageHandle create_page_handle_for_insert();
 };

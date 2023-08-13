@@ -41,7 +41,7 @@ class LockManager {
         std::condition_variable cv_;  // 条件变量，用于唤醒正在等待加锁的申请，在no-wait策略下无需使用
         GroupLockMode group_lock_mode_ = GroupLockMode::NON_LOCK;  // 加锁队列的锁模式
         int32_t num = 0;                                           // 加锁数量
-        txn_id_t first{-1};                                        // 最先执行的事务
+        txn_id_t curr{-1};  // 当下执行的事务，目前只用于判断上X锁前持有的S锁是不是同一个事务所加
     };
 
    public:
@@ -60,6 +60,8 @@ class LockManager {
     bool lock_IS_on_table(Transaction* txn, int tab_fd);
 
     bool lock_IX_on_table(Transaction* txn, int tab_fd);
+
+    bool lock_SIX_on_table(Transaction* txn, int tab_fd);
 
     bool unlock(Transaction* txn, LockDataId lock_data_id);
 
