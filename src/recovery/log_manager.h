@@ -17,6 +17,8 @@ See the Mulan PSL v2 for more details. */
 #include "common/config.h"
 #include "log_defs.h"
 #include "record/rm_defs.h"
+class Transaction;
+class WriteRecord;
 
 /* 日志记录对应操作的类型 */
 enum LogType : int { UPDATE = 0, INSERT, DELETE, BEGIN, COMMIT, ABORT };

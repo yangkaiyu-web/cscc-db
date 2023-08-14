@@ -13,8 +13,8 @@ See the Mulan PSL v2 for more details. */
 #include <atomic>
 #include <unordered_map>
 
-#include "concurrency/lock_manager.h"
 #include "recovery/log_manager.h"
+#include "concurrency/lock_manager.h"
 #include "system/sm_manager.h"
 #include "transaction.h"
 
@@ -62,14 +62,18 @@ class TransactionManager {
         return res;
     }
 
-    void rollback_insert_record(RmFileHandle *rm_hdl, const Rid &rid, Transaction *txn);
-    void rollback_delete_record(RmFileHandle *rm_hdl, const Rid &rid, const RmRecord &rec, Transaction *txn);
-    void rollback_update_record(RmFileHandle *rm_hdl, const Rid &rid, const RmRecord &record, Transaction *txn);
+    // void rollback_insert_record(RmFileHandle *rm_hdl, const Rid &rid, Transaction *txn);
+    // void rollback_delete_record(RmFileHandle *rm_hdl, const Rid &rid, const RmRecord &rec, Transaction *txn);
+    // void rollback_update_record(RmFileHandle *rm_hdl, const Rid &rid, const RmRecord &record, Transaction *txn);
+    //
+    // void rollback_insert_index(IxIndexHandle *idx_hdl, std::unique_ptr<char[]> key, Transaction *txn);
+    // void rollback_delete_index(IxIndexHandle *idx_hdl, const Rid &rid, std::unique_ptr<char[]> key, Transaction *txn);
+    // void rollback_update_index(IxIndexHandle *idx_hdl, const Rid &rid, std::unique_ptr<char[]> old_key,
+    //                            std::unique_ptr<char[]> new_key, Transaction *txn);
 
-    void rollback_insert_index(IxIndexHandle *idx_hdl, std::unique_ptr<char[]> key, Transaction *txn);
-    void rollback_delete_index(IxIndexHandle *idx_hdl, const Rid &rid, std::unique_ptr<char[]> key, Transaction *txn);
-    void rollback_update_index(IxIndexHandle *idx_hdl, const Rid &rid, std::unique_ptr<char[]> old_key,
-                               std::unique_ptr<char[]> new_key, Transaction *txn);
+    void rollback_insert(const std::string &tab_name_, const Rid &rid, Transaction *txn);
+	void rollback_delete(const std::string &tab_name_, const Rid &rid, const RmRecord &rec, Transaction *txn);
+	void rollback_update(const std::string &tab_name, const Rid &rid, const RmRecord &record, Transaction *txn);
 
     static std::unordered_map<txn_id_t, Transaction *> txn_map;  // 全局事务表，存放事务ID与事务对象的映射关系
 

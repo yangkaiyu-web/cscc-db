@@ -17,7 +17,8 @@ See the Mulan PSL v2 for more details. */
 #include "bitmap.h"
 #include "common/context.h"
 #include "rm_defs.h"
-
+#include "recovery/log_manager.h"
+#include "transaction/transaction.h"
 class RmManager;
 
 /* 对表数据文件中的页面进行封装 */

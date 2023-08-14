@@ -58,11 +58,11 @@ class Transaction {
 
     inline std::shared_ptr<std::deque<WriteRecord *>> get_write_records() { return write_records_; }
 
-    inline std::shared_ptr<std::deque<WriteIndex *>> get_write_indexes() { return write_indexes_; }
+    //inline std::shared_ptr<std::deque<WriteIndex *>> get_write_indexes() { return write_indexes_; }
 
     inline void append_write_record(WriteRecord *write_record) { write_records_->push_back(write_record); }
 
-    inline void append_write_index(WriteIndex *write_index) { write_indexes_->push_back(write_index); }
+    // inline void append_write_index(WriteIndex *write_index) { write_indexes_->push_back(write_index); }
 
     inline std::shared_ptr<std::deque<Page *>> get_index_deleted_page_set() { return index_deleted_page_set_; }
 
@@ -84,7 +84,7 @@ class Transaction {
     timestamp_t start_ts_;            // 事务的开始时间戳
 
     std::shared_ptr<std::deque<WriteRecord *>> write_records_;    // 事务包含的所有写元组操作
-    std::shared_ptr<std::deque<WriteIndex *>> write_indexes_;     // 事务包含的所有写索引操作
+    //std::shared_ptr<std::deque<WriteIndex *>> write_indexes_;     // 事务包含的所有写索引操作
     std::shared_ptr<std::unordered_set<LockDataId>> lock_set_;    // 事务申请的所有锁
     std::shared_ptr<std::deque<Page *>> index_latch_page_set_;    // 维护事务执行过程中加锁的索引页面
     std::shared_ptr<std::deque<Page *>> index_deleted_page_set_;  // 维护事务执行过程中删除的索引页面

@@ -94,10 +94,10 @@ class InsertExecutor : public AbstractExecutor {
                     offset += index.cols[j].len;
                 }
                 idx_hdls[i]->insert_entry(key.get(), rid_, context_->txn_);
-                if (context_->txn_->get_state() == TransactionState::DEFAULT) {
-                    WriteIndex *ins_rec = new WriteIndex(WType::INSERT_INDEX, idx_hdls[i], rid_, std::move(key));
-                    context_->txn_->append_write_index(ins_rec);
-                }
+                // if (context_->txn_->get_state() == TransactionState::DEFAULT) {
+                //     WriteIndex *ins_rec = new WriteIndex(WType::INSERT_INDEX, idx_hdls[i], rid_, std::move(key));
+                //     context_->txn_->append_write_index(ins_rec);
+                // }
             }
         }
 
@@ -105,7 +105,7 @@ class InsertExecutor : public AbstractExecutor {
         rid_ = fh_->insert_record(rec.data, context_);
 
         if (context_->txn_->get_state() == TransactionState::DEFAULT) {
-            WriteRecord *ins_rec = new WriteRecord(WType::INSERT_TUPLE, fh_, rid_);
+            WriteRecord *ins_rec = new WriteRecord(WType::INSERT_TUPLE, tab_name_, rid_);
             context_->txn_->append_write_record(ins_rec);
         }
 
