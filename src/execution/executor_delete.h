@@ -79,7 +79,7 @@ class DeleteExecutor : public AbstractExecutor {
             }
             if (cond_flag) {
                 if(context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid, fh_->GetFd())==false){
-                    throw TransactionAbortException(context_->txn_.get_transaction_id(),AbortReason::GET_LOCK_FAILED);
+                    throw TransactionAbortException(context_->txn_->get_transaction_id(),AbortReason::GET_LOCK_FAILED);
                 }
 
                 fh_->delete_record(rid, context_);

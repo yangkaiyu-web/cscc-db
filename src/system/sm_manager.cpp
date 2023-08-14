@@ -317,7 +317,7 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
     std::unique_ptr<IxIndexHandle> idx_hdl_unptr = ix_manager_->open_index(index_name);
     IxIndexHandle* idx_hdl = idx_hdl_unptr.get();
     latch_.lock();
-    ihs_.emplace(index_name, idx_hdl_unptr);
+    ihs_.emplace(index_name,std::move( idx_hdl_unptr));
     latch_.unlock();
     // 全表扫描，加S锁
     context->lock_mgr_->lock_shared_on_table(context->txn_, disk_manager_->get_file_fd(tab_name));
