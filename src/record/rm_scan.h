@@ -16,11 +16,11 @@ class RmFileHandle;
 
 // 不考虑查询条件之类的语义级别扫描，仅负责迭代
 class RmScan : public RecScan {
-    RmFileHandle *file_handle_;
+    const RmFileHandle *file_handle_;
     Rid rid_;
 
    public:
-    RmScan( RmFileHandle *file_handle);
+    RmScan(const  RmFileHandle *file_handle);
 
     void next() override;
 

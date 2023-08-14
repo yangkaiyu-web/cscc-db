@@ -58,7 +58,7 @@ class RmFileHandle {
     BufferPoolManager *buffer_pool_manager_;
     const int fd_;                       // 打开文件后产生的文件句柄
     RmFileHdr file_hdr_;           // 文件头，维护当前表文件的元数据
-    std::shared_mutex hdr_latch_;  // 保护file_hdr_中的num_pages和first_free_page_no
+    mutable std::shared_mutex hdr_latch_;  // 保护file_hdr_中的num_pages和first_free_page_no
 
    public:
 
@@ -102,13 +102,13 @@ class RmFileHandle {
 
     void unpin_page(PageId page_id, bool is_dirty) const;
 
-    inline void RLatch() { hdr_latch_.lock_shared(); }
+    inline void RLatch() const { hdr_latch_.lock_shared(); }
 
-    inline void RUnLatch() { hdr_latch_.unlock_shared(); }
+    inline void RUnLatch() const { hdr_latch_.unlock_shared(); }
 
-    inline void WLatch() { hdr_latch_.lock(); }
+    inline void WLatch() const { hdr_latch_.lock(); }
 
-    inline void WUnLatch() { hdr_latch_.unlock(); }
+    inline void WUnLatch() const { hdr_latch_.unlock(); }
    private:
     RmPageHandle create_page_handle_for_insert();
 };
