@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "lock_manager.h"
+#include "transaction/txn_defs.h"
 
 /**
  * @description: 申请行级共享锁
@@ -18,6 +19,13 @@ See the Mulan PSL v2 for more details. */
  * @param {int} tab_fd
  */
 bool LockManager::lock_shared_on_record(Transaction* txn, const Rid& rid, int tab_fd) {
+    if(txn->get_state() == TransactionState::ABORTED){
+        return false;
+    }
+    if(txn->get_state() == TransactionState::SHRINKING){
+        txn->set_state(TransactionState::ABORTED);
+        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHIRINKING);
+    }
     auto lock = std::scoped_lock<std::mutex>(latch_);
     auto lock_data_id = LockDataId(tab_fd, rid, LockDataType::RECORD);
     auto& rwlock = lock_table_[lock_data_id];

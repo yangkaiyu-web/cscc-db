@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "record/rm_scan.h"
 #include "system/sm.h"
 #include "system/sm_meta.h"
+#include "transaction/txn_defs.h"
 
 class SeqScanExecutor : public AbstractExecutor {
    private:
@@ -87,6 +88,10 @@ class SeqScanExecutor : public AbstractExecutor {
             }
             if (may_found) {
                 for (auto slot_no : slots) {
+                    auto rid = Rid{i,slot_no};
+                    if(context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid, fh_->GetFd())==false){
+                        throw TransactionAbortException(context_->txn_->get_transaction_id(),AbortReason::GET_LOCK_FAILED);
+                    }
                     char *data = page_handle.get_slot(slot_no);
                     auto tmp = std::make_unique<RmRecord>(len_, data);
                     // test conds

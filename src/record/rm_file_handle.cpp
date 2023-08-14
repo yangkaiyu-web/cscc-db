@@ -69,6 +69,7 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
         if (page_hdl.page_hdr->num_records + 1 == file_hdr_.num_records_per_page) {
             file_hdr_.first_free_page_no = page_hdl.page_hdr->next_free_page_no;
         }
+
         hdr_latch_.unlock();
     }
 
@@ -80,6 +81,10 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
             auto &page_hdr = page_hdl.page_hdr;
             ++page_hdr->num_records;
             const PageId &page_id = page_hdl.page->get_page_id();
+            
+            if(context->lock_mgr_->lock_exclusive_on_record(context->txn_, Rid{page_id.page_no,i}, fd_)==false){
+                throw TransactionAbortException(context->txn_->get_transaction_id(),AbortReason::GET_LOCK_FAILED);
+            }
             page_hdl.WUnLatch();
             buffer_pool_manager_->unpin_page(page_id, true);
             return Rid{page_id.page_no, i};
@@ -96,8 +101,8 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
  */
 void RmFileHandle::insert_record(const Rid &rid, char *buf) {
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
-    page_handle.WLatch();
     hdr_latch_.lock();
+    page_handle.WLatch();
     // update的rollback
     if (Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {
         memcpy(page_handle.get_slot(rid.slot_no), buf, file_hdr_.record_size);
@@ -127,13 +132,13 @@ void RmFileHandle::delete_record(const Rid &rid, Context *context) {
     // 2. 更新page_handle.page_hdr中的数据结构
     // 注意考虑删除一条记录后页面未满的情况，需要调用release_page_handle()
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
+    hdr_latch_.lock();
     page_handle.WLatch();
     if (Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {
         Bitmap::reset(page_handle.bitmap, rid.slot_no);
         auto &page_hdr = page_handle.page_hdr;
         --page_hdr->num_records;
         if (page_hdr->num_records == file_hdr_.num_records_per_page - 1) {
-            hdr_latch_.lock();
             page_hdr->next_free_page_no = file_hdr_.first_free_page_no;
             file_hdr_.first_free_page_no = rid.page_no;
             hdr_latch_.unlock();

@@ -96,6 +96,9 @@ class UpdateExecutor : public AbstractExecutor {
         }
 
         for (auto &rid : rids_) {
+            if(context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid, fh_->GetFd())==false){
+                throw TransactionAbortException(context_->txn_->get_transaction_id(),AbortReason::GET_LOCK_FAILED);
+            }
             auto record = fh_->get_record(rid, context_);
             auto old_record = fh_->get_record(rid, context_);
             char *old_raw_data = new char[record->size];
