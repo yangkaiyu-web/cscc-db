@@ -275,18 +275,16 @@ IxNodeHandle *IxIndexHandle::find_leaf_page(const char *key, Operation operation
 }
 
 bool IxIndexHandle::is_exist(const char *key, Transaction *transaction) {
-    root_latch_.lock_shared();
+    std::shared_lock<std::shared_mutex> lock(root_latch_);
 
     IxNodeHandle *ix_hdl = find_leaf_page(key, Operation::FIND, transaction);
     int key_idx = ix_hdl->lower_bound(key);
     if (key_idx < ix_hdl->get_size() &&
         ix_compare(key, ix_hdl->get_key(key_idx), file_hdr_->col_types_, file_hdr_->col_lens_) == 0) {
         release_node_handle(ix_hdl, false);
-        root_latch_.unlock_shared();
         return true;
     }
     release_node_handle(ix_hdl, false);
-    root_latch_.unlock_shared();
     return false;
 }
 /**
@@ -305,7 +303,7 @@ bool IxIndexHandle::get_value(const char *key, std::vector<Rid> &result, Transac
     // 提示：使用完buffer_pool提供的page之后，记得unpin
     // page；记得处理并发的上锁
     result.clear();
-    root_latch_.lock_shared();
+    std::shared_lock<std::shared_mutex> lock(root_latch_);
 
     IxNodeHandle *ix_hdl = find_leaf_page(key, Operation::FIND, transaction);
     int key_idx = ix_hdl->lower_bound(key);
@@ -315,7 +313,6 @@ bool IxIndexHandle::get_value(const char *key, std::vector<Rid> &result, Transac
         ++key_idx;
     }
     release_node_handle(ix_hdl, false);
-    root_latch_.unlock_shared();
     return !result.empty();
 }
 
@@ -481,7 +478,7 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
     // 3. 如果结点已满，分裂结点，并把新结点的相关信息插入父节点
     // 提示：记得unpin
     // page；若当前叶子节点是最右叶子节点，则需要更新file_hdr_.last_leaf；记得处理并发的上锁
-    std::scoped_lock lock(root_latch_);
+    std::unique_lock<std::shared_mutex> lock(root_latch_);
     IxNodeHandle *old_ix_hdl = find_leaf_page(key, Operation::INSERT, transaction);
 
     std::pair<int, int> pos_andpair_count;
@@ -491,8 +488,6 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
         release_node_handle(old_ix_hdl, false);
         throw e;
     }
-
-    if (pos_andpair_count.first == 0 && !old_ix_hdl->is_root_page()) maintain_parent(old_ix_hdl);
 
     if (pos_andpair_count.second > old_ix_hdl->get_max_key_size()) {
         assert(pos_andpair_count.second == old_ix_hdl->get_max_key_size() + 1);
@@ -557,8 +552,7 @@ bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
     // 如果删除成功需要调用CoalesceOrRedistribute来进行合并或重分配操作，并根据函数返回结果判断是否有结点需要删除
     // 4.
     // 如果需要并发，并且需要删除叶子结点，则需要在事务的delete_page_set中添加删除结点的对应页面；记得处理并发的上锁
-    std::scoped_lock lock(root_latch_);
-    dfs(file_hdr_->root_page_);
+    std::unique_lock<std::shared_mutex> lock(root_latch_);
     IxNodeHandle *old_ix_hdl = find_leaf_page(key, Operation::DELETE, transaction);
     int pair_count = old_ix_hdl->remove(key);
     if (!old_ix_hdl->is_root_page() && pair_count < old_ix_hdl->get_min_key_size()) {
@@ -890,7 +884,8 @@ void IxIndexHandle::update_right_parent(IxNodeHandle *right_node) {
  * @note
  * iid和rid存的不是一个东西，rid是上层传过来的记录位置，iid是索引内部生成的索引槽位置
  */
-Rid IxIndexHandle::get_rid(const Iid &iid) const {
+Rid IxIndexHandle::get_rid(const Iid &iid) {
+    std::shared_lock<std::shared_mutex> lock(root_latch_);
     IxNodeHandle *node = fetch_node(iid.page_no);
     if (iid.slot_no == node->get_size()) {
         // 当upper/lower
@@ -916,6 +911,7 @@ Rid IxIndexHandle::get_rid(const Iid &iid) const {
  * 可用*(int *)key转换回去
  */
 Iid IxIndexHandle::lower_bound(const char *key, size_t pre) {
+    std::shared_lock<std::shared_mutex> lock(root_latch_);
     IxNodeHandle *leaf_hdl = find_leaf_page(key, Operation::FIND, nullptr);
     int slot_no = leaf_hdl->lower_bound(key, pre);
     page_id_t page_id = -1;
@@ -936,6 +932,7 @@ Iid IxIndexHandle::lower_bound(const char *key, size_t pre) {
  * @return Iid
  */
 Iid IxIndexHandle::upper_bound(const char *key, size_t pre) {
+    std::shared_lock<std::shared_mutex> lock(root_latch_);
     IxNodeHandle *leaf_hdl = find_leaf_page(key, Operation::FIND, nullptr);
     int slot_no = leaf_hdl->upper_bound(key, pre);
     page_id_t page_id = -1;
@@ -955,7 +952,8 @@ Iid IxIndexHandle::upper_bound(const char *key, size_t pre) {
  *
  * @return Iid
  */
-Iid IxIndexHandle::leaf_end() const {
+Iid IxIndexHandle::leaf_end() {
+    std::shared_lock<std::shared_mutex> lock(root_latch_);
     IxNodeHandle *node = fetch_node(file_hdr_->last_leaf_);
     Iid iid = {.page_no = file_hdr_->last_leaf_, .slot_no = node->get_size()};
     release_node_handle(node, false);  // unpin it!

@@ -205,42 +205,21 @@ class IxIndexHandle {
 
     bool get_value(const char *key, std::vector<Rid> &result, Transaction *transaction);
 
-    IxNodeHandle *find_leaf_page(const char *key, Operation operation, Transaction *transaction,
-                                 bool find_first = false);
-
     // for insert
     page_id_t insert_entry(const char *key, const Rid &value, Transaction *transaction);
 
-    IxNodeHandle *split(IxNodeHandle *node);
-
-    void insert_into_parent(IxNodeHandle *old_node, const char *key, IxNodeHandle *new_node, Transaction *transaction);
-
     // for delete
     bool delete_entry(const char *key, Transaction *transaction);
-
-    bool coalesce_or_redistribute(IxNodeHandle *node, Transaction *transaction = nullptr,
-                                  bool *root_is_latched = nullptr);
-    bool adjust_root(IxNodeHandle *old_root_node);
-
-    // TRY:不需要parent参数，函数内部可以获得
-    // void redistribute(IxNodeHandle *neighbor_node, IxNodeHandle *node,
-    //                  IxNodeHandle *parent, int index);
-    void redistribute(IxNodeHandle *neighbor_node, IxNodeHandle *node);
-
-    void coalesce(IxNodeHandle *left_node, IxNodeHandle *right_node, Transaction *transaction = nullptr,
-                  bool *root_is_latched = nullptr);
-
-    // 删除右节点页，更新右节点的父节点的kv，删去其中和右节点相关的kv，可能需要进一步更新祖先节点
-    void update_right_parent(IxNodeHandle *right_node);
 
     Iid lower_bound(const char *key, size_t pre = 0);
 
     Iid upper_bound(const char *key, size_t pre = 0);
 
-    Iid leaf_end() const;
+    Iid leaf_end();
 
     Iid leaf_begin() const;
 
+    /*
     void dfs(int page_no = -1) {
         if (page_no == -1) {
             page_no = file_hdr_->root_page_;
@@ -256,7 +235,7 @@ class IxIndexHandle {
             dfs(id);
         }
         release_node_handle(node, false);
-    }
+    }*/
 
    private:
     // 辅助函数
@@ -284,15 +263,37 @@ class IxIndexHandle {
 
     IxNodeHandle *create_node();
 
+    // 删除右节点页，更新右节点的父节点的kv，删去其中和右节点相关的kv，可能需要进一步更新祖先节点
+    void update_right_parent(IxNodeHandle *right_node);
+
+    // TRY:不需要parent参数，函数内部可以获得
+    // void redistribute(IxNodeHandle *neighbor_node, IxNodeHandle *node,
+    //                  IxNodeHandle *parent, int index);
+    void redistribute(IxNodeHandle *neighbor_node, IxNodeHandle *node);
+
+    void coalesce(IxNodeHandle *left_node, IxNodeHandle *right_node, Transaction *transaction = nullptr,
+                  bool *root_is_latched = nullptr);
+
     // for maintain data structure
     void maintain_parent(IxNodeHandle *node);
 
+    bool coalesce_or_redistribute(IxNodeHandle *node, Transaction *transaction = nullptr,
+                                  bool *root_is_latched = nullptr);
+    bool adjust_root(IxNodeHandle *old_root_node);
+
     void erase_leaf(IxNodeHandle *leaf);
+
+    IxNodeHandle *find_leaf_page(const char *key, Operation operation, Transaction *transaction,
+                                 bool find_first = false);
+
+    void insert_into_parent(IxNodeHandle *old_node, const char *key, IxNodeHandle *new_node, Transaction *transaction);
+
+    IxNodeHandle *split(IxNodeHandle *node);
 
     void release_node_handle(IxNodeHandle *node, bool is_dirty) const;
 
     void maintain_child(IxNodeHandle *node, int child_idx);
 
     // for index test
-    Rid get_rid(const Iid &iid) const;
+    Rid get_rid(const Iid &iid);
 };
