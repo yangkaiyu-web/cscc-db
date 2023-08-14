@@ -11,10 +11,13 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include <atomic>
+#include <memory>
 
 #include "common/config.h"
 #include "defs.h"
+#include "index/ix_index_handle.h"
 #include "record/rm_defs.h"
+#include "record/rm_file_handle.h"
 
 /* 标识事务状态 */
 enum class TransactionState { DEFAULT, GROWING, SHRINKING, COMMITTED, ABORTED };

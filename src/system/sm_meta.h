@@ -180,14 +180,14 @@ class DbMeta {
    private:
     std::string name_;                     // 数据库名称
     std::map<std::string, TabMeta> tabs_;  // 数据库中包含的表
-    std::shared_mutex latch_;              // 保护tabs_
+    mutable std::shared_mutex latch_;              // 保护tabs_
 
    public:
     // DbMeta(std::string name) : name_(name) {}
 
     /* 判断数据库中是否存在指定名称的表，函数内部对tabs加锁，外部无需加锁 */
     bool is_table(const std::string &tab_name) const {
-        std::scoped_lock lock(latch_);
+        std::shared_lock<std::shared_mutex> lock(latch_);
         return tabs_.find(tab_name) != tabs_.end();
     }
 
