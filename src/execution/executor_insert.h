@@ -61,6 +61,7 @@ class InsertExecutor : public AbstractExecutor {
         }
         sm_manager_->latch_.unlock_shared();
 
+        fh_->insert_record(rec.data, context_);
         // 检查以符合索引唯一性
         for (size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto &index = tab_.indexes[i];
@@ -76,9 +77,7 @@ class InsertExecutor : public AbstractExecutor {
             }
         }
 
-        if (context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd()) == false) {
-            throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::DEADLOCK_PREVENTION);
-        }
+        
 
         // Insert into index file
         for (size_t i = 0; i < tab_.indexes.size(); ++i) {
