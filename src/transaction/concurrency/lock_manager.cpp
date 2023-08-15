@@ -115,7 +115,7 @@ bool LockManager::lock_shared_on_table(Transaction* txn, int tab_fd) {
     }
     rwlock.request_queue_.push_back({txn->get_transaction_id(), LockMode::S});
     txn->get_lock_set()->insert(lock_data_id);
-    return false;
+    return true;
 }
 
 /**
@@ -157,7 +157,7 @@ bool LockManager::lock_IS_on_table(Transaction* txn, int tab_fd) {
         throw TransactionAbortException(txn->get_transaction_id(), AbortReason::LOCK_ON_SHIRINKING);
     }
     txn->set_state(TransactionState::GROWING);
-    std::scoped_lock<std::mutex> latch(latch_);
+
     auto lock_data_id = LockDataId(tab_fd, LockDataType::TABLE);
     auto& rwlock = lock_table_[lock_data_id];
 
@@ -186,7 +186,7 @@ bool LockManager::lock_IX_on_table(Transaction* txn, int tab_fd) {
         throw TransactionAbortException(txn->get_transaction_id(), AbortReason::LOCK_ON_SHIRINKING);
     }
     txn->set_state(TransactionState::GROWING);
-    std::scoped_lock<std::mutex> latch(latch_);
+
     auto lock_data_id = LockDataId(tab_fd, LockDataType::TABLE);
     auto& rwlock = lock_table_[lock_data_id];
     for (const auto& lock : rwlock.request_queue_) {

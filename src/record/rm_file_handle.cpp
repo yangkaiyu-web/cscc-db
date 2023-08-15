@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "rm_file_handle.h"
+#include "record/rm_defs.h"
 #include "recovery/log_manager.h"
 #include "transaction/transaction.h"
 
@@ -63,7 +64,17 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
                 file_hdr_.first_free_page_no = page_hdl.page_hdr->next_free_page_no;
             }
             const PageId &page_id = page_hdl.page->get_page_id();
-
+            Rid rid = Rid{page_id.page_no,i};
+            if (context->txn_->get_state() == TransactionState::DEFAULT ||context->txn_->get_state() == TransactionState::GROWING ) 
+            {
+                RmRecord rec (file_hdr_.record_size,buf);
+                std::string tab_name  =disk_manager_->get_file_name(fd_);
+                auto insertRec = std::make_unique < WriteRecord > (WType::INSERT_TUPLE,tab_name , rid,rec);
+                context->log_mgr_->gen_log_from_write_set(context->txn_,insertRec.get());
+                context->txn_->append_write_record(std::move(insertRec));
+            }else {
+                assert(false);
+            }
             if (context->lock_mgr_->lock_exclusive_on_record(context->txn_, Rid{page_id.page_no, i}, fd_) == false) {
                 throw TransactionAbortException(context->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
             }

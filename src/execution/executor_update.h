@@ -95,39 +95,42 @@ class UpdateExecutor : public AbstractExecutor {
 
             auto &indexes = tab_.indexes;
             // 检查索引唯一性
-            for (auto &rid : rids_) {
-                auto record = fh_->get_record(rid, context_);
-                for (auto &set_clause : set_clauses_) {
-                    assert(tab_name_ == set_clause.lhs.tab_name);
-                    auto &col = *tab_.get_col(set_clause.lhs.col_name);
-                    auto val = set_clause.rhs;
-                    if (col.type != val.type) {
-                        throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
-                    }
-                    memcpy(record->data + col.offset, val.raw->data, col.len);
-                }
-
-                for (size_t i = 0; i < indexes.size(); ++i) {
-                    char *key = new char[indexes[i].col_tot_len];
-                    int offset = 0;
-                    for (size_t j = 0; j < static_cast<size_t>(indexes[i].col_num); ++j) {
-                        memcpy(key + offset, record->data + indexes[i].cols[j].offset, indexes[i].cols[j].len);
-                        offset += indexes[i].cols[j].len;
+            if(!indexes.empty()){
+                for (auto &rid : rids_) {
+                    auto record = fh_->get_record(rid, context_);
+                    for (auto &set_clause : set_clauses_) {
+                        assert(tab_name_ == set_clause.lhs.tab_name);
+                        auto &col = *tab_.get_col(set_clause.lhs.col_name);
+                        auto val = set_clause.rhs;
+                        if (col.type != val.type) {
+                            throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
+                        }
+                        memcpy(record->data + col.offset, val.raw->data, col.len);
                     }
 
-                    std::vector<Rid> result;
-                    if (idx_hdls[i]->get_value(key, result, nullptr) && result[0] != rid) {
-                        assert(result.size() == 1);
+                    for (size_t i = 0; i < indexes.size(); ++i) {
+                        char *key = new char[indexes[i].col_tot_len];
+                        int offset = 0;
+                        for (size_t j = 0; j < static_cast<size_t>(indexes[i].col_num); ++j) {
+                            memcpy(key + offset, record->data + indexes[i].cols[j].offset, indexes[i].cols[j].len);
+                            offset += indexes[i].cols[j].len;
+                        }
+
+                        std::vector<Rid> result;
+                        if (idx_hdls[i]->get_value(key, result, nullptr) && result[0] != rid) {
+                            assert(result.size() == 1);
+                            delete[] key;
+                            throw IndexEntryNotUniqueError();
+                        }
                         delete[] key;
-                        throw IndexEntryNotUniqueError();
                     }
-                    delete[] key;
                 }
+
             }
-            // 更新索引项
 
             fh_->update_record(rid, record->data, context_);
 
+            // 更新索引项
             for (size_t i = 0; i < indexes.size(); ++i) {
                 char *key = new char[indexes[i].col_tot_len];
                 int offset = 0;
