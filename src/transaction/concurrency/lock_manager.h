@@ -19,10 +19,10 @@ static const std::string GroupLockModeStr[10] = {"NON_LOCK", "IS", "IX", "S", "X
 
 class LockManager {
     /* 加锁类型，包括共享锁、排他锁、意向共享锁、意向排他锁、SIX（意向排他锁+共享锁） */
-    enum class LockMode { SHARED, EXLUCSIVE, INTENTION_SHARED, INTENTION_EXCLUSIVE, S_IX };
+    enum class LockMode { S, X, IS, IX, SIX };
 
     /* 用于标识加锁队列中排他性最强的锁类型，例如加锁队列中有SHARED和EXLUSIVE两个加锁操作，则该队列的锁模式为X */
-    enum class GroupLockMode { NON_LOCK, IS, IX, S, X, SIX };
+    // enum class GroupLockMode { NON_LOCK, IS, IX, S, X, SIX };
 
     /* 事务的加锁申请 */
     class LockRequest {
@@ -39,7 +39,6 @@ class LockManager {
        public:
         std::list<LockRequest> request_queue_;  // 加锁队列
         std::condition_variable cv_;  // 条件变量，用于唤醒正在等待加锁的申请，在no-wait策略下无需使用
-        GroupLockMode group_lock_mode_ = GroupLockMode::NON_LOCK;  // 加锁队列的锁模式
         int32_t num = 0;                                           // 加锁数量
         txn_id_t curr{-1};  // 当下执行的事务，目前只用于判断上X锁前持有的S锁是不是同一个事务所加
     };
