@@ -31,17 +31,17 @@ class UpdateExecutor : public AbstractExecutor {
    public:
     UpdateExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<SetClause> set_clauses,
                    std::vector<Condition> conds, std::vector<Rid> rids, Context *context) {
-        if (!(rids.size() > 10000 &&
-              context->lock_mgr_->lock_exclusive_on_table(context->txn_, fh_->GetFd()) == true)) {
-            for (auto &rid : rids) {
-                if (context->lock_mgr_->lock_exclusive_on_record(context->txn_, rid, fh_->GetFd()) == false) {
-                    // TODO:其他死锁避免方法
-                    // no-wait
-                    throw TransactionAbortException(context_->txn_->get_transaction_id(),
-                                                    AbortReason::DEADLOCK_PREVENTION);
-                }
-            }
-        }
+        // if (!(rids.size() > 10000 &&
+        //       context->lock_mgr_->lock_exclusive_on_table(context->txn_, fh_->GetFd()) == true)) {
+        //     for (auto &rid : rids) {
+        //         if (context->lock_mgr_->lock_exclusive_on_record(context->txn_, rid, fh_->GetFd()) == false) {
+        //             // TODO:其他死锁避免方法
+        //             // no-wait
+        //             throw TransactionAbortException(context_->txn_->get_transaction_id(),
+        //                                             AbortReason::DEADLOCK_PREVENTION);
+        //         }
+        //     }
+        // }
 
         sm_manager_ = sm_manager;
         tab_name_ = tab_name;
@@ -63,37 +63,6 @@ class UpdateExecutor : public AbstractExecutor {
             idx_hdls.push_back(sm_manager_->ihs_.at(index.get_index_name()).get());
         }
         sm_manager_->latch_.unlock_shared();
-        auto &indexes = tab_.indexes;
-        // 检查索引唯一性
-        for (auto &rid : rids_) {
-            auto record = fh_->get_record(rid, context_);
-            for (auto &set_clause : set_clauses_) {
-                assert(tab_name_ == set_clause.lhs.tab_name);
-                auto &col = *tab_.get_col(set_clause.lhs.col_name);
-                auto val = set_clause.rhs;
-                if (col.type != val.type) {
-                    throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
-                }
-                memcpy(record->data + col.offset, val.raw->data, col.len);
-            }
-
-            for (size_t i = 0; i < indexes.size(); ++i) {
-                char *key = new char[indexes[i].col_tot_len];
-                int offset = 0;
-                for (size_t j = 0; j < static_cast<size_t>(indexes[i].col_num); ++j) {
-                    memcpy(key + offset, record->data + indexes[i].cols[j].offset, indexes[i].cols[j].len);
-                    offset += indexes[i].cols[j].len;
-                }
-
-                std::vector<Rid> result;
-                if (idx_hdls[i]->get_value(key, result, nullptr) && result[0] != rid) {
-                    assert(result.size() == 1);
-                    delete[] key;
-                    throw IndexEntryNotUniqueError();
-                }
-                delete[] key;
-            }
-        }
 
         for (auto &rid : rids_) {
             if(context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid, fh_->GetFd())==false){
@@ -114,15 +83,48 @@ class UpdateExecutor : public AbstractExecutor {
                 memcpy(record->data + col.offset, val.raw->data, col.len);
             }
             // 更新事务
-            if (context_->txn_->get_state() == TransactionState::DEFAULT) {
+            if (context_->txn_->get_state() == TransactionState::DEFAULT||context_->txn_->get_state() == TransactionState::GROWING) {
                 auto WriteRec = std::make_unique< WriteRecord>(WType::UPDATE_TUPLE, tab_name_, rid, *old_record,*record);
                 context_->log_mgr_->gen_log_from_write_set(context_->txn_,WriteRec.get());
                 context_->txn_->append_write_record(std::move(WriteRec));
             }else {
                 assert(false);
             }
+
             fh_->update_record(rid, record->data, context_);
 
+
+            auto &indexes = tab_.indexes;
+            // 检查索引唯一性
+            for (auto &rid : rids_) {
+                auto record = fh_->get_record(rid, context_);
+                for (auto &set_clause : set_clauses_) {
+                    assert(tab_name_ == set_clause.lhs.tab_name);
+                    auto &col = *tab_.get_col(set_clause.lhs.col_name);
+                    auto val = set_clause.rhs;
+                    if (col.type != val.type) {
+                        throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
+                    }
+                    memcpy(record->data + col.offset, val.raw->data, col.len);
+                }
+
+                for (size_t i = 0; i < indexes.size(); ++i) {
+                    char *key = new char[indexes[i].col_tot_len];
+                    int offset = 0;
+                    for (size_t j = 0; j < static_cast<size_t>(indexes[i].col_num); ++j) {
+                        memcpy(key + offset, record->data + indexes[i].cols[j].offset, indexes[i].cols[j].len);
+                        offset += indexes[i].cols[j].len;
+                    }
+
+                    std::vector<Rid> result;
+                    if (idx_hdls[i]->get_value(key, result, nullptr) && result[0] != rid) {
+                        assert(result.size() == 1);
+                        delete[] key;
+                        throw IndexEntryNotUniqueError();
+                    }
+                    delete[] key;
+                }
+            }
             // 更新索引项
 
             for (size_t i = 0; i < indexes.size(); ++i) {

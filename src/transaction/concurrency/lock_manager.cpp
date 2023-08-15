@@ -101,12 +101,22 @@ bool LockManager::lock_shared_on_table(Transaction* txn, int tab_fd) {
     auto& rwlock = lock_table_[lock_data_id];
     // if not the exclusive lock
     if (rwlock.num >= 0) {
-        // refresh it and update the first_hold_shared
-        rwlock.num++;
-        rwlock.group_lock_mode_ = GroupLockMode::S;
-        rwlock.curr = txn->get_transaction_id();
-        txn->get_lock_set()->insert(lock_data_id);
-        return true;
+        if (rwlock.group_lock_mode_ == GroupLockMode::NON_LOCK) {
+            assert(rwlock.num == 0 && rwlock.curr == -1);
+            rwlock.num = 1;
+            rwlock.curr = txn->get_transaction_id();
+            rwlock.group_lock_mode_ = GroupLockMode::IS;
+            txn->get_lock_set()->insert(lock_data_id);
+            return true;}
+        else if(rwlock.group_lock_mode_==GroupLockMode::S || rwlock.group_lock_mode_==GroupLockMode::IS  ){
+            // refresh it and update the first_hold_shared
+        assert(rwlock.num > 0 && rwlock.curr != -1);
+            rwlock.num++;
+            rwlock.group_lock_mode_ = GroupLockMode::S;
+            rwlock.curr = txn->get_transaction_id();
+            txn->get_lock_set()->insert(lock_data_id);
+            return true;
+        }else if(rwlock.group_lock_mode_ == GroupLockMode::X)
     }
     return false;
 }

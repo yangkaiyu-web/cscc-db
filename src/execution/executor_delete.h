@@ -82,7 +82,7 @@ class DeleteExecutor : public AbstractExecutor {
                     throw TransactionAbortException(context_->txn_->get_transaction_id(),AbortReason::GET_LOCK_FAILED);
                 }
 
-                if(context_->txn_->get_state() == TransactionState::DEFAULT)
+                if(context_->txn_->get_state() == TransactionState::DEFAULT||context_->txn_->get_state() == TransactionState::GROWING)
                 {
                     auto delRec = std::make_unique < WriteRecord >(WType::DELETE_TUPLE,tab_name_,rid,*old_record);
                 context_->log_mgr_->gen_log_from_write_set(context_->txn_,delRec.get());
