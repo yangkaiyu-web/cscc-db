@@ -56,27 +56,21 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
     int i;
     for (i = 0; i < file_hdr_.num_records_per_page; ++i) {
         if (!Bitmap::is_set(page_hdl.bitmap, i)) {
+
+            auto &page_hdr = page_hdl.page_hdr;
+            const PageId &page_id = page_hdl.page->get_page_id();
+            Rid rid = Rid{page_id.page_no,i};
+
+            // get lock
+            if (context->lock_mgr_->lock_exclusive_on_record(context->txn_, Rid{page_id.page_no, i}, fd_) == false) {
+                throw TransactionAbortException(context->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
+            }
+            // insert data
             memcpy(page_hdl.get_slot(i), buf, file_hdr_.record_size);
             Bitmap::set(page_hdl.bitmap, i);
-            auto &page_hdr = page_hdl.page_hdr;
             ++page_hdr->num_records;
             if (page_hdl.page_hdr->num_records == file_hdr_.num_records_per_page) {
                 file_hdr_.first_free_page_no = page_hdl.page_hdr->next_free_page_no;
-            }
-            const PageId &page_id = page_hdl.page->get_page_id();
-            Rid rid = Rid{page_id.page_no,i};
-            if (context->txn_->get_state() == TransactionState::DEFAULT ||context->txn_->get_state() == TransactionState::GROWING ) 
-            {
-                RmRecord rec (file_hdr_.record_size,buf);
-                std::string tab_name  =disk_manager_->get_file_name(fd_);
-                auto insertRec = std::make_unique < WriteRecord > (WType::INSERT_TUPLE,tab_name , rid,rec);
-                context->log_mgr_->gen_log_from_write_set(context->txn_,insertRec.get());
-                context->txn_->append_write_record(std::move(insertRec));
-            }else {
-                assert(false);
-            }
-            if (context->lock_mgr_->lock_exclusive_on_record(context->txn_, Rid{page_id.page_no, i}, fd_) == false) {
-                throw TransactionAbortException(context->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
             }
             buffer_pool_manager_->unpin_page(page_id, true);
             return Rid{page_id.page_no, i};

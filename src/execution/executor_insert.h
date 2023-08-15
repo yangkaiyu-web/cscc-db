@@ -77,8 +77,16 @@ class InsertExecutor : public AbstractExecutor {
         }
 
         
-        fh_->insert_record(rec.data, context_);
+        rid_ = fh_->insert_record(rec.data, context_);
 
+        if (context_->txn_->get_state() == TransactionState::DEFAULT ||context_->txn_->get_state() == TransactionState::GROWING ) {
+
+            auto insertRec = std::make_unique < WriteRecord > (WType::INSERT_TUPLE,tab_name_ , rid_,rec);
+            context_->log_mgr_->gen_log_from_write_set(context_->txn_,insertRec.get());
+            context_->txn_->append_write_record(std::move(insertRec));
+        }else {
+            assert(false);
+        }
         // Insert into index file
         for (size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto &index = tab_.indexes[i];
