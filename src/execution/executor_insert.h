@@ -61,7 +61,6 @@ class InsertExecutor : public AbstractExecutor {
         }
         sm_manager_->latch_.unlock_shared();
 
-        fh_->insert_record(rec.data, context_);
         // 检查以符合索引唯一性
         for (size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto &index = tab_.indexes[i];
@@ -78,6 +77,7 @@ class InsertExecutor : public AbstractExecutor {
         }
 
         
+        fh_->insert_record(rec.data, context_);
 
         // Insert into index file
         for (size_t i = 0; i < tab_.indexes.size(); ++i) {

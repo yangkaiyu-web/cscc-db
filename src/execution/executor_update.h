@@ -91,7 +91,6 @@ class UpdateExecutor : public AbstractExecutor {
                 assert(false);
             }
 
-            fh_->update_record(rid, record->data, context_);
 
 
             auto &indexes = tab_.indexes;
@@ -126,6 +125,8 @@ class UpdateExecutor : public AbstractExecutor {
                 }
             }
             // 更新索引项
+
+            fh_->update_record(rid, record->data, context_);
 
             for (size_t i = 0; i < indexes.size(); ++i) {
                 char *key = new char[indexes[i].col_tot_len];
