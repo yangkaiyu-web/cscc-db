@@ -78,28 +78,23 @@ class InsertExecutor : public AbstractExecutor {
             }
         }
 
-        if (tab_.indexes.size() == 0) {
-            if (context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd()) == false) {
-                throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::DEADLOCK_PREVENTION);
+        // Insert into index file
+        for (size_t i = 0; i < tab_.indexes.size(); ++i) {
+            auto &index = tab_.indexes[i];
+            std::unique_ptr<char[]> key(new char[index.col_tot_len], std::default_delete<char[]>());
+            int offset = 0;
+            assert(index.col_num >= 0);
+            for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
+                memcpy(key.get() + offset, rec.data + index.cols[j].offset, index.cols[j].len);
+                offset += index.cols[j].len;
             }
-        } else {
-            // Insert into index file
-            for (size_t i = 0; i < tab_.indexes.size(); ++i) {
-                auto &index = tab_.indexes[i];
-                std::unique_ptr<char[]> key(new char[index.col_tot_len], std::default_delete<char[]>());
-                int offset = 0;
-                assert(index.col_num >= 0);
-                for (size_t j = 0; j < static_cast<size_t>(index.col_num); ++j) {
-                    memcpy(key.get() + offset, rec.data + index.cols[j].offset, index.cols[j].len);
-                    offset += index.cols[j].len;
-                }
-                idx_hdls[i]->insert_entry(key.get(), rid_, context_->txn_);
-                // if (context_->txn_->get_state() == TransactionState::DEFAULT) {
-                //     WriteIndex *ins_rec = new WriteIndex(WType::INSERT_INDEX, idx_hdls[i], rid_, std::move(key));
-                //     context_->txn_->append_write_index(ins_rec);
-                // }
-            }
+            idx_hdls[i]->insert_entry(key.get(), rid_, context_->txn_);
+            // if (context_->txn_->get_state() == TransactionState::DEFAULT) {
+            //     WriteIndex *ins_rec = new WriteIndex(WType::INSERT_INDEX, idx_hdls[i], rid_, std::move(key));
+            //     context_->txn_->append_write_index(ins_rec);
+            // }
         }
+
 
         // Insert into record file
         rid_ = fh_->insert_record(rec.data, context_);

@@ -26,6 +26,7 @@ bool LockManager::lock_shared_on_record(Transaction* txn, const Rid& rid, int ta
         txn->set_state(TransactionState::ABORTED);
         throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHIRINKING);
     }
+    txn->set_state(TransactionState::GROWING);
     auto lock = std::scoped_lock<std::mutex>(latch_);
     auto lock_data_id = LockDataId(tab_fd, rid, LockDataType::RECORD);
     auto& rwlock = lock_table_[lock_data_id];
@@ -51,6 +52,11 @@ bool LockManager::lock_shared_on_record(Transaction* txn, const Rid& rid, int ta
  * @param {int} tab_fd 记录所在的表的fd
  */
 bool LockManager::lock_exclusive_on_record(Transaction* txn, const Rid& rid, int tab_fd) {
+    if(txn->get_state() == TransactionState::SHRINKING){
+        txn->set_state(TransactionState::ABORTED);
+        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHIRINKING);
+    }
+    txn->set_state(TransactionState::GROWING);
     auto lock = std::scoped_lock<std::mutex>(latch_);
 
     auto lock_data_id = LockDataId(tab_fd, rid, LockDataType::RECORD);
@@ -85,6 +91,11 @@ bool LockManager::lock_exclusive_on_record(Transaction* txn, const Rid& rid, int
  * @param {int} tab_fd 目标表的fd
  */
 bool LockManager::lock_shared_on_table(Transaction* txn, int tab_fd) {
+    if(txn->get_state() == TransactionState::SHRINKING){
+        txn->set_state(TransactionState::ABORTED);
+        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHIRINKING);
+    }
+    txn->set_state(TransactionState::GROWING);
     auto lock = std::scoped_lock<std::mutex>(latch_);
     auto lock_data_id = LockDataId(tab_fd, LockDataType::TABLE);
     auto& rwlock = lock_table_[lock_data_id];
@@ -107,6 +118,11 @@ bool LockManager::lock_shared_on_table(Transaction* txn, int tab_fd) {
  * @param {int} tab_fd 目标表的fd
  */
 bool LockManager::lock_exclusive_on_table(Transaction* txn, int tab_fd) {
+    if(txn->get_state() == TransactionState::SHRINKING){
+        txn->set_state(TransactionState::ABORTED);
+        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHIRINKING);
+    }
+    txn->set_state(TransactionState::GROWING);
     auto lock = std::scoped_lock<std::mutex>{latch_};
     auto lock_data_id = LockDataId(tab_fd, LockDataType::TABLE);
     auto& rwlock = lock_table_[lock_data_id];
@@ -133,6 +149,11 @@ bool LockManager::lock_exclusive_on_table(Transaction* txn, int tab_fd) {
  * @param {int} tab_fd 目标表的fd
  */
 bool LockManager::lock_IS_on_table(Transaction* txn, int tab_fd) {
+    if(txn->get_state() == TransactionState::SHRINKING){
+        txn->set_state(TransactionState::ABORTED);
+        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHIRINKING);
+    }
+    txn->set_state(TransactionState::GROWING);
     auto lock_data_id = LockDataId(tab_fd, LockDataType::TABLE);
     auto& rwlock = lock_table_[lock_data_id];
     if (rwlock.group_lock_mode_ == GroupLockMode::NON_LOCK) {
@@ -160,6 +181,11 @@ bool LockManager::lock_IS_on_table(Transaction* txn, int tab_fd) {
  * @param {int} tab_fd 目标表的fd
  */
 bool LockManager::lock_IX_on_table(Transaction* txn, int tab_fd) {
+    if(txn->get_state() == TransactionState::SHRINKING){
+        txn->set_state(TransactionState::ABORTED);
+        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHIRINKING);
+    }
+    txn->set_state(TransactionState::GROWING);
     auto lock_data_id = LockDataId(tab_fd, LockDataType::TABLE);
     auto& rwlock = lock_table_[lock_data_id];
     if (rwlock.group_lock_mode_ == GroupLockMode::NON_LOCK) {
@@ -187,6 +213,11 @@ bool LockManager::lock_IX_on_table(Transaction* txn, int tab_fd) {
 }
 
 bool LockManager::lock_SIX_on_table(Transaction* txn, int tab_fd) {
+    if(txn->get_state() == TransactionState::SHRINKING){
+        txn->set_state(TransactionState::ABORTED);
+        throw TransactionAbortException(txn->get_transaction_id(),AbortReason::LOCK_ON_SHIRINKING);
+    }
+    txn->set_state(TransactionState::GROWING);
     auto lock_data_id = LockDataId(tab_fd, LockDataType::TABLE);
     auto& rwlock = lock_table_[lock_data_id];
     if (rwlock.group_lock_mode_ == GroupLockMode::NON_LOCK) {
@@ -216,6 +247,9 @@ bool LockManager::lock_SIX_on_table(Transaction* txn, int tab_fd) {
  * @param {LockDataId} lock_data_id 要释放的锁ID
  */
 bool LockManager::unlock(Transaction* txn, LockDataId lock_data_id) {
+    if(txn->get_state() == TransactionState::GROWING){
+        txn->set_state(TransactionState::SHRINKING);
+    }
     std::scoped_lock latch{latch_};
     auto& rwlock = lock_table_[lock_data_id];
     if (rwlock.num < 0 && rwlock.group_lock_mode_ == GroupLockMode::X) {

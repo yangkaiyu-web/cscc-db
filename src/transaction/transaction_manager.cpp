@@ -60,16 +60,11 @@ void TransactionManager::commit(Transaction *txn, LogManager *log_manager) {
     // auto write_indexes = txn->get_write_indexes();
     auto index_deleted_page_set = txn->get_index_deleted_page_set();
     auto index_latch_page_set = txn->get_index_latch_page_set();
-    auto lock_set = txn->get_lock_set();
-
-    for (auto lock : *lock_set) {
-        lock_manager_->unlock(txn, lock);
-    }
+    release_locks(txn);
     write_records->clear();
     //write_indexes->clear();
     index_deleted_page_set->clear();
     index_latch_page_set->clear();
-    lock_set->clear();
 
     LogRecord *log_record =
         new CommitLogRecord(log_manager->alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
@@ -133,13 +128,10 @@ void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
     //     }
     //     write_indexes->pop_back();
     //}
-    auto lock_set = txn->get_lock_set();
-    for (auto lock : *lock_set) {
-        lock_manager_->unlock(txn, lock);
-    }
+    release_locks(txn);
     write_records->clear();
     //write_indexes->clear();
-    lock_set->clear();
+
 
     LogRecord *log_record =
         new AbortLogRecord(log_manager->alloc_lsn(), txn->get_transaction_id(), txn->get_so_far_lsn());
@@ -284,4 +276,11 @@ void TransactionManager::rollback_update(const std::string &tab_name_, const Rid
         ih->insert_entry(key->data, rid, nullptr);
     }
 
+}
+
+void TransactionManager:: release_locks(Transaction* txn){
+    for(auto lock: *txn->get_lock_set()){
+        lock_manager_->unlock(txn, lock);
+    }
+    txn->get_lock_set()->clear();
 }
