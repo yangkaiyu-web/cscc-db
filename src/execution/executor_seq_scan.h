@@ -23,7 +23,7 @@ See the Mulan PSL v2 for more details. */
 
 class SeqScanExecutor : public AbstractExecutor {
    private:
-    std::string tab_name_;              // 表的名称
+    std::string tab_name_;  // 表的名称
     TabMeta tab_;
     std::vector<Condition> conds_;      // scan的条件
     RmFileHandle *fh_;                  // 表的数据文件句柄
@@ -74,6 +74,7 @@ class SeqScanExecutor : public AbstractExecutor {
         rids_buffer.clear();
         buffer_idx = 0;
         bool may_found = false;
+        std::shared_lock<std::shared_mutex> lock(fh_->hdr_latch_);
         // TODO: 利用 2pl 维护 file_hdr().num_pages
         for (int i = 1; i < fh_->get_file_hdr().num_pages; ++i) {
             RmPageHandle page_handle = fh_->fetch_page_handle(i);
@@ -88,9 +89,10 @@ class SeqScanExecutor : public AbstractExecutor {
             }
             if (may_found) {
                 for (auto slot_no : slots) {
-                    auto rid = Rid{i,slot_no};
-                    if(context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid, fh_->GetFd())==false){
-                        throw TransactionAbortException(context_->txn_->get_transaction_id(),AbortReason::GET_LOCK_FAILED);
+                    auto rid = Rid{i, slot_no};
+                    if (context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid, fh_->GetFd()) == false) {
+                        throw TransactionAbortException(context_->txn_->get_transaction_id(),
+                                                        AbortReason::GET_LOCK_FAILED);
                     }
                     char *data = page_handle.get_slot(slot_no);
                     auto tmp = std::make_unique<RmRecord>(len_, data);
@@ -123,6 +125,7 @@ class SeqScanExecutor : public AbstractExecutor {
         if (buffer_idx == tuple_buffer.size()) {
             tuple_buffer.clear();
             rids_buffer.clear();
+            std::shared_lock<std::shared_mutex> lock(fh_->hdr_latch_);
             for (int i = curr_page_in_buffer + 1; i < fh_->get_file_hdr().num_pages; ++i) {
                 bool may_found = false;
                 RmPageHandle page_handle = fh_->fetch_page_handle(i);

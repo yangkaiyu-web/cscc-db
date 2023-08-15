@@ -19,22 +19,19 @@ See the Mulan PSL v2 for more details. */
 RmScan::RmScan(const RmFileHandle *file_handle) : file_handle_(file_handle) {
     // Todo:
     // 初始化file_handle和rid（指向第一个存放了记录的位置）
-    file_handle_->RLatch();
+    std::shared_lock<std::shared_mutex> lock(file_handle_->hdr_latch_);
     for (int i = 1; i < file_handle->file_hdr_.num_pages; ++i) {
         RmPageHandle page_handle = file_handle->fetch_page_handle(i);
         for (int j = 0; j < file_handle->file_hdr_.num_records_per_page; ++j) {
             if (Bitmap::is_set(page_handle.bitmap, j)) {
                 rid_.page_no = i;
                 rid_.slot_no = j;
-                file_handle_->buffer_pool_manager_->unpin_page(
-                    page_handle.page->get_page_id(), false);
+                file_handle_->buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), false);
                 return;
             }
         }
-        file_handle_->buffer_pool_manager_->unpin_page(
-            page_handle.page->get_page_id(), false);
+        file_handle_->buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), false);
     }
-    file_handle_->RUnLatch();
     rid_.page_no = INVALID_PAGE_ID;
     rid_.slot_no = -1;
 }
@@ -46,23 +43,20 @@ void RmScan::next() {
     // Todo:
     // 找到文件中下一个存放了记录的非空闲位置，用rid_来指向这个位置
     // TODO: use 2pl to optimize this latch
-    file_handle_->RLatch();
+    std::shared_lock<std::shared_mutex> lock(file_handle_->hdr_latch_);
     for (int i = rid_.page_no; i < file_handle_->file_hdr_.num_pages; ++i) {
         RmPageHandle page_handle = file_handle_->fetch_page_handle(i);
-        for (int j = (i == rid_.page_no ? rid_.slot_no + 1 : 0);
-             j < file_handle_->file_hdr_.num_records_per_page; ++j) {
+        for (int j = (i == rid_.page_no ? rid_.slot_no + 1 : 0); j < file_handle_->file_hdr_.num_records_per_page;
+             ++j) {
             if (Bitmap::is_set(page_handle.bitmap, j)) {
                 rid_.page_no = i;
                 rid_.slot_no = j;
-                file_handle_->buffer_pool_manager_->unpin_page(
-                    page_handle.page->get_page_id(), false);
+                file_handle_->buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), false);
                 return;
             }
         }
-        file_handle_->buffer_pool_manager_->unpin_page(
-            page_handle.page->get_page_id(), false);
+        file_handle_->buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), false);
     }
-    file_handle_->RUnLatch();
     rid_.page_no = INVALID_PAGE_ID;
     rid_.slot_no = -1;
 }

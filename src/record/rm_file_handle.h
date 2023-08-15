@@ -16,8 +16,8 @@ See the Mulan PSL v2 for more details. */
 
 #include "bitmap.h"
 #include "common/context.h"
-#include "rm_defs.h"
 #include "recovery/log_manager.h"
+#include "rm_defs.h"
 #include "transaction/transaction.h"
 class RmManager;
 
@@ -54,15 +54,16 @@ class RmFileHandle {
     friend class RmScan;
     friend class RmManager;
 
+   public:
+    mutable std::shared_mutex hdr_latch_;  // 保护file_hdr_中的num_pages和first_free_page_no
+
    private:
     DiskManager *disk_manager_;
     BufferPoolManager *buffer_pool_manager_;
-    const int fd_;                       // 打开文件后产生的文件句柄
-    RmFileHdr file_hdr_;           // 文件头，维护当前表文件的元数据
-    mutable std::shared_mutex hdr_latch_;  // 保护file_hdr_中的num_pages和first_free_page_no
+    const int fd_;        // 打开文件后产生的文件句柄
+    RmFileHdr file_hdr_;  // 文件头，维护当前表文件的元数据
 
    public:
-
     RmFileHandle(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager, int fd)
         : disk_manager_(disk_manager), buffer_pool_manager_(buffer_pool_manager), fd_(fd) {
         // 注意：这里从磁盘中读出文件描述符为fd的文件的file_hdr，读到内存中
@@ -81,6 +82,7 @@ class RmFileHandle {
 
     /* 判断指定位置上是否已经存在一条记录，通过Bitmap来判断 */
     bool is_record(const Rid &rid) const {
+        std::shared_lock<std::shared_mutex> lock(hdr_latch_);
         RmPageHandle page_handle = fetch_page_handle(rid.page_no);
         bool res = Bitmap::is_set(page_handle.bitmap, rid.slot_no);
         buffer_pool_manager_->unpin_page(page_handle.page->get_page_id(), false);
@@ -110,6 +112,7 @@ class RmFileHandle {
     inline void WLatch() const { hdr_latch_.lock(); }
 
     inline void WUnLatch() const { hdr_latch_.unlock(); }
+
    private:
-    RmPageHandle create_page_handle_for_insert();
+    RmPageHandle fetch_free_page_handle();
 };
