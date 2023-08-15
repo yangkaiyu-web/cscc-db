@@ -44,11 +44,11 @@ class SeqScanExecutor : public AbstractExecutor {
    public:
     // TODO:可优化，针对update，delete之类的可以不需要tuple_buffer
     SeqScanExecutor(SmManager *sm_manager, std::string tab_name, std::vector<Condition> conds, Context *context) {
-        if (context_->lock_mgr_->lock_shared_on_table(context_->txn_, fh_->GetFd()) == false) {
-            // TODO:其他死锁避免方法
-            // no-wait
-            throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::DEADLOCK_PREVENTION);
-        }
+        // if (context->lock_mgr_->lock_shared_on_table(context_->txn_, fh_->GetFd()) == false) {
+        //     // TODO:其他死锁避免方法
+        //     // no-wait
+        //     throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::DEADLOCK_PREVENTION);
+        // }
         sm_manager_ = sm_manager;
         tab_name_ = std::move(tab_name);
         conds_ = std::move(conds);
@@ -69,6 +69,12 @@ class SeqScanExecutor : public AbstractExecutor {
     }
 
     void beginTuple() override {
+        if (context_->lock_mgr_->lock_shared_on_table(context_->txn_, fh_->GetFd()) == false) {
+            // TODO:其他死锁避免方法
+            // no-wait
+            throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::DEADLOCK_PREVENTION);
+        }
+
         is_end_ = false;
         tuple_buffer.clear();
         rids_buffer.clear();
@@ -89,11 +95,6 @@ class SeqScanExecutor : public AbstractExecutor {
             }
             if (may_found) {
                 for (auto slot_no : slots) {
-                    auto rid = Rid{i, slot_no};
-                    if (context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid, fh_->GetFd()) == false) {
-                        throw TransactionAbortException(context_->txn_->get_transaction_id(),
-                                                        AbortReason::GET_LOCK_FAILED);
-                    }
                     char *data = page_handle.get_slot(slot_no);
                     auto tmp = std::make_unique<RmRecord>(len_, data);
                     // test conds

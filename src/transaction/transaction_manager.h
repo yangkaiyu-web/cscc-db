@@ -61,7 +61,7 @@ class TransactionManager {
 
         return res;
     }
-
+    void release_locks(Transaction* txn);
     // void rollback_insert_record(RmFileHandle *rm_hdl, const Rid &rid, Transaction *txn);
     // void rollback_delete_record(RmFileHandle *rm_hdl, const Rid &rid, const RmRecord &rec, Transaction *txn);
     // void rollback_update_record(RmFileHandle *rm_hdl, const Rid &rid, const RmRecord &record, Transaction *txn);

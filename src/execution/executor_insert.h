@@ -76,6 +76,9 @@ class InsertExecutor : public AbstractExecutor {
             }
         }
 
+        // Insert into record file
+        rid_ = fh_->insert_record(rec.data, context_);
+
         if (context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd()) == false) {
             throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::DEADLOCK_PREVENTION);
         }
@@ -96,9 +99,6 @@ class InsertExecutor : public AbstractExecutor {
             //     context_->txn_->append_write_index(ins_rec);
             // }
         }
-
-        // Insert into record file
-        rid_ = fh_->insert_record(rec.data, context_);
 
         if (context_->txn_->get_state() == TransactionState::DEFAULT) {
             WriteRecord *ins_rec = new WriteRecord(WType::INSERT_TUPLE, tab_name_, rid_);
