@@ -31,6 +31,18 @@ class DeleteExecutor : public AbstractExecutor {
    public:
     DeleteExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Condition> conds,
                    std::vector<Rid> rids, Context *context) {
+        sm_manager_ = sm_manager;
+        tab_name_ = tab_name;
+        sm_manager_->db_.RLatch();
+        tab_ = sm_manager_->db_.get_table(tab_name);
+        sm_manager_->db_.RUnLatch();
+        sm_manager_->latch_.lock_shared();
+        fh_ = sm_manager_->fhs_.at(tab_name).get();
+        sm_manager_->latch_.unlock_shared();
+        conds_ = conds;
+        rids_ = rids;
+        context_ = context;
+
         // 如果需要上锁的record多于10000，直接加X锁
         if (!(rids.size() > 10000 &&
               context->lock_mgr_->lock_exclusive_on_table(context->txn_, fh_->GetFd()) == true)) {
@@ -43,18 +55,6 @@ class DeleteExecutor : public AbstractExecutor {
                 }
             }
         }
-
-        sm_manager_ = sm_manager;
-        tab_name_ = tab_name;
-        sm_manager_->db_.RLatch();
-        tab_ = sm_manager_->db_.get_table(tab_name);
-        sm_manager_->db_.RUnLatch();
-        sm_manager_->latch_.lock_shared();
-        fh_ = sm_manager_->fhs_.at(tab_name).get();
-        sm_manager_->latch_.unlock_shared();
-        conds_ = conds;
-        rids_ = rids;
-        context_ = context;
     }
 
     std::unique_ptr<RmRecord> Next() override {
@@ -78,16 +78,12 @@ class DeleteExecutor : public AbstractExecutor {
                 }
             }
             if (cond_flag) {
-                if(context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid, fh_->GetFd())==false){
-                    throw TransactionAbortException(context_->txn_->get_transaction_id(),AbortReason::GET_LOCK_FAILED);
-                }
-
-                if(context_->txn_->get_state() == TransactionState::DEFAULT||context_->txn_->get_state() == TransactionState::GROWING)
-                {
-                    auto delRec = std::make_unique < WriteRecord >(WType::DELETE_TUPLE,tab_name_,rid,*old_record);
-                context_->log_mgr_->gen_log_from_write_set(context_->txn_,delRec.get());
+                if (context_->txn_->get_state() == TransactionState::DEFAULT ||
+                    context_->txn_->get_state() == TransactionState::GROWING) {
+                    auto delRec = std::make_unique<WriteRecord>(WType::DELETE_TUPLE, tab_name_, rid, *old_record);
+                    context_->log_mgr_->gen_log_from_write_set(context_->txn_, delRec.get());
                     context_->txn_->append_write_record(std::move(delRec));
-                }else {
+                } else {
                     assert(false);
                 }
                 fh_->delete_record(rid, context_);
