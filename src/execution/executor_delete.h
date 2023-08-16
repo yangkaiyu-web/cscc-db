@@ -44,16 +44,20 @@ class DeleteExecutor : public AbstractExecutor {
         context_ = context;
 
         // 如果需要上锁的record多于10000，直接加X锁
-        if (!(rids.size() > 10000 &&
-              context->lock_mgr_->lock_exclusive_on_table(context->txn_, fh_->GetFd()) == true)) {
-            for (auto &rid : rids) {
-                if (context->lock_mgr_->lock_exclusive_on_record(context->txn_, rid, fh_->GetFd()) == false) {
-                    // TODO:其他死锁避免方法
-                    // no-wait
+        // if (!(rids.size() > 10000 &&
+        //       context->lock_mgr_->lock_exclusive_on_table(context->txn_, fh_->GetFd()) == true)) {
+        //     for (auto &rid : rids) {
+        //         if (context->lock_mgr_->lock_exclusive_on_record(context->txn_, rid, fh_->GetFd()) == false) {
+        //             // TODO:其他死锁避免方法
+        //             // no-wait
+        //             throw TransactionAbortException(context_->txn_->get_transaction_id(),
+        //                                             AbortReason::DEADLOCK_PREVENTION);
+        //         }
+        //     }
+        // }
+        if(context_->lock_mgr_->lock_exclusive_on_table(context->txn_, fh_->GetFd())!=true){
                     throw TransactionAbortException(context_->txn_->get_transaction_id(),
                                                     AbortReason::DEADLOCK_PREVENTION);
-                }
-            }
         }
     }
 
