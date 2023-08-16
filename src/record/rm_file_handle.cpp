@@ -59,12 +59,8 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
 
             auto &page_hdr = page_hdl.page_hdr;
             const PageId &page_id = page_hdl.page->get_page_id();
-            Rid rid = Rid{page_id.page_no,i};
 
-            // get lock
-            if (context->lock_mgr_->lock_exclusive_on_record(context->txn_, Rid{page_id.page_no, i}, fd_) == false) {
-                throw TransactionAbortException(context->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
-            }
+
             // insert data
             memcpy(page_hdl.get_slot(i), buf, file_hdr_.record_size);
             Bitmap::set(page_hdl.bitmap, i);

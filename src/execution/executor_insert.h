@@ -76,9 +76,19 @@ class InsertExecutor : public AbstractExecutor {
             }
         }
 
-        
+        context_->lock_mgr_->latch_.lock();
+        if (context_->lock_mgr_->lock_IX_on_table(context_->txn_,  fh_->GetFd()) == false) {
+            context_->lock_mgr_->latch_.unlock();
+            throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
+        }
+        context_->lock_mgr_->latch_.unlock();
+
         rid_ = fh_->insert_record(rec.data, context_);
 
+            // get lock
+        if (context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid_, fh_->GetFd()) == false) {
+            throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
+        }
         if (context_->txn_->get_state() == TransactionState::DEFAULT ||context_->txn_->get_state() == TransactionState::GROWING ) {
 
             auto insertRec = std::make_unique < WriteRecord > (WType::INSERT_TUPLE,tab_name_ , rid_,rec);

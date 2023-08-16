@@ -64,7 +64,7 @@ class LockManager {
 
     bool unlock(Transaction* txn, LockDataId lock_data_id);
 
-   private:
     std::mutex latch_;                                             // 用于锁表的并发
+   private:
     std::unordered_map<LockDataId, LockRequestQueue> lock_table_;  // 全局锁表
 };
