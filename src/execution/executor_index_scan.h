@@ -87,6 +87,10 @@ class IndexScanExecutor : public AbstractExecutor {
     }
 
     void beginTuple() override {
+        if (context_->lock_mgr_->lock_IX_on_table(context_->txn_, fh_->GetFd()) == false) {
+            throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
+        }
+
         IxManager *ix_manager = sm_manager_->get_ix_manager();
         sm_manager_->latch_.lock_shared();
         IxIndexHandle *ix_hdl = sm_manager_->ihs_.at(ix_manager->get_index_name(tab_name_, index_col_names_)).get();
