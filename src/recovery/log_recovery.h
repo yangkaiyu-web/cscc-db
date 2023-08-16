@@ -17,6 +17,8 @@ See the Mulan PSL v2 for more details. */
 #include "log_manager.h"
 #include "storage/disk_manager.h"
 #include "system/sm_manager.h"
+#include "transaction/transaction.h"
+#include "transaction/transaction_manager.h"
 
 class RedoLogsInPage {
 public:
@@ -27,10 +29,11 @@ public:
 
 class RecoveryManager {
 public:
-    RecoveryManager(DiskManager* disk_manager, BufferPoolManager* buffer_pool_manager, SmManager* sm_manager,LogManager* log_manager) {
+    RecoveryManager(DiskManager* disk_manager, BufferPoolManager* buffer_pool_manager, SmManager* sm_manager,LogManager* log_manager,TransactionManager * txn_manager) {
         disk_manager_ = disk_manager;
         buffer_pool_manager_ = buffer_pool_manager;
         sm_manager_ = sm_manager;
+        txn_manager_ = txn_manager;
         log_manager_ = log_manager;
     }
 
@@ -43,6 +46,7 @@ private:
     BufferPoolManager* buffer_pool_manager_;                        // 对页面进行读写
     SmManager* sm_manager_;                                         // 访问数据库元数据
     LogManager* log_manager_;
+    TransactionManager* txn_manager_;
     //
     std::unordered_map<txn_id_t,lsn_t> active_transaction_table_;
     std::unordered_set<txn_id_t> undo_list_;
@@ -50,5 +54,8 @@ private:
     std::unordered_map<lsn_t, int> lsn_offset_table_;
     std::unordered_map<lsn_t, int> lsn_prevlsn_table_;
     std::list<int > offset_list_;
+    void rollback_insert(const std::string &tab_name_, const Rid &rid);
+	void rollback_delete(const std::string &tab_name_, const Rid &rid, const RmRecord &rec);
+	void rollback_update(const std::string &tab_name, const Rid &rid, const RmRecord &record);
 
 };

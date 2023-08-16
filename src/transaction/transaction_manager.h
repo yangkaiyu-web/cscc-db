@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 #include <atomic>
 #include <unordered_map>
 
+#include "common/config.h"
 #include "recovery/log_manager.h"
 #include "concurrency/lock_manager.h"
 #include "system/sm_manager.h"
@@ -76,7 +77,9 @@ class TransactionManager {
 	void rollback_update(const std::string &tab_name, const Rid &rid, const RmRecord &record, Transaction *txn);
 
     static std::unordered_map<txn_id_t, Transaction *> txn_map;  // 全局事务表，存放事务ID与事务对象的映射关系
-
+    void set_txn_id_num(txn_id_t txn){
+        next_txn_id_ = txn;
+    }
    private:
     ConcurrencyMode concurrency_mode_;            // 事务使用的并发控制算法，目前只需要考虑2PL
     std::atomic<txn_id_t> next_txn_id_{0};        // 用于分发事务ID

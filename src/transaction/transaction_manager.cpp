@@ -242,11 +242,11 @@ void TransactionManager::rollback_delete(const std::string &tab_name_, const Rid
  * @param record 记录
  * @param txn 需要回滚的事务
  */
-void TransactionManager::rollback_update(const std::string &tab_name_, const Rid &rid, const RmRecord &record,
+void TransactionManager::rollback_update(const std::string &tab_name, const Rid &rid, const RmRecord &record,
                                          Transaction *txn) {
-    auto table = sm_manager_->db_.get_table(tab_name_);
-    auto rec = sm_manager_->fhs_.at(tab_name_).get()->get_record(rid, nullptr);
-    auto fh = sm_manager_->fhs_.at(tab_name_).get();
+    auto table = sm_manager_->db_.get_table(tab_name);
+    auto rec = sm_manager_->fhs_.at(tab_name).get()->get_record(rid, nullptr);
+    auto fh = sm_manager_->fhs_.at(tab_name).get();
     for (size_t i = 0; i < table.indexes.size(); ++i) {
         auto &index = table.indexes[i];
         auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
@@ -262,7 +262,7 @@ void TransactionManager::rollback_update(const std::string &tab_name_, const Rid
 
     for (size_t i = 0; i < table.indexes.size(); ++i) {
         auto &index = table.indexes[i];
-        auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
+        auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name, index.cols)).get();
         std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
         int offset = 0;
         for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {

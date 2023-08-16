@@ -326,7 +326,7 @@ class UpdateLogRecord : public LogRecord {
     size_t table_name_size_;  // 表名称的大小
 
     UpdateLogRecord() {
-        log_type_ = LogType::DELETE;
+        log_type_ = LogType::UPDATE;
         lsn_ = INVALID_LSN;
         log_tot_len_ = LOG_HEADER_SIZE;
         log_tid_ = INVALID_TXN_ID;
@@ -342,6 +342,7 @@ class UpdateLogRecord : public LogRecord {
         rid_ = rid;
         log_tot_len_ += sizeof(int);
         log_tot_len_ += old_value_.size;
+        log_tot_len_ += sizeof(int);
         log_tot_len_ += new_value.size;
         log_tot_len_ += sizeof(Rid);
         table_name_size_ = table_name.length();
@@ -350,7 +351,7 @@ class UpdateLogRecord : public LogRecord {
         log_tot_len_ += sizeof(size_t) + table_name_size_;
     }
 
-    // 把 delete 日志记录序列化到dest中
+    // 把 update 日志记录序列化到dest中
     void serialize(char* dest) const override {
         LogRecord::serialize(dest);
         int offset = OFFSET_LOG_DATA;
@@ -427,6 +428,7 @@ class LogManager {
     LogBuffer* get_log_buffer() { return &log_buffer_; }
 
     inline lsn_t alloc_lsn() { return global_lsn_++; }
+    inline void set_lsn(lsn_t num ) { global_lsn_ = num;}
 
     lsn_t gen_log_from_write_set(Transaction* txn,WriteRecord*write_rec);
     lsn_t gen_log_bein(Transaction* txn);

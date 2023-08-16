@@ -9,8 +9,11 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "log_recovery.h"
+
 #include <readline/readline.h>
+
 #include <utility>
+
 #include "common/config.h"
 #include "recovery/log_defs.h"
 #include "recovery/log_manager.h"
@@ -21,17 +24,23 @@ See the Mulan PSL v2 for more details. */
 void RecoveryManager::analyze() {
     int offset = 0;
     char log_hdr[LOG_HEADER_SIZE];
-    while(int ret = disk_manager_->read_log(log_hdr,LOG_HEADER_SIZE , offset)> 0){
-        assert(ret >=0);
+    lsn_t last_lsn = 0;
+    txn_id_t last_txn=0;
+    while (int ret = disk_manager_->read_log(log_hdr, LOG_HEADER_SIZE, offset) > 0) {
+        assert(ret >= 0);
         offset_list_.push_back(offset);
-        LogRecord  log;
+        LogRecord log;
         log.deserialize(log_hdr);
         lsn_offset_table_.insert(std::make_pair(log.lsn_, offset));
-        lsn_prevlsn_table_.insert(std::make_pair(log.lsn_,log.prev_lsn_));
+        lsn_prevlsn_table_.insert(std::make_pair(log.lsn_, log.prev_lsn_));
+        last_lsn = log.lsn_;
+        last_txn =   log.log_tid_ > last_txn ? log.log_tid_:last_txn;
         log.format_print();
         offset += log.log_tot_len_;
-    }
 
+    }
+    log_manager_->set_lsn(last_lsn+1);
+    txn_manager_->set_txn_id_num(last_txn+1);
 }
 
 /**
@@ -40,113 +49,166 @@ void RecoveryManager::analyze() {
 void RecoveryManager::redo() {
     int offset = 0;
     char log_hdr[LOG_HEADER_SIZE];
-    while(disk_manager_->read_log(log_hdr,LOG_HEADER_SIZE , offset)> 0){
-        LogRecord  log;
+    while (disk_manager_->read_log(log_hdr, LOG_HEADER_SIZE, offset) > 0) {
+        LogRecord log;
         log.deserialize(log_hdr);
         lsn_offset_table_.insert(std::make_pair(log.lsn_, offset));
-        char * log_buf = new char[log.log_tot_len_];
+        char *log_buf = new char[log.log_tot_len_];
         disk_manager_->read_log(log_buf, log.log_tot_len_, offset);
         offset += log.log_tot_len_;
-        if(log.log_type_ == LogType:: DELETE || log.log_type_ == LogType:: CLR_INSERT){
-            DeleteLogRecord del_log ;
+        if (log.log_type_ == LogType::DELETE || log.log_type_ == LogType::CLR_INSERT) {
+            DeleteLogRecord del_log;
             del_log.deserialize(log_buf);
-            std::string tab_name(del_log.table_name_,del_log.table_name_size_);
-            auto fh = sm_manager_->fhs_.at(tab_name).get();
-            fh->delete_record(del_log.rid_ );
-        }else if(log.log_type_ == LogType::INSERT || log.log_type_ == LogType:: CLR_DELETE){
-                InsertLogRecord insert_log ;
-                insert_log.deserialize(log_buf);
-                std::string tab_name(insert_log.table_name_,insert_log.table_name_size_);
-                auto fh = sm_manager_->fhs_.at(tab_name).get();
-                fh->insert_record(insert_log.rid_,insert_log.insert_value_.data);
-        } else if(log.log_type_ == LogType::UPDATE || log.log_type_ == LogType :: CLR_UPDATE){
-                UpdateLogRecord update_log ;
-                update_log.deserialize(log_buf);
-                std::string tab_name(update_log.table_name_,update_log.table_name_size_);
-                auto fh = sm_manager_->fhs_.at(tab_name).get();
-                fh->insert_record(update_log.rid_,update_log.new_value_.data);
-        }else if(log.log_type_ == LogType::BEGIN){
-             undo_list_.insert( log.log_tid_);
-        }else if(log.log_type_ == LogType::COMMIT || log.log_type_ == LogType::ABORT){
-            assert(undo_list_.find(log.log_tid_)!=undo_list_.end());
-             undo_list_.erase( log.log_tid_);
+            std::string tab_name(del_log.table_name_, del_log.table_name_size_);
+            rollback_insert(tab_name, del_log.rid_);//  redo delete = rollback insert;
+        } else if (log.log_type_ == LogType::INSERT || log.log_type_ == LogType::CLR_DELETE) {
+            InsertLogRecord insert_log;
+            insert_log.deserialize(log_buf);
+            std::string tab_name(insert_log.table_name_, insert_log.table_name_size_);
+            rollback_delete(tab_name,insert_log.rid_,insert_log.insert_value_);
+        } else if (log.log_type_ == LogType::UPDATE || log.log_type_ == LogType ::CLR_UPDATE) {
+            UpdateLogRecord update_log;
+            update_log.deserialize(log_buf);
+            std::string tab_name(update_log.table_name_, update_log.table_name_size_);
+            rollback_update(tab_name, update_log.rid_, update_log.new_value_);
+        } else if (log.log_type_ == LogType::BEGIN) {
+            undo_list_.insert(log.log_tid_);
+        } else if (log.log_type_ == LogType::COMMIT || log.log_type_ == LogType::ABORT) {
+            assert(undo_list_.find(log.log_tid_) != undo_list_.end());
+            undo_list_.erase(log.log_tid_);
         }
-
-
     }
 }
 
 /**
- * @description: 回滚未完成的事务 
+ * @description: 回滚未完成的事务
  *
  */
 
 void RecoveryManager::undo() {
-
-      
     /*
-    * NOTE: 好像只有一种情况需要 undo
-    *       1. 就是 buffer pool manager 满了之后会刷盘。
-    *       2. 数据库关闭时，会刷盘，这个时候没 commit 的语句需要 undo 之后再落盘。 但是这种情况感觉会很少出现。
-    *       似乎不存在其他情况会刷盘。
-    */
+     * NOTE: 好像只有一种情况需要 undo
+     *       1. 就是 buffer pool manager 满了之后会刷盘。
+     *       2. 数据库关闭时，会刷盘，这个时候没 commit 的语句需要 undo 之后再落盘。 但是这种情况感觉会很少出现。
+     *       似乎不存在其他情况会刷盘。
+     */
 
     /*
-    *   一般日志对应  < lsn_t -> prev_lsn_t >
-    *   clr 日志需要设置 undo next
-    *   需要知道 clr 对应的 lsn_t   <clr_lsn_t -> lsn_t >
-    * 
-    */
+     *   一般日志对应  < lsn_t -> prev_lsn_t >
+     *   clr 日志需要设置 undo next
+     *   需要知道 clr 对应的 lsn_t   <clr_lsn_t -> lsn_t >
+     *
+     */
 
     for (auto offset_it = offset_list_.rbegin(); offset_it != offset_list_.rend(); ++offset_it) {
         int offset = *offset_it;
         char log_hdr[LOG_HEADER_SIZE];
-        int ret = disk_manager_->read_log(log_hdr,LOG_HEADER_SIZE , offset);
+        int ret = disk_manager_->read_log(log_hdr, LOG_HEADER_SIZE, offset);
         assert(ret > 0);
-            
 
-
-        LogRecord  log;
+        LogRecord log;
         log.deserialize(log_hdr);
 
-        if( undo_list_.find(log.log_tid_)== undo_list_.end()){
+        if (undo_list_.find(log.log_tid_) == undo_list_.end()) {
             continue;
         }
-        char * log_buf = new char[log.log_tot_len_];
+        char *log_buf = new char[log.log_tot_len_];
         disk_manager_->read_log(log_buf, log.log_tot_len_, offset);
-        
-        if(log.log_type_ == LogType:: DELETE ){
-            DeleteLogRecord del_log ;
-            del_log.deserialize(log_buf);
-            std::string tab_name(del_log.table_name_,del_log.table_name_size_);
-            auto fh = sm_manager_->fhs_.at(tab_name).get();
-            fh->insert_record(del_log.rid_, del_log.delete_value_.data);
-            log_manager_->gen_log_delete_CLR(del_log.log_tid_,lsn_prevlsn_table_[del_log.lsn_], del_log.delete_value_, del_log.rid_ , tab_name);
 
-        }else if(log.log_type_ == LogType::INSERT ){
-                InsertLogRecord insert_log ;
-                insert_log.deserialize(log_buf);
-                std::string tab_name(insert_log.table_name_,insert_log.table_name_size_);
-                auto fh = sm_manager_->fhs_.at(tab_name).get();
-            fh->delete_record(insert_log.rid_ );
-                log_manager_->gen_log_insert_CLR(insert_log.log_tid_,lsn_prevlsn_table_[insert_log.prev_lsn_], insert_log.insert_value_, insert_log.rid_ , tab_name);
-        } else if(log.log_type_ == LogType::UPDATE){
-                UpdateLogRecord update_log ;
-                update_log.deserialize(log_buf);
-                std::string tab_name(update_log.table_name_,update_log.table_name_size_);
-                auto fh = sm_manager_->fhs_.at(tab_name).get();
-            fh->insert_record(update_log.rid_, update_log.old_value_.data);
-                log_manager_->gen_log_upadte_CLR(update_log.log_tid_,lsn_prevlsn_table_[update_log.lsn_], update_log.old_value_, update_log.new_value_,update_log.rid_ , tab_name);
-        }else if(log.log_type_ == LogType::BEGIN){
-             undo_list_.erase( log.log_tid_);
-            assert(log.prev_lsn_==INVALID_LSN);
-        }else if(log.log_type_ == LogType::COMMIT || log.log_type_ == LogType::ABORT){
-            // undo should not found 
+        if (log.log_type_ == LogType::DELETE) {
+            DeleteLogRecord del_log;
+            del_log.deserialize(log_buf);
+            std::string tab_name(del_log.table_name_, del_log.table_name_size_);
+            rollback_delete(tab_name, del_log.rid_, del_log.delete_value_);
+            log_manager_->gen_log_delete_CLR(del_log.log_tid_, lsn_prevlsn_table_[del_log.lsn_], del_log.delete_value_,
+                                             del_log.rid_, tab_name);
+
+        } else if (log.log_type_ == LogType::INSERT) {
+            InsertLogRecord insert_log;
+            insert_log.deserialize(log_buf);
+            std::string tab_name(insert_log.table_name_, insert_log.table_name_size_);
+            rollback_insert(tab_name, insert_log.rid_);
+            log_manager_->gen_log_insert_CLR(insert_log.log_tid_, lsn_prevlsn_table_[insert_log.prev_lsn_],
+                                             insert_log.insert_value_, insert_log.rid_, tab_name);
+        } else if (log.log_type_ == LogType::UPDATE) {
+            UpdateLogRecord update_log;
+            update_log.deserialize(log_buf);
+            std::string tab_name(update_log.table_name_, update_log.table_name_size_);
+            rollback_update(tab_name, update_log.rid_, update_log.old_value_);
+            log_manager_->gen_log_upadte_CLR(update_log.log_tid_, lsn_prevlsn_table_[update_log.lsn_],
+                                             update_log.old_value_, update_log.new_value_, update_log.rid_, tab_name);
+        } else if (log.log_type_ == LogType::BEGIN) {
+            undo_list_.erase(log.log_tid_);
+            assert(log.prev_lsn_ == INVALID_LSN);
+        } else if (log.log_type_ == LogType::COMMIT || log.log_type_ == LogType::ABORT) {
+            // undo should not found
             assert(false);
-        }else if(log.log_type_ == LogType::CLR_DELETE||log.log_type_ == LogType::CLR_UPDATE||log.log_type_ == LogType::CLR_INSERT){
+        } else if (log.log_type_ == LogType::CLR_DELETE || log.log_type_ == LogType::CLR_UPDATE ||
+                   log.log_type_ == LogType::CLR_INSERT) {
             // do nothing
         }
     }
+}
 
+void RecoveryManager::rollback_insert(const std::string &tab_name_, const Rid &rid) {
+    auto table = sm_manager_->db_.get_table(tab_name_);
+    auto rec = sm_manager_->fhs_.at(tab_name_).get()->get_record(rid, nullptr);
+    auto fh = sm_manager_->fhs_.at(tab_name_).get();
+    for (size_t i = 0; i < table.indexes.size(); ++i) {
+        auto &index = table.indexes[i];
+        auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
+        std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
+        int offset = 0;
+        for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
+            memcpy(key->data + offset, rec->data + index.cols[i].offset, index.cols[i].len);
+            offset += index.cols[i].len;
+        }
+        ih->delete_entry(key->data, nullptr);
+    }
+    fh->delete_record(rid);
+}
+void RecoveryManager::rollback_delete(const std::string &tab_name_, const Rid &rid, const RmRecord &rec) {
+    auto table = sm_manager_->db_.get_table(tab_name_);
+    auto fh = sm_manager_->fhs_.at(tab_name_).get();
+    for (size_t i = 0; i < table.indexes.size(); ++i) {
+        auto &index = table.indexes[i];
+        auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
+        std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
+        int offset = 0;
+        for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
+            memcpy(key->data + offset, rec.data + index.cols[i].offset, index.cols[i].len);
+            offset += index.cols[i].len;
+        }
+        ih->insert_entry(key->data, rid, nullptr);
+    }
+    fh->insert_record(rid, rec.data);
+}
+void RecoveryManager::rollback_update(const std::string &tab_name, const Rid &rid, const RmRecord &record) {
+    auto table = sm_manager_->db_.get_table(tab_name);
+    auto rec = sm_manager_->fhs_.at(tab_name).get()->get_record(rid, nullptr);
+    auto fh = sm_manager_->fhs_.at(tab_name).get();
+    for (size_t i = 0; i < table.indexes.size(); ++i) {
+        auto &index = table.indexes[i];
+        auto ih = sm_manager_->ihs_.at(index.get_index_name()).get();
+        std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
+        int offset = 0;
+        for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
+            memcpy(key->data + offset, rec->data + index.cols[i].offset, index.cols[i].len);
+            offset += index.cols[i].len;
+        }
+        ih->delete_entry(key->data, nullptr);
+    }
+    fh->insert_record(rid, record.data);
 
+    for (size_t i = 0; i < table.indexes.size(); ++i) {
+        auto &index = table.indexes[i];
+        auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name, index.cols)).get();
+        std::unique_ptr<RmRecord> key = std::make_unique<RmRecord>(index.col_tot_len);
+        int offset = 0;
+        for (size_t i = 0; i < static_cast<size_t>(index.col_num); ++i) {
+            memcpy(key->data + offset, record.data + index.cols[i].offset, index.cols[i].len);
+            offset += index.cols[i].len;
+        }
+        ih->insert_entry(key->data, rid, nullptr);
+    }
 }

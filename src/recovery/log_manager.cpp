@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <utility>
 #include "common/config.h"
 #include "transaction/transaction.h"
@@ -37,10 +38,10 @@ lsn_t LogManager::add_log_to_buffer(LogRecord* log_record) {
  * 把日志缓冲区的内容刷到磁盘中，由于目前只设置了一个缓冲区，因此需要阻塞其他日志操作
  */
 void LogManager::flush_log_to_disk() {
-    latch_.lock();
+    std::scoped_lock<std::mutex> lock(latch_);
     disk_manager_->write_log(log_buffer_.buffer_, log_buffer_.offset_);
     log_buffer_.offset_=0;
-    latch_.unlock();
+
 }
 lsn_t LogManager::gen_log_from_write_set(Transaction* txn,WriteRecord* write_rec){
 

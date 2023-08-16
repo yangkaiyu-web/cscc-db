@@ -80,6 +80,7 @@ struct RmRecord {
             delete[] data;
         }
         data = new char[size];
+        allocated_=true;
         memcpy(data, data_ + sizeof(int), size);
     }
 

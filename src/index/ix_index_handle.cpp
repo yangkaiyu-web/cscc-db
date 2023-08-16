@@ -542,7 +542,7 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
  * @note
  * 叶子节点old_ix_hdl加写锁并解锁，可能对该叶子节点以上的所有父辈结点加写锁
  * @param key 要删除的key值
- * @param transaction 事务指针
+ * @param transaction 事务指针  NOTE: 要判断一下 transaction 是不是 nullptr ，因为 recovery 的时候传入的是 nullptr
  */
 bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
     // Todo:
