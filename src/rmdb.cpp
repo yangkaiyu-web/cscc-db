@@ -309,11 +309,7 @@ int main(int argc, char **argv) {
         if (!sm_manager->is_dir(db_name)) {
             // Database not found, create a new one
             sm_manager->create_db(db_name);
-        } else {
-            sm_manager->drop_db(db_name);
-            sm_manager->create_db(db_name);
-        }
-        // Open database
+        }         // Open database
         sm_manager->open_db(db_name);
 
         // recovery database
