@@ -245,6 +245,9 @@ bool LockManager::unlock(Transaction* txn, LockDataId lock_data_id) {
             iter++;
         }
     }
+    if(rwlock.request_queue_.empty()){
+        lock_table_.erase(lock_data_id);
+    }
 
     return true;
 }
