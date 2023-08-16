@@ -17,7 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/config.h"
 #include "recovery/log_defs.h"
 #include "recovery/log_manager.h"
-
+#define __LOG_DEBUG
 /**
  * @description: analyze阶段，需要获得脏页表（DPT）和未完成的事务列表（ATT）
  */
@@ -35,7 +35,9 @@ void RecoveryManager::analyze() {
         lsn_prevlsn_table_.insert(std::make_pair(log.lsn_, log.prev_lsn_));
         last_lsn = log.lsn_;
         last_txn =   log.log_tid_ > last_txn ? log.log_tid_:last_txn;
+        #ifdef __LOG_DEBUG
         log.format_print();
+        #endif
         offset += log.log_tot_len_;
 
     }
@@ -56,6 +58,11 @@ void RecoveryManager::redo() {
         char *log_buf = new char[log.log_tot_len_];
         disk_manager_->read_log(log_buf, log.log_tot_len_, offset);
         offset += log.log_tot_len_;
+        #ifdef __LOG_DEBUG
+        std::cout<<"[redo] "<<LogTypeStr[log.log_type_]<<"\ttxn:"<<log.log_tid_<<"\n";
+#endif
+
+
         if (log.log_type_ == LogType::DELETE || log.log_type_ == LogType::CLR_INSERT) {
             DeleteLogRecord del_log;
             del_log.deserialize(log_buf);
@@ -109,6 +116,9 @@ void RecoveryManager::undo() {
         LogRecord log;
         log.deserialize(log_hdr);
 
+        #ifdef __LOG_DEBUG
+        std::cout<<"[undo] "<<LogTypeStr[log.log_type_]<<"\ttxn:"<<log.log_tid_<<"\n";
+#endif
         if (undo_list_.find(log.log_tid_) == undo_list_.end()) {
             continue;
         }
