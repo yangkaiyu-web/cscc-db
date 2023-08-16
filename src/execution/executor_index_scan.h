@@ -23,10 +23,10 @@ class IndexScanExecutor : public AbstractExecutor {
     TabMeta tab_;           // 表的元数据
     std::vector<Condition>
         conds_;  // 扫描条件，所有conds的左、右列中都必有一列是表tab_name_中的索引，要保证conds中的顺序符合索引的顺序，目前只支持右列是value，要保证cond均被完全初始化(init_raw)
-    RmFileHandle *fh_;                          // 表的数据文件句柄
-    std::vector<ColMeta> cols_;                 // 需要读取的表上的所有字段
-    size_t len_;                                // 选取出来的一条记录的长度
-    std::vector<Condition> idx_conds_;          // 真正使用索引进行查找的条件
+    RmFileHandle *fh_;                  // 表的数据文件句柄
+    std::vector<ColMeta> cols_;         // 需要读取的表上的所有字段
+    size_t len_;                        // 选取出来的一条记录的长度
+    std::vector<Condition> idx_conds_;  // 真正使用索引进行查找的条件
 
     std::vector<std::string> index_col_names_;  // index scan涉及到的索引包含的字段
     IndexMeta index_meta_;                      // index scan涉及到的索引元数据
@@ -160,6 +160,10 @@ class IndexScanExecutor : public AbstractExecutor {
 
         for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
             rid = scan_->rid();
+            // get lock
+            if (context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid, fh_->GetFd()) == false) {
+                throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
+            }
             auto record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
@@ -182,7 +186,9 @@ class IndexScanExecutor : public AbstractExecutor {
         scan_->next();
         while (!scan_->is_end()) {
             rid = scan_->rid();
-
+            if (context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid, fh_->GetFd()) == false) {
+                throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
+            }
             auto record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
