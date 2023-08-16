@@ -87,7 +87,7 @@ class IndexScanExecutor : public AbstractExecutor {
     }
 
     void beginTuple() override {
-        if (context_->lock_mgr_->lock_IX_on_table(context_->txn_, fh_->GetFd()) == false) {
+        if (context_->lock_mgr_->lock_shared_on_table(context_->txn_, fh_->GetFd()) == false) {
             throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
         }
 
@@ -164,10 +164,6 @@ class IndexScanExecutor : public AbstractExecutor {
 
         for (auto rid = scan_->rid(); !scan_->is_end(); scan_->next()) {
             rid = scan_->rid();
-            // get lock
-            if (context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid, fh_->GetFd()) == false) {
-                throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
-            }
             auto record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
@@ -190,9 +186,6 @@ class IndexScanExecutor : public AbstractExecutor {
         scan_->next();
         while (!scan_->is_end()) {
             rid = scan_->rid();
-            if (context_->lock_mgr_->lock_shared_on_record(context_->txn_, rid, fh_->GetFd()) == false) {
-                throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
-            }
             auto record = fh_->get_record(rid, context_);
             bool cond_flag = true;
             // test conds
