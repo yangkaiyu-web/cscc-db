@@ -40,6 +40,7 @@ lsn_t LogManager::add_log_to_buffer(LogRecord* log_record) {
 void LogManager::flush_log_to_disk() {
     std::scoped_lock<std::mutex> lock(latch_);
     disk_manager_->write_log(log_buffer_.buffer_, log_buffer_.offset_);
+    persist_lsn_= buffer_lsn_;
     log_buffer_.offset_=0;
 
 }

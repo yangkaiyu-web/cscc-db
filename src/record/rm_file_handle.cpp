@@ -48,18 +48,29 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
     // 注意考虑插入一条记录后页面已满的情况，需要更新file_hdr_.first_free_page_no
     std::unique_lock<std::shared_mutex> lock(hdr_latch_);
     RmPageHandle page_hdl = fetch_free_page_handle();
-    page_hdl.page_hdr->page_lsn = context->txn_->get_so_far_lsn();
-    if(!page_hdl.page->is_dirty()){
-        page_hdl.page_hdr->rec_lsn = context->txn_->get_so_far_lsn();
-    }
+
 
     int i;
     for (i = 0; i < file_hdr_.num_records_per_page; ++i) {
         if (!Bitmap::is_set(page_hdl.bitmap, i)) {
 
+
             auto &page_hdr = page_hdl.page_hdr;
             const PageId &page_id = page_hdl.page->get_page_id();
-
+            Rid rid{page_id.page_no,i};
+            if (context->txn_->get_state() == TransactionState::DEFAULT ||context->txn_->get_state() == TransactionState::GROWING ) {
+                auto rec = RmRecord(file_hdr_.record_size,buf);
+                auto table_name = disk_manager_->get_file_name(fd_);
+                auto insertRec = std::make_unique < WriteRecord > (WType::INSERT_TUPLE,table_name , rid,rec);
+                context->log_mgr_->gen_log_from_write_set(context->txn_,insertRec.get());
+                context->txn_->append_write_record(std::move(insertRec));
+            }else {
+                assert(false);
+            }
+            page_hdr->page_lsn =page_hdr->page_lsn > context->txn_->get_so_far_lsn()?page_hdr->page_lsn: context->txn_->get_so_far_lsn();
+            if(!page_hdl.page->is_dirty()){
+                page_hdl.page_hdr->rec_lsn = context->txn_->get_so_far_lsn();
+            }
 
             // insert data
             memcpy(page_hdl.get_slot(i), buf, file_hdr_.record_size);
@@ -115,10 +126,13 @@ void RmFileHandle::delete_record(const Rid &rid, Context *context) {
     // 注意考虑删除一条记录后页面未满的情况，需要调用release_page_handle()
     std::unique_lock<std::shared_mutex> lock(hdr_latch_);
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
-    page_handle.page_hdr->page_lsn = context->txn_->get_so_far_lsn();
+
+    page_handle.page_hdr->page_lsn =page_handle.page_hdr->page_lsn > context->txn_->get_so_far_lsn()?page_handle.page_hdr->page_lsn: context->txn_->get_so_far_lsn();
+    
     if(!page_handle.page->is_dirty()&& context != nullptr){
         page_handle.page_hdr->rec_lsn = context->txn_->get_so_far_lsn();
     }
+
     if (Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {
         Bitmap::reset(page_handle.bitmap, rid.slot_no);
         auto &page_hdr = page_handle.page_hdr;
@@ -170,7 +184,7 @@ void RmFileHandle::update_record(const Rid &rid, char *buf, Context *context) {
     // 2. 更新记录
     std::unique_lock<std::shared_mutex> lock(hdr_latch_);
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
-    page_handle.page_hdr->page_lsn = context->txn_->get_so_far_lsn();
+    page_handle.page_hdr->page_lsn =page_handle.page_hdr->page_lsn > context->txn_->get_so_far_lsn()?page_handle.page_hdr->page_lsn: context->txn_->get_so_far_lsn();
     if(!page_handle.page->is_dirty()){
         page_handle.page_hdr->rec_lsn = context->txn_->get_so_far_lsn();
     }
