@@ -450,8 +450,3 @@ int compare_int_string(const std::string &val1, const std::string &val2) {
     }
 }
 
-template <typename type>
-inline bool no_overflow(const std::string &value) {
-    return (compare_int_string(value, std::to_string(std::numeric_limits<type>::max())) <= 0) &&
-           (compare_int_string(value, std::to_string(std::numeric_limits<type>::lowest())) >= 0);
-}

@@ -60,6 +60,7 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 {sign} { return yytext[0]; }
     /* keywords */
 "SHOW" { return SHOW; }
+"LOAD" { return LOAD; }
 "BEGIN" { return TXN_BEGIN; }
 "COMMIT" { return TXN_COMMIT; }
 "ABORT" { return TXN_ABORT; }

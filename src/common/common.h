@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include <vector>
 
+#include "analyze/analyze.h"
 #include "defs.h"
 #include "errors.h"
 #include "parser/ast.h"
@@ -140,6 +141,62 @@ struct Value {
             ret.set_datetime(bigint_val);
         }
         return ret;
+    }
+
+    static Value convert_from_string(const std::string &str, ColMeta &col) {
+        Value val;
+        // if (auto int_bint_lit = std::dynamic_pointer_cast<ast::Int_Bint_Lit>(sv_val)) {
+        //     const std::string &int_bint = int_bint_lit->val;
+        if (col.type == TYPE_BIGINT) {
+            if (no_overflow<int64_t>(str)) {
+                val.set_bigint(std::stoll(str));
+            } else {
+                throw BigIntOverflowError(str);
+            }
+        } else if (col.type == TYPE_INT) {
+            // 检查范围防止溢出
+            if (no_overflow<int>(str)) {
+                val.set_int(static_cast<int>(std::stoi(str)));
+            } else {
+                throw IntOverflowError(str);
+            }
+        } else if (col.type == TYPE_FLOAT) {
+            if (no_overflow<float>(str)) {
+                val.set_float((static_cast<float>(std::stof(str))));
+            } else {
+                throw FloatOverflowError(str);
+            }
+        } else if (col.type == TYPE_STRING) {
+            val.set_str(str);
+        } else if (col.type == TYPE_DATETIME) {
+            val.check_set_datetime(str);
+        } else {
+            throw InternalError("Unexpected sv value type");
+        }
+
+        // } else if (auto float_lit = std::dynamic_pointer_cast<ast::FloatLit>(sv_val)) {
+        //     if (col->type == TYPE_FLOAT) {
+        //         val.set_float(float_lit->val);
+        //     } else if (col->type == TYPE_INT) {
+        //         val.set_int(static_cast<int>(float_lit->val));
+        //     } else if (col->type == TYPE_BIGINT) {
+        //         val.set_bigint(static_cast<int64_t>(float_lit->val));
+        //     } else {
+        //         throw CastTypeError("float", coltype2str(col->type));
+        //     }
+        // } else if (auto str_lit = std::dynamic_pointer_cast<ast::StringLit>(sv_val)) {
+        //     if (col->type == TYPE_STRING) {
+        //         val.set_str(str_lit->val);
+        //     } else if (col->type == TYPE_DATETIME) {
+        //         val.check_set_datetime(str_lit->val);
+        //     } else {
+        //         throw CastTypeError("string", coltype2str(col->type));
+        //     }
+        // } else {
+        //     throw InternalError("Unexpected sv value type");
+        // }
+        val.init_raw(col.len);
+        return val;
     }
     void set_int(int int_val_) {
         type = TYPE_INT;

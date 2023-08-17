@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "record/rm.h"
 #include "record_printer.h"
 #include "system/sm_meta.h"
+#include "common/common.h"
 
 /**
  * @description: 判断是否为一个文件夹
@@ -130,6 +131,45 @@ void SmManager::close_db() {
     for (auto& index : ihs_) {
         ix_manager_->close_index(index.second.get());
     }
+}
+
+void SmManager::load_data(const std::string& file_path, const std::string& tab_name, Context* context) {
+    db_.RLatch();
+    auto tab_meta = db_.get_table(tab_name);  // 不会同时有两个线程在读同一个表的 meta
+    db_.RUnLatch();
+    std::ifstream file(file_path);
+    std::string line;
+    bool is_first_line = true;
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string field;
+        if (is_first_line) {
+            is_first_line = false;
+            for (auto i = 0; i < tab_meta.cols.size(); i++) {
+                std::getline(ss, field, ',');
+                if(field != tab_meta.cols[i].name){
+                    throw ColumnNotFoundError(field);
+                }
+            }
+        }else {
+            for (auto i = 0; i < tab_meta.cols.size(); i++) {
+                std::getline(ss, field, ',');
+                auto value = Value::convert_from_string(field,tab_meta.cols[i]);
+            }
+
+        }
+    }
+
+    //  create table                 create table
+    //  create index                 load data
+    //  load_data                    create index
+
+    if(!tab_meta.indexes.empty()){
+        // drop_index(index);
+        // indexes.erase(index);
+        // create_index(const std::string &tab_name, const std::vector<std::string> &col_names, Context *context)
+    }
+
 }
 
 /**

@@ -31,6 +31,11 @@ struct TreeNode {
 };
 
 struct Help : public TreeNode {};
+struct LoadData : public TreeNode {
+    std::string file_path;
+    std::string tab_name ;
+    LoadData( std::string file_path_, std::string tab_name_ ) : file_path(std::move(file_path_)),tab_name(std::move(tab_name_)){};
+};
 
 struct ShowTables : public TreeNode {};
 struct ShowIndexes : public TreeNode {

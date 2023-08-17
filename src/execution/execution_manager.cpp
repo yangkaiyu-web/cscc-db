@@ -87,6 +87,10 @@ void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id, Co
                 *(context->offset_) = strlen(help_info);
                 break;
             }
+            case T_LOAD :{
+                auto plan = std::dynamic_pointer_cast<LoadPlan>(x);
+                sm_manager_->load_data(plan->file_path_,plan->tab_name_,context);
+            }
             case T_ShowTable: {
                 sm_manager_->show_tables(context);
                 break;

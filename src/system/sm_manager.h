@@ -71,6 +71,7 @@ class SmManager {
 
     void flush_meta();
 
+    void load_data(const std::string& file_path,const std::string& tab_name, Context* context);
     void show_tables(Context* context);
     void show_indexes(const std::string& tab_name, Context* context);
 

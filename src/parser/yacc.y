@@ -22,7 +22,7 @@ using namespace ast;
 %define parse.error verbose
 
 // keywords
-%token SHOW TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY LIMIT
+%token SHOW LOAD TABLES CREATE TABLE DROP DESC INSERT INTO VALUES DELETE FROM ASC ORDER BY LIMIT
 WHERE UPDATE SET SELECT INT CHAR FLOAT DATETIME INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY BIGINT
 COUNT MAX MIN SUM AS
 // non-keywords
@@ -34,7 +34,7 @@ COUNT MAX MIN SUM AS
 %token <sv_float> VALUE_FLOAT
 
 // specify types for non-terminal symbol
-%type <sv_node> stmt dbStmt ddl dml txnStmt
+%type <sv_node> stmt dbStmt ddl dml txnStmt loadDataStmt
 %type <sv_field> field
 %type <sv_fields> fieldList
 %type <sv_type_len> type
@@ -87,6 +87,7 @@ stmt:
     |   ddl
     |   dml
     |   txnStmt
+    |   loadDataStmt
     ;
 
 txnStmt:
@@ -487,6 +488,9 @@ opt_asc_desc:
     |  DESC      { $$ = OrderBy_DESC;    }
     |       { $$ = OrderBy_DEFAULT; }
     ;    
+
+loadDataStmt :
+    LOAD VALUE_STRING INTO tbName {$$ = std::make_shared<LoadData>($2,$4);}
 
 tbName: IDENTIFIER;
 

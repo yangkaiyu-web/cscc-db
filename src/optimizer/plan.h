@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details. */
 typedef enum PlanTag {
     T_Invalid = 1,
     T_Help,
+    T_LOAD,
     T_ShowTable,
     T_ShowIndex,
     T_DescTable,
@@ -178,6 +179,16 @@ class OtherPlan : public Plan {
     }
     ~OtherPlan() {}
     std::string tab_name_;
+};
+class LoadPlan  : public OtherPlan {
+   public:
+    std::string file_path_;
+    LoadPlan(PlanTag tag, std::string file_path,std::string tab_name) {
+        Plan::tag = tag;
+        tab_name_ = std::move(tab_name);
+        file_path_ = std::move(file_path);
+    }
+    ~LoadPlan() {}
 };
 
 class plannerInfo {
