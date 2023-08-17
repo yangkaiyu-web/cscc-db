@@ -251,6 +251,9 @@ void SmManager::create_table(const std::string& tab_name, const std::vector<ColD
  * @param {Context*} context
  */
 void SmManager::drop_table(const std::string& tab_name, Context* context) {
+    for(auto& index_meta : db_.get_table(tab_name).indexes){
+        drop_index(tab_name,index_meta.cols,context);
+    }
     if (!db_.is_table(tab_name)) {
         throw TableNotFoundError(tab_name);
     }
@@ -320,7 +323,9 @@ void SmManager::create_index(const std::string& tab_name, const std::vector<std:
     ihs_.emplace(index_name, std::move(idx_hdl_unptr));
     latch_.unlock();
     // 全表扫描，加S锁
-    context->lock_mgr_->lock_shared_on_table(context->txn_, disk_manager_->get_file_fd(tab_name));
+    if(context!=nullptr){
+        context->lock_mgr_->lock_shared_on_table(context->txn_, disk_manager_->get_file_fd(tab_name));
+    }
     latch_.lock_shared();
     RmFileHandle* fh = fhs_.at(tab_name).get();
     latch_.unlock_shared();

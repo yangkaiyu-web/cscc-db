@@ -48,7 +48,7 @@ constexpr size_t TEST_BUFFER_POOL_SIZE = MAX_FILES * MAX_PAGES;
 // 创建BufferPoolManager
 auto disk_manager = std::make_unique<DiskManager>();
 auto buffer_pool_manager = std::make_unique<BufferPoolManager>(
-    TEST_BUFFER_POOL_SIZE, disk_manager.get());
+    TEST_BUFFER_POOL_SIZE, disk_manager.get(),nullptr);
 
 std::unordered_map<int, char *> mock;  // fd -> buffer
 
@@ -304,7 +304,7 @@ TEST_F(BufferPoolManagerTest, DISABLED_SampleTest) {
     const size_t buffer_pool_size = 10;
     auto disk_manager = BufferPoolManagerTest::disk_manager_.get();
     auto bpm =
-        std::make_unique<BufferPoolManager>(buffer_pool_size, disk_manager);
+        std::make_unique<BufferPoolManager>(buffer_pool_size, disk_manager ,nullptr);
     // create tmp PageId
     int fd = BufferPoolManagerTest::fd_;
     PageId page_id_temp = {.fd = fd, .page_no = INVALID_PAGE_ID};
@@ -417,7 +417,7 @@ TEST_F(BufferPoolManagerConcurrencyTest, ConcurrencyTest) {
         auto disk_manager =
             BufferPoolManagerConcurrencyTest::disk_manager_.get();
         std::shared_ptr<BufferPoolManager> bpm{
-            new BufferPoolManager(50, disk_manager)};
+            new BufferPoolManager(50, disk_manager,nullptr)};
 
         std::vector<std::thread> threads;
         for (int tid = 0; tid < num_threads; tid++) {
@@ -615,7 +615,7 @@ TEST(RecordManagerTest, SimpleTest) {
     // 创建RmManager类的对象rm_manager
     auto disk_manager = std::make_unique<DiskManager>();
     auto buffer_pool_manager = std::make_unique<BufferPoolManager>(
-        BUFFER_POOL_SIZE, disk_manager.get());
+        BUFFER_POOL_SIZE, disk_manager.get(),nullptr);
     auto rm_manager = std::make_unique<RmManager>(disk_manager.get(),
                                                   buffer_pool_manager.get());
 

@@ -10,22 +10,48 @@ See the Mulan PSL v2 for more details. */
 
 #include "log_recovery.h"
 
-#include <readline/readline.h>
 
 #include <utility>
 
 #include "common/config.h"
 #include "recovery/log_defs.h"
 #include "recovery/log_manager.h"
-#define __LOG_DEBUG
+#include "system/sm_meta.h"
+//#define __LOG_DEBUG
 /**
  * @description: analyze阶段，需要获得脏页表（DPT）和未完成的事务列表（ATT）
  */
 void RecoveryManager::analyze() {
+    std::vector<TabMeta> tab_metas;
+
+    for (auto &it : sm_manager_->db_.tabs_) {
+        tab_metas.push_back(it.second);
+    }
+
+    for (auto &tab_meta : tab_metas) {
+        std::vector<ColDef> col_defs;
+
+        sm_manager_->drop_table(tab_meta.name,nullptr);
+
+        std::vector<IndexMeta> index_metas;
+        for (auto &col : tab_meta.cols) {
+            col_defs.push_back({col.name, col.type, col.len});
+        }
+        sm_manager_->create_table(tab_meta.name, col_defs, nullptr);
+
+        for(auto & index_meta : tab_meta.indexes){
+         std::vector<std::string> names;
+
+         for(auto & col: index_meta.cols){
+                names.push_back(col.name);
+         }
+            sm_manager_->create_index(tab_meta.name,names,nullptr);
+        }
+    }
     int offset = 0;
     char log_hdr[LOG_HEADER_SIZE];
     lsn_t last_lsn = 0;
-    txn_id_t last_txn=0;
+    txn_id_t last_txn = 0;
     while (int ret = disk_manager_->read_log(log_hdr, LOG_HEADER_SIZE, offset) > 0) {
         assert(ret >= 0);
         offset_list_.push_back(offset);
@@ -34,15 +60,14 @@ void RecoveryManager::analyze() {
         lsn_offset_table_.insert(std::make_pair(log.lsn_, offset));
         lsn_prevlsn_table_.insert(std::make_pair(log.lsn_, log.prev_lsn_));
         last_lsn = log.lsn_;
-        last_txn =   log.log_tid_ > last_txn ? log.log_tid_:last_txn;
-        #ifdef __LOG_DEBUG
+        last_txn = log.log_tid_ > last_txn ? log.log_tid_ : last_txn;
+#ifdef __LOG_DEBUG
         log.format_print();
-        #endif
+#endif
         offset += log.log_tot_len_;
-
     }
-    log_manager_->set_lsn(last_lsn+1);
-    txn_manager_->set_txn_id_num(last_txn+1);
+    log_manager_->set_lsn(last_lsn + 1);
+    txn_manager_->set_txn_id_num(last_txn + 1);
 }
 
 /**
@@ -58,21 +83,20 @@ void RecoveryManager::redo() {
         char *log_buf = new char[log.log_tot_len_];
         disk_manager_->read_log(log_buf, log.log_tot_len_, offset);
         offset += log.log_tot_len_;
-        #ifdef __LOG_DEBUG
-        std::cout<<"[redo] "<<LogTypeStr[log.log_type_]<<"\ttxn:"<<log.log_tid_<<"\n";
+#ifdef __LOG_DEBUG
+        std::cout << "[redo] " << LogTypeStr[log.log_type_] << "\ttxn:" << log.log_tid_ << "\n";
 #endif
-
 
         if (log.log_type_ == LogType::DELETE || log.log_type_ == LogType::CLR_INSERT) {
             DeleteLogRecord del_log;
             del_log.deserialize(log_buf);
             std::string tab_name(del_log.table_name_, del_log.table_name_size_);
-            rollback_insert(tab_name, del_log.rid_);//  redo delete = rollback insert;
+            rollback_insert(tab_name, del_log.rid_);  //  redo delete = rollback insert;
         } else if (log.log_type_ == LogType::INSERT || log.log_type_ == LogType::CLR_DELETE) {
             InsertLogRecord insert_log;
             insert_log.deserialize(log_buf);
             std::string tab_name(insert_log.table_name_, insert_log.table_name_size_);
-            rollback_delete(tab_name,insert_log.rid_,insert_log.insert_value_);
+            rollback_delete(tab_name, insert_log.rid_, insert_log.insert_value_);
         } else if (log.log_type_ == LogType::UPDATE || log.log_type_ == LogType ::CLR_UPDATE) {
             UpdateLogRecord update_log;
             update_log.deserialize(log_buf);
@@ -116,8 +140,8 @@ void RecoveryManager::undo() {
         LogRecord log;
         log.deserialize(log_hdr);
 
-        #ifdef __LOG_DEBUG
-        std::cout<<"[undo] "<<LogTypeStr[log.log_type_]<<"\ttxn:"<<log.log_tid_<<"\n";
+#ifdef __LOG_DEBUG
+        std::cout << "[undo] " << LogTypeStr[log.log_type_] << "\ttxn:" << log.log_tid_ << "\n";
 #endif
         if (undo_list_.find(log.log_tid_) == undo_list_.end()) {
             continue;

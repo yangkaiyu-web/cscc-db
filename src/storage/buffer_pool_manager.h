@@ -20,10 +20,9 @@ See the Mulan PSL v2 for more details. */
 #include "disk_manager.h"
 #include "errors.h"
 #include "page.h"
-#include "recovery/log_manager.h"
 #include "replacer/lru_replacer.h"
 #include "replacer/replacer.h"
-
+class LogManager;
 class BufferPoolManager {
    private:
     size_t pool_size_;  // buffer_pool中可容纳页面的个数，即帧的个数

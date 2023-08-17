@@ -17,7 +17,7 @@ See the Mulan PSL v2 for more details. */
 constexpr int RM_NO_PAGE = -1;
 constexpr int RM_FILE_HDR_PAGE = 0;
 constexpr int RM_FIRST_RECORD_PAGE = 1;
-constexpr int RM_MAX_RECORD_SIZE = 512;
+constexpr int RM_MAX_RECORD_SIZE = 2048;
 
 /* 文件头，记录表数据文件的元信息，写入磁盘中文件的第0号页面 */
 struct RmFileHdr {
