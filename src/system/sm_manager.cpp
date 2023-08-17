@@ -251,7 +251,8 @@ void SmManager::create_table(const std::string& tab_name, const std::vector<ColD
  * @param {Context*} context
  */
 void SmManager::drop_table(const std::string& tab_name, Context* context) {
-    for(auto& index_meta : db_.get_table(tab_name).indexes){
+    auto index_metas = db_.get_table(tab_name).indexes;
+    for(auto& index_meta : index_metas){
         drop_index(tab_name,index_meta.cols,context);
     }
     if (!db_.is_table(tab_name)) {
@@ -361,7 +362,7 @@ void SmManager::drop_index(const std::string& tab_name, const std::vector<std::s
             }
             if (i == col_metas.size()) {
                 found = true;
-                table_indexes.erase(iter);
+                iter = table_indexes.erase(iter);
                 break;
             }
         }

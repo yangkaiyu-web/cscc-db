@@ -19,7 +19,7 @@ constexpr int IX_NO_PAGE = -1;
 constexpr int IX_FILE_HDR_PAGE = 0;
 constexpr int IX_INIT_ROOT_PAGE = 1;
 constexpr int IX_INIT_NUM_PAGES = 2;
-constexpr int IX_MAX_COL_LEN = 512;
+constexpr int IX_MAX_COL_LEN = 2000;
 
 class IxFileHdr {
    public:

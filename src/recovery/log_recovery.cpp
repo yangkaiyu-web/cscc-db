@@ -10,20 +10,20 @@ See the Mulan PSL v2 for more details. */
 
 #include "log_recovery.h"
 
-
 #include <utility>
 
 #include "common/config.h"
 #include "recovery/log_defs.h"
 #include "recovery/log_manager.h"
 #include "system/sm_meta.h"
-//#define __LOG_DEBUG
+// #define __LOG_DEBUG
 /**
  * @description: analyze阶段，需要获得脏页表（DPT）和未完成的事务列表（ATT）
  */
 void RecoveryManager::analyze() {
     std::vector<TabMeta> tab_metas;
 
+    tab_metas.reserve(sm_manager_->db_.tabs_.size());
     for (auto &it : sm_manager_->db_.tabs_) {
         tab_metas.push_back(it.second);
     }
@@ -31,21 +31,23 @@ void RecoveryManager::analyze() {
     for (auto &tab_meta : tab_metas) {
         std::vector<ColDef> col_defs;
 
-        sm_manager_->drop_table(tab_meta.name,nullptr);
+        sm_manager_->drop_table(tab_meta.name, nullptr);
 
         std::vector<IndexMeta> index_metas;
+        col_defs.reserve(tab_meta.cols.size());
+        col_defs.reserve(tab_meta.cols.size());
         for (auto &col : tab_meta.cols) {
             col_defs.push_back({col.name, col.type, col.len});
         }
         sm_manager_->create_table(tab_meta.name, col_defs, nullptr);
 
-        for(auto & index_meta : tab_meta.indexes){
-         std::vector<std::string> names;
+        for (auto &index_meta : tab_meta.indexes) {
+            std::vector<std::string> names;
 
-         for(auto & col: index_meta.cols){
+            for (auto &col : index_meta.cols) {
                 names.push_back(col.name);
-         }
-            sm_manager_->create_index(tab_meta.name,names,nullptr);
+            }
+            sm_manager_->create_index(tab_meta.name, names, nullptr);
         }
     }
     int offset = 0;
