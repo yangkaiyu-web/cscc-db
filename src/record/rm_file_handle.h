@@ -114,6 +114,14 @@ class RmFileHandle {
 
     inline void WUnLatch() const { hdr_latch_.unlock(); }
 
+    void desc_hdr() {
+        std::cout << file_hdr_.record_size << std::endl;
+        std::cout << file_hdr_.num_pages << std::endl;
+        std::cout << file_hdr_.num_records_per_page << std::endl;
+        std::cout << file_hdr_.first_free_page_no << std::endl;
+        std::cout << file_hdr_.bitmap_size << std::endl;
+    }
+
    private:
     RmPageHandle fetch_free_page_handle();
 };

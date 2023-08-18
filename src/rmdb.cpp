@@ -146,9 +146,13 @@ void *client_handler(void *sock_fd) {
                         txn_manager->commit(context->txn_, log_manager.get());
                     }
                     portal->drop();
-                    // for (auto &hdl : sm_manager->ihs_) {
-                    //     hdl.second->desc_hdr();
-                    // }
+                    /*
+                    for (auto &hdl : sm_manager->fhs_) {
+                        hdl.second->desc_hdr();
+                    }
+                    for (auto &hdl : sm_manager->ihs_) {
+                        hdl.second->desc_hdr();
+                    }*/
                 } catch (TransactionAbortException &e) {
                     // 事务需要回滚，需要把abort信息返回给客户端并写入output.txt文件中
                     std::string str = "abort\n";

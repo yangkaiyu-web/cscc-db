@@ -22,9 +22,21 @@ See the Mulan PSL v2 for more details. */
 
 class Transaction;
 class WriteRecord;
-/* 日志记录对应操作的类型 */                                        //  for undo 
-enum LogType : int { UPDATE = 0, INSERT, DELETE, BEGIN, COMMIT, ABORT ,CLR_UPDATE,CLR_INSERT,CLR_DELETE};
-static std::string LogTypeStr[] = {"UPDATE", "INSERT", "DELETE", "BEGIN", "COMMIT", "ABORT","CLR_UPDATE","CLR_INSERT","CLR_DELETE"};
+/* 日志记录对应操作的类型 */  //  for undo
+enum LogType : int {
+    UPDATE = 0,
+    INSERT,
+    DELETE,
+    BEGIN,
+    COMMIT,
+    ABORT,
+    CLR_UPDATE,
+    CLR_INSERT,
+    CLR_DELETE,
+    CREATE_INDEX
+};
+static std::string LogTypeStr[] = {"UPDATE", "INSERT",     "DELETE",     "BEGIN",     "COMMIT",
+                                   "ABORT",  "CLR_UPDATE", "CLR_INSERT", "CLR_DELETE"};
 
 /*
  *-----------------------------------------------------------
@@ -34,13 +46,13 @@ static std::string LogTypeStr[] = {"UPDATE", "INSERT", "DELETE", "BEGIN", "COMMI
 class LogRecord {
    public:
     LogType log_type_;     /* 日志对应操作的类型 */
-    lsn_t lsn_;            /* 当前日志的lsn  log seq number */ 
+    lsn_t lsn_;            /* 当前日志的lsn  log seq number */
     uint32_t log_tot_len_; /* 整个日志记录的长度 */
     txn_id_t log_tid_;     /* 创建当前日志的事务ID */
-    lsn_t prev_lsn_;       /* 事务创建的前一条日志记录的lsn，用于undo ,在 clr 日志中就表示 undo next*/
-    lsn_t undo_next_ ;    /*  用于 clr 类型的 日志*/
+    lsn_t prev_lsn_;  /* 事务创建的前一条日志记录的lsn，用于undo ,在 clr 日志中就表示 undo next*/
+    lsn_t undo_next_; /*  用于 clr 类型的 日志*/
 
-    void setCLR(){
+    void setCLR() {
         switch (log_type_) {
             case LogType::UPDATE:
                 log_type_ = CLR_UPDATE;
@@ -122,7 +134,7 @@ class CommitLogRecord : public LogRecord {
         log_tot_len_ = LOG_HEADER_SIZE;
         log_tid_ = INVALID_TXN_ID;
         prev_lsn_ = INVALID_LSN;
-        undo_next_=INVALID_LSN;
+        undo_next_ = INVALID_LSN;
     }
     CommitLogRecord(lsn_t lsn, lsn_t prev_lsn, txn_id_t txn_id) : CommitLogRecord() {
         lsn_ = lsn;
@@ -189,7 +201,7 @@ class InsertLogRecord : public LogRecord {
         table_name_ = nullptr;
     }
 
-    InsertLogRecord(txn_id_t txn_id, RmRecord& insert_value, Rid& rid, std::string &table_name) : InsertLogRecord() {
+    InsertLogRecord(txn_id_t txn_id, RmRecord& insert_value, Rid& rid, std::string& table_name) : InsertLogRecord() {
         log_tid_ = txn_id;
         insert_value_ = insert_value;
         rid_ = rid;
@@ -263,7 +275,7 @@ class DeleteLogRecord : public LogRecord {
 
     DeleteLogRecord(txn_id_t txn_id, RmRecord& delete_value, Rid& rid, std::string& table_name) : DeleteLogRecord() {
         log_tid_ = txn_id;
-        delete_value_  = delete_value;
+        delete_value_ = delete_value;
         rid_ = rid;
         log_tot_len_ += sizeof(int);
         log_tot_len_ += delete_value_.size;
@@ -311,7 +323,7 @@ class DeleteLogRecord : public LogRecord {
 };
 
 /*
- * UpdateLogRecord      
+ * UpdateLogRecord
  * -------------------------------------------------------------------------------
  * | LogRecord | value_size | old_value | value_size | new_value | rid | table_name_size_ | table_name|
  * -------------------------------------------------------------------------------
@@ -319,8 +331,8 @@ class DeleteLogRecord : public LogRecord {
  */
 class UpdateLogRecord : public LogRecord {
    public:
-    RmRecord old_value_;   // 修改前的记录
-    RmRecord new_value_;   // 修改后的记录
+    RmRecord old_value_;      // 修改前的记录
+    RmRecord new_value_;      // 修改后的记录
     Rid rid_;                 // 记录插入的位置
     char* table_name_;        // 插入记录的表名称
     size_t table_name_size_;  // 表名称的大小
@@ -335,10 +347,11 @@ class UpdateLogRecord : public LogRecord {
         table_name_ = nullptr;
     }
 
-    UpdateLogRecord(txn_id_t txn_id, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name) : UpdateLogRecord  () {
+    UpdateLogRecord(txn_id_t txn_id, RmRecord& old_value, RmRecord& new_value, Rid& rid, std::string& table_name)
+        : UpdateLogRecord() {
         log_tid_ = txn_id;
-        old_value_  = old_value;
-        new_value_  = new_value;
+        old_value_ = old_value;
+        new_value_ = new_value;
         rid_ = rid;
         log_tot_len_ += sizeof(int);
         log_tot_len_ += old_value_.size;
@@ -378,10 +391,10 @@ class UpdateLogRecord : public LogRecord {
         LogRecord::deserialize(src);
         old_value_.Deserialize(src + OFFSET_LOG_DATA);
 
-        int offset = OFFSET_LOG_DATA  + sizeof(int)+ old_value_.size;
-        new_value_.Deserialize(src+offset);
+        int offset = OFFSET_LOG_DATA + sizeof(int) + old_value_.size;
+        new_value_.Deserialize(src + offset);
 
-        offset +=  sizeof(int)+ new_value_.size ;
+        offset += sizeof(int) + new_value_.size;
         rid_ = *reinterpret_cast<const Rid*>(src + offset);
         offset += sizeof(Rid);
         table_name_size_ = *reinterpret_cast<const size_t*>(src + offset);
@@ -399,6 +412,39 @@ class UpdateLogRecord : public LogRecord {
         printf("table name: %s\n", table_name_);
     }
 };
+
+/*
+class CreateIndexRecord : public LogRecord {
+   public:
+    size_t table_name_size_;
+    char* table_name_;
+    int col_num;
+    std::vector<int> col_lenth;
+    std::vector<char*> col_names;
+    CreateIndexRecord() {
+        log_type_ = LogType::CREATE_INDEX;
+        lsn_ = INVALID_LSN;
+        log_tot_len_ = LOG_HEADER_SIZE;
+        log_tid_ = INVALID_TXN_ID;
+        prev_lsn_ = INVALID_LSN;
+        undo_next_ = INVALID_LSN;
+        table_name_size_ = 0;
+        table_name_ = nullptr;
+        col_num = 0;
+    }
+
+    CreateIndexRecord(txn_id_t txn_id, std::vector<ColMeta>& col_meta, std::string& table_name) : UpdateLogRecord() {
+        log_tid_ = txn_id;
+        log_tot_len_ += sizeof(size_t);
+        table_name_size_ = strlen(table_name.c_str());
+        log_tot_len_ += sizeof(table_name_size_);
+        log_tot_len_ += sizeof(int);
+        log_tot_len_ += sizeof(int) * col_meta.size();
+        table_name_ = new char[table_name_size_];
+        memcpy(table_name_, table_name.c_str(), table_name_size_);
+        log_tot_len_ += sizeof(size_t) + table_name_size_;
+    }
+};*/
 /* 日志缓冲区，只有一个buffer，因此需要阻塞地去把日志写入缓冲区中 */
 
 class LogBuffer {
@@ -428,21 +474,23 @@ class LogManager {
     LogBuffer* get_log_buffer() { return &log_buffer_; }
 
     inline lsn_t alloc_lsn() { return global_lsn_++; }
-    inline void set_lsn(lsn_t num ) { global_lsn_ = num;}
+    inline void set_lsn(lsn_t num) { global_lsn_ = num; }
 
-    lsn_t gen_log_from_write_set(Transaction* txn,WriteRecord*write_rec);
+    lsn_t gen_log_from_write_set(Transaction* txn, WriteRecord* write_rec);
     lsn_t gen_log_bein(Transaction* txn);
     lsn_t gen_log_commit(Transaction* txn);
     lsn_t gen_log_abort(Transaction* txn);
-    lsn_t gen_log_upadte_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name);
-    lsn_t gen_log_insert_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& insert_value, Rid& rid, std::string &table_name);
-    lsn_t gen_log_delete_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& delete_value, Rid& rid, std::string& table_name);
-    lsn_t gen_log_upadte(Transaction*txn, RmRecord& old_value,RmRecord& new_value, Rid& rid, std::string &table_name);
-    lsn_t gen_log_insert(Transaction*txn, RmRecord& insert_value, Rid& rid, std::string &table_name);
-    lsn_t gen_log_delete(Transaction*txn, RmRecord& delete_value, Rid& rid, std::string& table_name);
+    lsn_t gen_log_upadte_CLR(txn_id_t tid, lsn_t undo_next, RmRecord& old_value, RmRecord& new_value, Rid& rid,
+                             std::string& table_name);
+    lsn_t gen_log_insert_CLR(txn_id_t tid, lsn_t undo_next, RmRecord& insert_value, Rid& rid, std::string& table_name);
+    lsn_t gen_log_delete_CLR(txn_id_t tid, lsn_t undo_next, RmRecord& delete_value, Rid& rid, std::string& table_name);
+    lsn_t gen_log_upadte(Transaction* txn, RmRecord& old_value, RmRecord& new_value, Rid& rid, std::string& table_name);
+    lsn_t gen_log_insert(Transaction* txn, RmRecord& insert_value, Rid& rid, std::string& table_name);
+    lsn_t gen_log_delete(Transaction* txn, RmRecord& delete_value, Rid& rid, std::string& table_name);
 
-    std::unordered_map<lsn_t,lsn_t> lsn_prevlsn_table_;
-    std::unordered_map<WriteRecord*,lsn_t> write_rec_to_lsn_table_;
+    std::unordered_map<lsn_t, lsn_t> lsn_prevlsn_table_;
+    std::unordered_map<WriteRecord*, lsn_t> write_rec_to_lsn_table_;
+
    private:
     std::atomic<lsn_t> global_lsn_{0};  // 全局lsn，递增，用于为每条记录分发lsn
     std::mutex latch_;                  // 用于对log_buffer_的互斥访问

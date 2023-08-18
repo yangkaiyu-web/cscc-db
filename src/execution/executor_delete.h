@@ -55,9 +55,8 @@ class DeleteExecutor : public AbstractExecutor {
         //         }
         //     }
         // }
-        if(context_->lock_mgr_->lock_exclusive_on_table(context->txn_, fh_->GetFd())!=true){
-                    throw TransactionAbortException(context_->txn_->get_transaction_id(),
-                                                    AbortReason::DEADLOCK_PREVENTION);
+        if (context_->lock_mgr_->lock_exclusive_on_table(context->txn_, fh_->GetFd()) != true) {
+            throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::DEADLOCK_PREVENTION);
         }
     }
 

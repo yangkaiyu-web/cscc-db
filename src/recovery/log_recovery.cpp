@@ -33,22 +33,12 @@ void RecoveryManager::analyze() {
 
         sm_manager_->drop_table(tab_meta.name, nullptr);
 
-        std::vector<IndexMeta> index_metas;
         col_defs.reserve(tab_meta.cols.size());
         col_defs.reserve(tab_meta.cols.size());
         for (auto &col : tab_meta.cols) {
             col_defs.push_back({col.name, col.type, col.len});
         }
         sm_manager_->create_table(tab_meta.name, col_defs, nullptr);
-
-        for (auto &index_meta : tab_meta.indexes) {
-            std::vector<std::string> names;
-
-            for (auto &col : index_meta.cols) {
-                names.push_back(col.name);
-            }
-            sm_manager_->create_index(tab_meta.name, names, nullptr);
-        }
     }
     int offset = 0;
     char log_hdr[LOG_HEADER_SIZE];
@@ -182,6 +172,22 @@ void RecoveryManager::undo() {
         } else if (log.log_type_ == LogType::CLR_DELETE || log.log_type_ == LogType::CLR_UPDATE ||
                    log.log_type_ == LogType::CLR_INSERT) {
             // do nothing
+        }
+    }
+    std::vector<TabMeta> tab_metas;
+
+    tab_metas.reserve(sm_manager_->db_.tabs_.size());
+    for (auto &it : sm_manager_->db_.tabs_) {
+        tab_metas.push_back(it.second);
+    }
+    for (auto &tab_meta : tab_metas) {
+        for (auto &index_meta : tab_meta.indexes) {
+            std::vector<std::string> names;
+
+            for (auto &col : index_meta.cols) {
+                names.push_back(col.name);
+            }
+            sm_manager_->create_index(tab_meta.name, names, nullptr);
         }
     }
 }
