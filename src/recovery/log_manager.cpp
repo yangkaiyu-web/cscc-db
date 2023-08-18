@@ -89,7 +89,7 @@ lsn_t LogManager::gen_log_upadte_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& ol
 }
 
 lsn_t LogManager::gen_log_insert_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& insert_value, Rid& rid, std::string &table_name){
-    auto log = std::make_unique< InsertLogRecord>(tid,insert_value,rid,table_name);
+    auto log = std::make_unique< DeleteLogRecord>(tid,insert_value,rid,table_name);
     log->setCLR();
     latch_.lock();
     log->lsn_=alloc_lsn();
@@ -102,7 +102,7 @@ lsn_t LogManager::gen_log_insert_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& in
     return log->lsn_;
 }
 lsn_t LogManager::gen_log_delete_CLR(txn_id_t  tid,lsn_t undo_next, RmRecord& delete_value, Rid& rid, std::string& table_name){
-    auto log = std::make_unique< DeleteLogRecord>(tid,delete_value,rid,table_name);
+    auto log = std::make_unique< InsertLogRecord>(tid,delete_value,rid,table_name);
     log->setCLR();
 
     latch_.lock();

@@ -46,10 +46,10 @@ class LogRecord {
                 log_type_ = CLR_UPDATE;
                 break;
             case LogType::DELETE:
-                log_type_ = CLR_DELETE;
+                log_type_ = CLR_INSERT;
                 break;
             case LogType::INSERT:
-                log_type_ = CLR_INSERT;
+                log_type_ = CLR_DELETE;
                 break;
             default:
                 assert(false);
