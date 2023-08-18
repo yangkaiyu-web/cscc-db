@@ -31,20 +31,18 @@ class IxFileHdr {
     std::vector<ColType> col_types_;  // 字段的类型
     std::vector<int> col_lens_;       // 字段的长度
     int col_tot_len_;                 // 索引包含的字段的总长度
-    int btree_order_;  // # children per page 每个结点最多可插入的键值对数量
-    int keys_size_;  // keys_size = (btree_order + 1) * col_tot_len
+    int btree_order_;                 // # children per page 每个结点最多可插入的键值对数量
+    int keys_size_;                   // keys_size = (btree_order + 1) * col_tot_len
     // first_leaf初始化之后没有进行修改，只不过是在测试文件中遍历叶子结点的时候用了
-    page_id_t
-        first_leaf_;  // 首叶节点对应的页号，在上层IxManager的open函数进行初始化，初始化为root
-                      // page_no
+    page_id_t first_leaf_;  // 首叶节点对应的页号，在上层IxManager的open函数进行初始化，初始化为root
+                            // page_no
     page_id_t last_leaf_;  // 尾叶节点对应的页号
     int tot_len_;          // 记录结构体的整体长度
 
     IxFileHdr() { tot_len_ = col_num_ = 0; }
 
-    IxFileHdr(page_id_t first_free_page_no, int num_pages, page_id_t root_page,
-              int col_num, int col_tot_len, int btree_order, int keys_size,
-              page_id_t first_leaf, page_id_t last_leaf)
+    IxFileHdr(page_id_t first_free_page_no, int num_pages, page_id_t root_page, int col_num, int col_tot_len,
+              int btree_order, int keys_size, page_id_t first_leaf, page_id_t last_leaf)
         : first_free_page_no_(first_free_page_no),
           num_pages_(num_pages),
           root_page_(root_page),
@@ -100,8 +98,7 @@ class IxFileHdr {
         int offset = 0;
         tot_len_ = *reinterpret_cast<const int *>(src + offset);
         offset += sizeof(int);
-        first_free_page_no_ =
-            *reinterpret_cast<const page_id_t *>(src + offset);
+        first_free_page_no_ = *reinterpret_cast<const page_id_t *>(src + offset);
         offset += sizeof(int);
         num_pages_ = *reinterpret_cast<const int *>(src + offset);
         offset += sizeof(int);
@@ -109,7 +106,6 @@ class IxFileHdr {
         offset += sizeof(page_id_t);
         col_num_ = *reinterpret_cast<const int *>(src + offset);
         offset += sizeof(int);
-        std::cout << col_num_ << "\n";
         for (int i = 0; i < col_num_; ++i) {
             // col_types_[i] = *reinterpret_cast<const ColType*>(src + offset);
             ColType type = *reinterpret_cast<const ColType *>(src + offset);
@@ -140,13 +136,13 @@ class IxPageHdr {
    public:
     page_id_t next_free_page_no;  // unused
     page_id_t parent;             // 父亲节点所在页面的叶号
-    int num_key;          // # current keys (always equals to #child - 1)
-                          // 已插入的keys数量，key_idx∈[0,num_key)
-    bool is_leaf;         // 是否为叶节点
-    page_id_t prev_leaf;  // previous leaf node's page_no, effective only when
-                          // is_leaf is true
-    page_id_t next_leaf;  // next leaf node's page_no, effective only when
-                          // is_leaf is true
+    int num_key;                  // # current keys (always equals to #child - 1)
+                                  // 已插入的keys数量，key_idx∈[0,num_key)
+    bool is_leaf;                 // 是否为叶节点
+    page_id_t prev_leaf;          // previous leaf node's page_no, effective only when
+                                  // is_leaf is true
+    page_id_t next_leaf;          // next leaf node's page_no, effective only when
+                                  // is_leaf is true
 };
 
 class Iid {
@@ -154,9 +150,7 @@ class Iid {
     int page_no;
     int slot_no;
 
-    friend bool operator==(const Iid &x, const Iid &y) {
-        return x.page_no == y.page_no && x.slot_no == y.slot_no;
-    }
+    friend bool operator==(const Iid &x, const Iid &y) { return x.page_no == y.page_no && x.slot_no == y.slot_no; }
 
     friend bool operator!=(const Iid &x, const Iid &y) { return !(x == y); }
 };
