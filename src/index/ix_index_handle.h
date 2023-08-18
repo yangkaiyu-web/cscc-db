@@ -237,6 +237,28 @@ class IxIndexHandle {
         release_node_handle(node, false);
     }*/
 
+    void desc_hdr() {
+        std::cout << file_hdr_->first_free_page_no_ << std::endl;
+
+        std::cout << file_hdr_->num_pages_ << std::endl;
+        std::cout << file_hdr_->root_page_ << std::endl;
+        std::cout << file_hdr_->col_num_ << std::endl;
+        for (auto t : file_hdr_->col_types_) {
+            std::cout << t << std::endl;
+        }
+
+        for (auto t : file_hdr_->col_lens_) {
+            std::cout << t << std::endl;
+        }
+        std::cout << file_hdr_->col_tot_len_ << std::endl;
+        std::cout << file_hdr_->btree_order_ << std::endl;
+        std::cout << file_hdr_->keys_size_ << std::endl;
+        std::cout << file_hdr_->first_leaf_ << std::endl;
+
+        std::cout << file_hdr_->last_leaf_ << std::endl;
+        std::cout << file_hdr_->tot_len_ << std::endl;
+    }
+
    private:
     // 辅助函数
     // @brief:找到node的所有叶子节点中最小key值所在的节点，记得在外面unpin返回的leaf_node，因此不能直接返回char*

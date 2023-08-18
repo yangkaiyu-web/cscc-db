@@ -56,6 +56,7 @@ class UpdateExecutor : public AbstractExecutor {
         rids_ = rids;
         context_ = context;
     }
+
     std::unique_ptr<RmRecord> Next() override {
         std::vector<IxIndexHandle *> idx_hdls;
         sm_manager_->latch_.lock_shared();
@@ -65,8 +66,8 @@ class UpdateExecutor : public AbstractExecutor {
         sm_manager_->latch_.unlock_shared();
 
         for (auto &rid : rids_) {
-            if(context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid, fh_->GetFd())==false){
-                throw TransactionAbortException(context_->txn_->get_transaction_id(),AbortReason::GET_LOCK_FAILED);
+            if (context_->lock_mgr_->lock_exclusive_on_record(context_->txn_, rid, fh_->GetFd()) == false) {
+                throw TransactionAbortException(context_->txn_->get_transaction_id(), AbortReason::GET_LOCK_FAILED);
             }
             auto record = fh_->get_record(rid, context_);
             auto old_record = fh_->get_record(rid, context_);
@@ -82,20 +83,10 @@ class UpdateExecutor : public AbstractExecutor {
                 }
                 memcpy(record->data + col.offset, val.raw->data, col.len);
             }
-            // 更新事务
-            if (context_->txn_->get_state() == TransactionState::DEFAULT||context_->txn_->get_state() == TransactionState::GROWING) {
-                auto WriteRec = std::make_unique< WriteRecord>(WType::UPDATE_TUPLE, tab_name_, rid, *old_record,*record);
-                context_->log_mgr_->gen_log_from_write_set(context_->txn_,WriteRec.get());
-                context_->txn_->append_write_record(std::move(WriteRec));
-            }else {
-                assert(false);
-            }
-
-
 
             auto &indexes = tab_.indexes;
             // 检查索引唯一性
-            if(!indexes.empty()){
+            if (!indexes.empty()) {
                 for (auto &rid : rids_) {
                     auto record = fh_->get_record(rid, context_);
                     for (auto &set_clause : set_clauses_) {
@@ -125,9 +116,18 @@ class UpdateExecutor : public AbstractExecutor {
                         delete[] key;
                     }
                 }
-
             }
 
+            // 更新事务
+            if (context_->txn_->get_state() == TransactionState::DEFAULT ||
+                context_->txn_->get_state() == TransactionState::GROWING) {
+                auto WriteRec =
+                    std::make_unique<WriteRecord>(WType::UPDATE_TUPLE, tab_name_, rid, *old_record, *record);
+                context_->log_mgr_->gen_log_from_write_set(context_->txn_, WriteRec.get());
+                context_->txn_->append_write_record(std::move(WriteRec));
+            } else {
+                assert(false);
+            }
             fh_->update_record(rid, record->data, context_);
 
             // 更新索引项

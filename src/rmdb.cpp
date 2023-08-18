@@ -35,14 +35,15 @@ static bool should_exit = false;
 auto disk_manager = std::make_unique<DiskManager>();
 auto log_manager = std::make_unique<LogManager>(disk_manager.get());
 auto lock_manager = std::make_unique<LockManager>();
-auto buffer_pool_manager = std::make_unique<BufferPoolManager>(BUFFER_POOL_SIZE, disk_manager.get(),log_manager.get());
+auto buffer_pool_manager = std::make_unique<BufferPoolManager>(BUFFER_POOL_SIZE, disk_manager.get(), log_manager.get());
 auto rm_manager = std::make_unique<RmManager>(disk_manager.get(), buffer_pool_manager.get());
 auto ix_manager = std::make_unique<IxManager>(disk_manager.get(), buffer_pool_manager.get());
 auto sm_manager =
     std::make_unique<SmManager>(disk_manager.get(), buffer_pool_manager.get(), rm_manager.get(), ix_manager.get());
 auto txn_manager = std::make_unique<TransactionManager>(lock_manager.get(), sm_manager.get());
 auto ql_manager = std::make_unique<QlManager>(sm_manager.get(), txn_manager.get());
-auto recovery = std::make_unique<RecoveryManager>(disk_manager.get(), buffer_pool_manager.get(), sm_manager.get(),log_manager.get(),txn_manager.get());
+auto recovery = std::make_unique<RecoveryManager>(disk_manager.get(), buffer_pool_manager.get(), sm_manager.get(),
+                                                  log_manager.get(), txn_manager.get());
 auto planner = std::make_unique<Planner>(sm_manager.get());
 auto optimizer = std::make_unique<Optimizer>(sm_manager.get(), planner.get());
 auto portal = std::make_unique<Portal>(sm_manager.get());
@@ -145,6 +146,9 @@ void *client_handler(void *sock_fd) {
                         txn_manager->commit(context->txn_, log_manager.get());
                     }
                     portal->drop();
+                    // for (auto &hdl : sm_manager->ihs_) {
+                    //     hdl.second->desc_hdr();
+                    // }
                 } catch (TransactionAbortException &e) {
                     // 事务需要回滚，需要把abort信息返回给客户端并写入output.txt文件中
                     std::string str = "abort\n";
@@ -309,7 +313,7 @@ int main(int argc, char **argv) {
         if (!sm_manager->is_dir(db_name)) {
             // Database not found, create a new one
             sm_manager->create_db(db_name);
-        }         // Open database
+        }  // Open database
         sm_manager->open_db(db_name);
 
         // recovery database

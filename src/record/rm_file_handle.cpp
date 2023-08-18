@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "rm_file_handle.h"
+
 #include "record/rm_defs.h"
 #include "recovery/log_manager.h"
 #include "transaction/transaction.h"
@@ -49,26 +50,25 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
     std::unique_lock<std::shared_mutex> lock(hdr_latch_);
     RmPageHandle page_hdl = fetch_free_page_handle();
 
-
     int i;
     for (i = 0; i < file_hdr_.num_records_per_page; ++i) {
         if (!Bitmap::is_set(page_hdl.bitmap, i)) {
-
-
             auto &page_hdr = page_hdl.page_hdr;
             const PageId &page_id = page_hdl.page->get_page_id();
-            Rid rid{page_id.page_no,i};
-            if (context->txn_->get_state() == TransactionState::DEFAULT ||context->txn_->get_state() == TransactionState::GROWING ) {
-                auto rec = RmRecord(file_hdr_.record_size,buf);
+            Rid rid{page_id.page_no, i};
+            if (context->txn_->get_state() == TransactionState::DEFAULT ||
+                context->txn_->get_state() == TransactionState::GROWING) {
+                auto rec = RmRecord(file_hdr_.record_size, buf);
                 auto table_name = disk_manager_->get_file_name(fd_);
-                auto insertRec = std::make_unique < WriteRecord > (WType::INSERT_TUPLE,table_name , rid,rec);
-                context->log_mgr_->gen_log_from_write_set(context->txn_,insertRec.get());
+                auto insertRec = std::make_unique<WriteRecord>(WType::INSERT_TUPLE, table_name, rid, rec);
+                context->log_mgr_->gen_log_from_write_set(context->txn_, insertRec.get());
                 context->txn_->append_write_record(std::move(insertRec));
-            }else {
+            } else {
                 assert(false);
             }
-            page_hdr->page_lsn =page_hdr->page_lsn > context->txn_->get_so_far_lsn()?page_hdr->page_lsn: context->txn_->get_so_far_lsn();
-            if(!page_hdl.page->is_dirty()){
+            page_hdr->page_lsn = page_hdr->page_lsn > context->txn_->get_so_far_lsn() ? page_hdr->page_lsn
+                                                                                      : context->txn_->get_so_far_lsn();
+            if (!page_hdl.page->is_dirty()) {
                 page_hdl.page_hdr->rec_lsn = context->txn_->get_so_far_lsn();
             }
 
@@ -95,7 +95,7 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
 void RmFileHandle::insert_record(const Rid &rid, char *buf) {
     std::unique_lock<std::shared_mutex> lock(hdr_latch_);
     RmPageHandle new_page_handle = fetch_free_page_handle();
-    while(new_page_handle.page->get_page_id().page_no<rid.page_no){
+    while (new_page_handle.page->get_page_id().page_no < rid.page_no) {
         new_page_handle = fetch_free_page_handle();
     }
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
@@ -103,7 +103,6 @@ void RmFileHandle::insert_record(const Rid &rid, char *buf) {
     if (Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {
         memcpy(page_handle.get_slot(rid.slot_no), buf, file_hdr_.record_size);
     } else {
-
         memcpy(page_handle.get_slot(rid.slot_no), buf, file_hdr_.record_size);
         Bitmap::set(page_handle.bitmap, rid.slot_no);
         auto &page_hdr = page_handle.page_hdr;
@@ -127,9 +126,11 @@ void RmFileHandle::delete_record(const Rid &rid, Context *context) {
     std::unique_lock<std::shared_mutex> lock(hdr_latch_);
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
 
-    page_handle.page_hdr->page_lsn =page_handle.page_hdr->page_lsn > context->txn_->get_so_far_lsn()?page_handle.page_hdr->page_lsn: context->txn_->get_so_far_lsn();
-    
-    if(!page_handle.page->is_dirty()&& context != nullptr){
+    page_handle.page_hdr->page_lsn = page_handle.page_hdr->page_lsn > context->txn_->get_so_far_lsn()
+                                         ? page_handle.page_hdr->page_lsn
+                                         : context->txn_->get_so_far_lsn();
+
+    if (!page_handle.page->is_dirty() && context != nullptr) {
         page_handle.page_hdr->rec_lsn = context->txn_->get_so_far_lsn();
     }
 
@@ -184,8 +185,10 @@ void RmFileHandle::update_record(const Rid &rid, char *buf, Context *context) {
     // 2. 更新记录
     std::unique_lock<std::shared_mutex> lock(hdr_latch_);
     RmPageHandle page_handle = fetch_page_handle(rid.page_no);
-    page_handle.page_hdr->page_lsn =page_handle.page_hdr->page_lsn > context->txn_->get_so_far_lsn()?page_handle.page_hdr->page_lsn: context->txn_->get_so_far_lsn();
-    if(!page_handle.page->is_dirty()){
+    page_handle.page_hdr->page_lsn = page_handle.page_hdr->page_lsn > context->txn_->get_so_far_lsn()
+                                         ? page_handle.page_hdr->page_lsn
+                                         : context->txn_->get_so_far_lsn();
+    if (!page_handle.page->is_dirty()) {
         page_handle.page_hdr->rec_lsn = context->txn_->get_so_far_lsn();
     }
     if (Bitmap::is_set(page_handle.bitmap, rid.slot_no)) {
@@ -234,8 +237,8 @@ RmPageHandle RmFileHandle::fetch_free_page_handle() {
         RmPageHandle page_hdl(&file_hdr_, page);
         page_hdl.page_hdr->next_free_page_no = -1;
         page_hdl.page_hdr->num_records = 0;
-        page_hdl.page_hdr->page_lsn=-1;
-        page_hdl.page_hdr->rec_lsn=-1;
+        page_hdl.page_hdr->page_lsn = -1;
+        page_hdl.page_hdr->rec_lsn = -1;
         file_hdr_.num_pages++;
         file_hdr_.first_free_page_no = page_id.page_no;
         return page_hdl;
