@@ -152,11 +152,14 @@ void SmManager::load_data(const std::string& file_path, const std::string& tab_n
                 }
             }
         }else {
+            RmRecord rec (fhs_[tab_name]->get_record_size());
             for (auto i = 0; i < tab_meta.cols.size(); i++) {
                 std::getline(ss, field, ',');
+                auto col = tab_meta.cols[i];
                 auto value = Value::convert_from_string(field,tab_meta.cols[i]);
+                memcpy(rec.data + col.offset, value.raw->data, col.len);
             }
-
+            fhs_[tab_name]->insert_record(rec.data,nullptr);
         }
     }
 

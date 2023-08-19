@@ -20,11 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "parser/ast.h"
 #include "parser/parser.h"
 #include "system/sm.h"
-template <typename type>
-inline bool no_overflow(const std::string &value) {
-    return (compare_int_string(value, std::to_string(std::numeric_limits<type>::max())) <= 0) &&
-           (compare_int_string(value, std::to_string(std::numeric_limits<type>::lowest())) >= 0);
-}
+
 
 class Query {
    public:

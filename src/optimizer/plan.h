@@ -183,10 +183,7 @@ class OtherPlan : public Plan {
 class LoadPlan  : public OtherPlan {
    public:
     std::string file_path_;
-    LoadPlan(PlanTag tag, std::string file_path,std::string tab_name) {
-        Plan::tag = tag;
-        tab_name_ = std::move(tab_name);
-        file_path_ = std::move(file_path);
+    LoadPlan(PlanTag tag, std::string file_path,std::string tab_name): OtherPlan(tag,tab_name),file_path_(std::move(file_path)){
     }
     ~LoadPlan() {}
 };

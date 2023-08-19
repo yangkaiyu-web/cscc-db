@@ -304,7 +304,7 @@ TEST_F(BufferPoolManagerTest, DISABLED_SampleTest) {
     const size_t buffer_pool_size = 10;
     auto disk_manager = BufferPoolManagerTest::disk_manager_.get();
     auto bpm =
-        std::make_unique<BufferPoolManager>(buffer_pool_size, disk_manager ,nullptr);
+        std::make_unique<BufferPoolManager>(buffer_pool_size, disk_manager,nullptr);
     // create tmp PageId
     int fd = BufferPoolManagerTest::fd_;
     PageId page_id_temp = {.fd = fd, .page_no = INVALID_PAGE_ID};

@@ -19,10 +19,8 @@ See the Mulan PSL v2 for more details. */
 #include "defs.h"
 #include "errors.h"
 #include "parser/ast.h"
-template <typename type>
-inline bool no_overflow(const std::string &value);
-int compare_int_string(const std::string &val1, const std::string &val2);
-int compare_pos_int_string(const std::string &val1, const std::string &val2);
+// template <typename type>
+// inline bool no_overflow(const std::string &value);
 
 /**
  * @description:
@@ -413,40 +411,5 @@ CompOp Analyze::convert_sv_comp_op(ast::SvCompOp op) {
         {ast::SV_OP_GT, OP_GT}, {ast::SV_OP_LE, OP_LE}, {ast::SV_OP_GE, OP_GE},
     };
     return m.at(op);
-}
-
-// util functtion
-// 相等返回0，val1大于val2返回1，小于返回-1
-int compare_pos_int_string(const std::string &val1, const std::string &val2) {
-    int len1 = val1.size(), len2 = val2.size();
-    if (len1 > len2) {
-        return 1;
-    } else if (len1 < len2) {
-        return -1;
-    } else {
-        for (size_t i = 0; i < val1.size(); ++i) {
-            if (val1[i] > val2[i]) {
-                return 1;
-            } else if (val1[i] < val2[i]) {
-                return -1;
-            }
-        }
-        return 0;
-    }
-}
-
-// 相等返回0，val1大于val2返回1，小于返回-1
-int compare_int_string(const std::string &val1, const std::string &val2) {
-    assert(!val1.empty() && !val2.empty());
-
-    if (val2[0] == '-' && val1[0] != '-') {
-        return 1;
-    } else if (val1[0] == '-' && val2[0] != '-') {
-        return -1;
-    } else if (val1[0] == '-' && val2[0] == '-') {
-        return -compare_pos_int_string(val1.substr(1), val2.substr(1));
-    } else {
-        return compare_pos_int_string(val1[0] == '+' ? val1.substr(1) : val1, val2[0] == '+' ? val2.substr(1) : val2);
-    }
 }
 

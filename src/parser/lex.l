@@ -42,6 +42,7 @@ identifier {alpha}(_|{alpha}|{digit})*
 value_int_bigint {digit}+
 value_float {digit}+\.({digit}+)?
 value_string '[^']*'
+file_path ((\.)?(\.)?\/[^\/ ]*)+\/?
 single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 
 %x STATE_COMMENT
@@ -120,6 +121,10 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 {value_string} {
     yylval->sv_str = std::string(yytext + 1, strlen(yytext) - 2);
     return VALUE_STRING;
+}
+{file_path} {
+    yylval->sv_str = std::string(yytext , strlen(yytext));
+return VALUE_STRING;
 }
     /* EOF */
 <<EOF>> { return T_EOF; }

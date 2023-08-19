@@ -55,21 +55,22 @@ Rid RmFileHandle::insert_record(char *buf, Context *context) {
         if (!Bitmap::is_set(page_hdl.bitmap, i)) {
             auto &page_hdr = page_hdl.page_hdr;
             const PageId &page_id = page_hdl.page->get_page_id();
-            Rid rid{page_id.page_no, i};
-            if (context->txn_->get_state() == TransactionState::DEFAULT ||
-                context->txn_->get_state() == TransactionState::GROWING) {
-                auto rec = RmRecord(file_hdr_.record_size, buf);
-                auto table_name = disk_manager_->get_file_name(fd_);
-                auto insertRec = std::make_unique<WriteRecord>(WType::INSERT_TUPLE, table_name, rid, rec);
-                context->log_mgr_->gen_log_from_write_set(context->txn_, insertRec.get());
-                context->txn_->append_write_record(std::move(insertRec));
-            } else {
-                assert(false);
-            }
-            page_hdr->page_lsn = page_hdr->page_lsn > context->txn_->get_so_far_lsn() ? page_hdr->page_lsn
-                                                                                      : context->txn_->get_so_far_lsn();
-            if (!page_hdl.page->is_dirty()) {
-                page_hdl.page_hdr->rec_lsn = context->txn_->get_so_far_lsn();
+            Rid rid{page_id.page_no,i};
+            if(context!=nullptr){
+                if (context->txn_->get_state() == TransactionState::DEFAULT ||context->txn_->get_state() == TransactionState::GROWING ) {
+                    auto rec = RmRecord(file_hdr_.record_size,buf);
+                    auto table_name = disk_manager_->get_file_name(fd_);
+                    auto insertRec = std::make_unique < WriteRecord > (WType::INSERT_TUPLE,table_name , rid,rec);
+                    context->log_mgr_->gen_log_from_write_set(context->txn_,insertRec.get());
+                    context->txn_->append_write_record(std::move(insertRec));
+                }else {
+                    assert(false);
+                }
+                page_hdr->page_lsn =page_hdr->page_lsn > context->txn_->get_so_far_lsn()?page_hdr->page_lsn: context->txn_->get_so_far_lsn();
+                if(!page_hdl.page->is_dirty()){
+                    page_hdl.page_hdr->rec_lsn = context->txn_->get_so_far_lsn();
+                }
+
             }
 
             // insert data
