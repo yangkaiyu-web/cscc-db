@@ -20,7 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "index/ix.h"
 #include "optimizer/plan.h"
 #include "record_printer.h"
-
+extern bool output_off;
 const char *help_info =
     "Supported SQL syntax:\n"
     "  command ;\n"
@@ -87,9 +87,14 @@ void QlManager::run_cmd_utility(std::shared_ptr<Plan> plan, txn_id_t *txn_id, Co
                 *(context->offset_) = strlen(help_info);
                 break;
             }
-            case T_LOAD :{
+            case T_SET_OUTPUT_OFF: {
                 auto plan = std::dynamic_pointer_cast<LoadPlan>(x);
-                sm_manager_->load_data(plan->file_path_,plan->tab_name_,context);
+                output_off=true;
+                break;
+            }
+            case T_LOAD: {
+                auto plan = std::dynamic_pointer_cast<LoadPlan>(x);
+                sm_manager_->load_data(plan->file_path_, plan->tab_name_, context);
                 break;
             }
             case T_ShowTable: {
@@ -143,12 +148,14 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
     rec_printer.print_separator(context);
     // print header into file
     std::fstream outfile;
-    outfile.open("output.txt", std::ios::out | std::ios::app);
-    outfile << "|";
-    for (size_t i = 0; i < captions.size(); ++i) {
-        outfile << " " << captions[i] << " |";
+    if (!output_off) {
+        outfile.open("output.txt", std::ios::out | std::ios::app);
+        outfile << "|";
+        for (size_t i = 0; i < captions.size(); ++i) {
+            outfile << " " << captions[i] << " |";
+        }
+        outfile << "\n";
     }
-    outfile << "\n";
 
     // Print records
     size_t num_rec = 0;
@@ -199,15 +206,19 @@ void QlManager::select_from(std::unique_ptr<AbstractExecutor> executorTreeRoot, 
 
         // print record into buffer
         rec_printer.print_record(columns, context);
-        // print record into file
-        outfile << "|";
-        for (size_t i = 0; i < columns.size(); ++i) {
-            outfile << " " << columns[i] << " |";
+        if (!output_off) {
+            // print record into file
+            outfile << "|";
+            for (size_t i = 0; i < columns.size(); ++i) {
+                outfile << " " << columns[i] << " |";
+            }
+            outfile << "\n";
         }
-        outfile << "\n";
         num_rec++;
     }
-    outfile.close();
+    if (!output_off) {
+        outfile.close();
+    }
     // Print footer into buffer
     rec_printer.print_separator(context);
     // Print record count into buffer

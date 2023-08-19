@@ -28,7 +28,7 @@ See the Mulan PSL v2 for more details. */
 
 #define SOCK_PORT 8765
 #define MAX_CONN_LIMIT 8
-
+bool output_off = false;
 static bool should_exit = false;
 
 // 构建全局所需的管理器对象
@@ -164,10 +164,12 @@ void *client_handler(void *sock_fd) {
                     txn_manager->abort(context->txn_, log_manager.get());
                     std::cout << e.GetInfo() << std::endl;
 
-                    std::fstream outfile;
-                    outfile.open("output.txt", std::ios::out | std::ios::app);
-                    outfile << str;
-                    outfile.close();
+                    if (!output_off) {
+                        std::fstream outfile;
+                        outfile.open("output.txt", std::ios::out | std::ios::app);
+                        outfile << str;
+                        outfile.close();
+                    }
                 } catch (RMDBError &e) {
                     // 遇到异常，需要打印failure到output.txt文件中，并发异常信息返回给客户端
                     std::cerr << e.what() << std::endl;
@@ -177,11 +179,13 @@ void *client_handler(void *sock_fd) {
                     data_send[e.get_msg_len() + 1] = '\0';
                     offset = e.get_msg_len() + 1;
 
-                    // 将报错信息写入output.txt
-                    std::fstream outfile;
-                    outfile.open("output.txt", std::ios::out | std::ios::app);
-                    outfile << "failure\n";
-                    outfile.close();
+                    if (!output_off) {
+                        // 将报错信息写入output.txt
+                        std::fstream outfile;
+                        outfile.open("output.txt", std::ios::out | std::ios::app);
+                        outfile << "failure\n";
+                        outfile.close();
+                    }
                 }
             }
         } else {
@@ -190,11 +194,12 @@ void *client_handler(void *sock_fd) {
             data_send[strlen(errmsg)] = '\n';
             data_send[strlen(errmsg) + 1] = '\0';
             offset = strlen(errmsg) + 1;
-
-            std::fstream outfile;
-            outfile.open("output.txt", std::ios::out | std::ios::app);
-            outfile << "failure\n";
-            outfile.close();
+            if (!output_off) {
+                std::fstream outfile;
+                outfile.open("output.txt", std::ios::out | std::ios::app);
+                outfile << "failure\n";
+                outfile.close();
+            }
         }
         if (finish_analyze == false) {
             yy_delete_buffer(buf);

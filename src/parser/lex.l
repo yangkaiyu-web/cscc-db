@@ -79,6 +79,8 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 "WHERE" { return WHERE; }
 "UPDATE" { return UPDATE; }
 "SET" { return SET; }
+"OUTPUT_FILE" { return OUTPUT; }
+"OFF" { return OFF; }
 "SELECT" { return SELECT; }
 "INT" { return INT; }
 "CHAR" { return CHAR; }

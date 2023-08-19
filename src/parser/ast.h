@@ -31,6 +31,7 @@ struct TreeNode {
 };
 
 struct Help : public TreeNode {};
+struct SetOutputOff : public TreeNode {};
 struct LoadData : public TreeNode {
     std::string file_path;
     std::string tab_name ;

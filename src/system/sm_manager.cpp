@@ -15,13 +15,13 @@ See the Mulan PSL v2 for more details. */
 
 #include <fstream>
 
+#include "common/common.h"
 #include "errors.h"
 #include "index/ix.h"
 #include "record/rm.h"
 #include "record_printer.h"
 #include "system/sm_meta.h"
-#include "common/common.h"
-
+extern bool output_off;
 /**
  * @description: 判断是否为一个文件夹
  * @return {bool} 返回是否为一个文件夹
@@ -147,19 +147,19 @@ void SmManager::load_data(const std::string& file_path, const std::string& tab_n
             is_first_line = false;
             for (auto i = 0; i < tab_meta.cols.size(); i++) {
                 std::getline(ss, field, ',');
-                if(field != tab_meta.cols[i].name){
+                if (field != tab_meta.cols[i].name) {
                     throw ColumnNotFoundError(field);
                 }
             }
-        }else {
-            RmRecord rec (fhs_[tab_name]->get_record_size());
+        } else {
+            RmRecord rec(fhs_[tab_name]->get_record_size());
             for (auto i = 0; i < tab_meta.cols.size(); i++) {
                 std::getline(ss, field, ',');
                 auto col = tab_meta.cols[i];
-                auto value = Value::convert_from_string(field,tab_meta.cols[i]);
+                auto value = Value::convert_from_string(field, tab_meta.cols[i]);
                 memcpy(rec.data + col.offset, value.raw->data, col.len);
             }
-            fhs_[tab_name]->insert_record(rec.data,nullptr);
+            fhs_[tab_name]->insert_record(rec.data, nullptr);
         }
     }
 
@@ -167,12 +167,11 @@ void SmManager::load_data(const std::string& file_path, const std::string& tab_n
     //  create index                 load data
     //  load_data                    create index
 
-    if(!tab_meta.indexes.empty()){
+    if (!tab_meta.indexes.empty()) {
         // drop_index(index);
         // indexes.erase(index);
         // create_index(const std::string &tab_name, const std::vector<std::string> &col_names, Context *context)
     }
-
 }
 
 /**
@@ -182,8 +181,10 @@ void SmManager::load_data(const std::string& file_path, const std::string& tab_n
  */
 void SmManager::show_tables(Context* context) {
     std::fstream outfile;
-    outfile.open("output.txt", std::ios::out | std::ios::app);
-    outfile << "| Tables |\n";
+    if (!output_off) {
+        outfile.open("output.txt", std::ios::out | std::ios::app);
+        outfile << "| Tables |\n";
+    }
     RecordPrinter printer(1);
     printer.print_separator(context);
     printer.print_record({"Tables"}, context);
@@ -192,16 +193,22 @@ void SmManager::show_tables(Context* context) {
     for (const auto& entry : db_.tabs_) {
         const auto& tab = entry.second;
         printer.print_record({tab.name}, context);
-        outfile << "| " << tab.name << " |\n";
+        if (!output_off) {
+            outfile << "| " << tab.name << " |\n";
+        }
     }
     db_.RUnLatch();
     printer.print_separator(context);
-    outfile.close();
+    if (!output_off) {
+        outfile.close();
+    }
 }
 
 void SmManager::show_indexes(const std::string& tab_name, Context* context) {
     std::fstream outfile;
-    outfile.open("output.txt", std::ios::out | std::ios::app);
+    if (!output_off) {
+        outfile.open("output.txt", std::ios::out | std::ios::app);
+    }
     RecordPrinter printer(1);
     printer.print_separator(context);
     printer.print_record({"Indexes"}, context);
@@ -209,19 +216,25 @@ void SmManager::show_indexes(const std::string& tab_name, Context* context) {
     db_.RLatch();
     const std::vector<IndexMeta>& indexes = db_.get_table(tab_name).indexes;
     for (const IndexMeta& idx : indexes) {
-        outfile << "| " << tab_name << " | unique | ";
+        if (!output_off) {
+            outfile << "| " << tab_name << " | unique | ";
+        }
         const std::vector<ColMeta>& cols_meta = idx.cols;
         std::string idx_cols = "(";
         for (size_t i = 0; i < cols_meta.size(); ++i) {
             idx_cols += cols_meta[i].name;
             idx_cols += (i == cols_meta.size() - 1 ? ")" : ",");
         }
-        outfile << idx_cols + " |\n";
+        if (!output_off) {
+            outfile << idx_cols + " |\n";
+        }
         printer.print_record({idx_cols}, context);
     }
     db_.RUnLatch();
     printer.print_separator(context);
-    outfile.close();
+    if(!output_off){
+        outfile.close();
+    }
 }
 
 /**
