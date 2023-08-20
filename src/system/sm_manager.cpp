@@ -158,16 +158,45 @@ void SmManager::load_data(const std::string& file_path, const std::string& tab_n
             }
         } else {
             RmRecord rec(fhs_[tab_name]->get_record_size());
+
+            int begin=0,end=0;
+
+            int index = 0,index1=0,index2=0,match_num=0;;
+            std::vector<std::string> words;
+            for(;index<line.length();index++){
+                if(line[index]== ','){
+                    std::string word = line.substr(index1,index-index1);
+                    begin=0,end=word.length()-1;
+                    while(word[begin]==' '){
+                        begin++;
+                    }
+                    while(word[end]==' '){
+                        end--;
+                    }
+                    word = word.substr(begin,end-begin+1);
+                    words.push_back(word);
+                    index++;
+                    index1= index;
+                    continue;
+                }
+            }
+
+            std::string word = line.substr(index1,index-index1);
+            begin=0,end=word.length()-1;
+            while(word[begin]==' '){
+                begin++;
+            }
+            while(word[end]==' '){
+                end--;
+            }
+            word = word.substr(begin,end-begin+1);
+            words.push_back(word);
+            if(words.size()!=tab_meta.cols.size()){
+                throw InternalError("csv not match");
+            }
             for (auto i = 0; i < tab_meta.cols.size(); i++) {
-                std::getline(ss, field, ',');
-                int begin=0,end=field.length()-1;
-                while(field[begin]==' '){
-                    begin++;
-                }
-                while(field[end]==' '){
-                    end--;
-                }
-                field =field.substr(begin,end-begin+1);
+
+                field = words[i];
                 auto col = tab_meta.cols[i];
                 auto value = Value::convert_from_string(field, tab_meta.cols[i]);
                 memcpy(rec.data + col.offset, value.raw->data, col.len);
