@@ -34,6 +34,7 @@ bool LockManager::lock_shared_on_record(Transaction* txn, const Rid& rid, int ta
     }
     txn->set_state(TransactionState::GROWING);
     std::scoped_lock<std::mutex> latch(latch_);
+    txn_table_[txn->get_transaction_id()] = txn;
     auto lock_data_id = LockDataId(tab_fd, rid, LockDataType::RECORD);
     auto& rwlock = lock_table_[lock_data_id];
     // 检查给表加 IS 锁是否能成功
@@ -152,6 +153,10 @@ bool LockManager::lock_exclusive_on_table(Transaction* txn, int tab_fd) {
  * @param {int} tab_fd 目标表的fd
  */
 bool LockManager::lock_IS_on_table(Transaction* txn, int tab_fd) {
+    if (txn->get_state() == TransactionState::ABORTED) {
+        return false;
+    }
+
     if (txn->get_state() == TransactionState::SHRINKING) {
         txn->set_state(TransactionState::ABORTED);
         throw TransactionAbortException(txn->get_transaction_id(), AbortReason::LOCK_ON_SHIRINKING);
@@ -161,10 +166,15 @@ bool LockManager::lock_IS_on_table(Transaction* txn, int tab_fd) {
     auto lock_data_id = LockDataId(tab_fd, LockDataType::TABLE);
     auto& rwlock = lock_table_[lock_data_id];
 
+    bool is_killed = false;
+    bool granted = true;
     for (const auto& lock : rwlock.request_queue_) {
         if (lock.lock_mode_ == LockMode::X) {
-            if (lock.txn_id_ != txn->get_transaction_id()) {
-                return false;
+            if (lock.txn_id_ > txn->get_transaction_id()) {
+                is_killed = true;
+                txn_table_[lock.txn_id_]->set_state(TransactionState::ABORTED);
+            } else if (lock.txn_id_ > txn->get_transaction_id()) {
+                granted = false;
             }
         }
     }
@@ -245,7 +255,7 @@ bool LockManager::unlock(Transaction* txn, LockDataId lock_data_id) {
             iter++;
         }
     }
-    if(rwlock.request_queue_.empty()){
+    if (rwlock.request_queue_.empty()) {
         lock_table_.erase(lock_data_id);
     }
 

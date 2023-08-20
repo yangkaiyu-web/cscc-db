@@ -39,7 +39,7 @@ class LockManager {
        public:
         std::list<LockRequest> request_queue_;  // 加锁队列
         std::condition_variable cv_;  // 条件变量，用于唤醒正在等待加锁的申请，在no-wait策略下无需使用
-        int32_t num = 0;                                           // 加锁数量
+        int32_t num = 0;              // 加锁数量
         txn_id_t curr{-1};  // 当下执行的事务，目前只用于判断上X锁前持有的S锁是不是同一个事务所加
     };
 
@@ -64,7 +64,8 @@ class LockManager {
 
     bool unlock(Transaction* txn, LockDataId lock_data_id);
 
-    std::mutex latch_;                                             // 用于锁表的并发
+    std::mutex latch_;  // 用于锁表的并发
    private:
     std::unordered_map<LockDataId, LockRequestQueue> lock_table_;  // 全局锁表
+    std::unordered_map<txn_id_t, Transaction*> txn_table_;
 };
