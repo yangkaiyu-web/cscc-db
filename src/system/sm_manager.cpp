@@ -145,11 +145,16 @@ void SmManager::load_data(const std::string& file_path, const std::string& tab_n
         std::string field;
         if (is_first_line) {
             is_first_line = false;
+            int line_num =0;
             for (auto i = 0; i < tab_meta.cols.size(); i++) {
                 std::getline(ss, field, ',');
+                line_num++;
                 if (field != tab_meta.cols[i].name) {
                     throw ColumnNotFoundError(field);
                 }
+            }
+            if(line_num!= tab_meta.cols.size()){
+                throw InternalError("csv table column num does not match !");
             }
         } else {
             RmRecord rec(fhs_[tab_name]->get_record_size());
