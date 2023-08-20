@@ -15,7 +15,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "common/config.h"
 #include "defs.h"
-//#include "index/ix_index_handle.h"
+// #include "index/ix_index_handle.h"
 #include "record/rm_defs.h"
 #include "recovery/log_manager.h"
 
@@ -27,7 +27,7 @@ enum class IsolationLevel { READ_UNCOMMITTED, REPEATABLE_READ, READ_COMMITTED, S
 
 /* 事务写操作类型，包括插入、删除、更新三种操作 */
 enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE };
-//enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE, INSERT_INDEX, DELETE_INDEX, UPDATE_INDEX };
+// enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE, INSERT_INDEX, DELETE_INDEX, UPDATE_INDEX };
 
 /**
  * @brief 事务的写操作记录，用于事务的回滚
@@ -35,7 +35,7 @@ enum class WType { INSERT_TUPLE = 0, DELETE_TUPLE, UPDATE_TUPLE };
  * --------------------------------
  * | wtype | tab_name | tuple_rid |
  * --------------------------------
- * DELETE / UPDATE  
+ * DELETE / UPDATE
  * ----------------------------------------------------------------
  * | wtype | tab_name | tuple_rid | tuple_value | new_tuple_value |
  * ----------------------------------------------------------------
@@ -51,8 +51,12 @@ class WriteRecord {
     WriteRecord(WType wtype, std::string &tab_name, const Rid &rid, const RmRecord &record)
         : wtype_(wtype), tab_name_(tab_name), rid_(rid), record_(record) {}
 
-    WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, const RmRecord &record ,const RmRecord& new_record)
-        : wtype_(wtype), tab_name_(tab_name), rid_(rid), record_(record),new_record_(new_record) {}
+    WriteRecord(WType wtype, const std::string &tab_name, const Rid &rid, RmRecord &&record, RmRecord &&new_record)
+        : wtype_(wtype),
+          tab_name_(tab_name),
+          rid_(rid),
+          record_(std::move(record)),
+          new_record_(std::move(new_record)) {}
 
     ~WriteRecord() = default;
 
@@ -164,7 +168,7 @@ struct std::hash<LockDataId> {
 };
 
 /* 事务回滚原因 */
-enum class AbortReason { LOCK_ON_SHIRINKING = 0, UPGRADE_CONFLICT, DEADLOCK_PREVENTION ,GET_LOCK_FAILED};
+enum class AbortReason { LOCK_ON_SHIRINKING = 0, UPGRADE_CONFLICT, DEADLOCK_PREVENTION, GET_LOCK_FAILED };
 
 /* 事务回滚异常，在rmdb.cpp中进行处理 */
 class TransactionAbortException : public std::exception {

@@ -23,7 +23,7 @@ enum SvCompOp { SV_OP_EQ, SV_OP_NE, SV_OP_LT, SV_OP_GT, SV_OP_LE, SV_OP_GE };
 
 enum OrderByDir { OrderBy_DEFAULT, OrderBy_ASC, OrderBy_DESC };
 
-enum AggregateType { COUNT, MAX, MIN, SUM ,NONE};
+enum AggregateType { COUNT, MAX, MIN, SUM, NONE };
 
 // Base class for tree nodes
 struct TreeNode {
@@ -132,15 +132,16 @@ struct Col : public Expr {
     std::string another_name = "";
 
     Col(std::string tab_name_, std::string col_name_)
-        : tab_name(std::move(tab_name_)), col_name(std::move(col_name_)){}
+        : tab_name(std::move(tab_name_)), col_name(std::move(col_name_)) {}
 };
 
 struct SetClause : public TreeNode {
     std::string col_name;
+    char op;
     std::shared_ptr<Value> val;
 
-    SetClause(std::string col_name_, std::shared_ptr<Value> val_)
-        : col_name(std::move(col_name_)), val(std::move(val_)) {}
+    SetClause(std::string col_name_, char op_, std::shared_ptr<Value> val_)
+        : col_name(std::move(col_name_)), op(op_), val(std::move(val_)) {}
 };
 
 struct BinaryExpr : public TreeNode {
@@ -160,7 +161,7 @@ struct OrderBy : public TreeNode {
 
 struct OrderBys : public TreeNode {
     std::vector<std::shared_ptr<OrderBy>> order_bys;
-    OrderBys(std::vector<std::shared_ptr<OrderBy>> order_bys_) : order_bys(std::move(order_bys_)){}
+    OrderBys(std::vector<std::shared_ptr<OrderBy>> order_bys_) : order_bys(std::move(order_bys_)) {}
 };
 
 struct InsertStmt : public TreeNode {
@@ -199,13 +200,11 @@ struct JoinExpr : public TreeNode {
         : left(std::move(left_)), right(std::move(right_)), conds(std::move(conds_)), type(type_) {}
 };
 
-
 struct SelectStmt : public TreeNode {
     std::vector<std::shared_ptr<Col>> cols;
     std::vector<std::string> tabs;
     std::vector<std::shared_ptr<BinaryExpr>> conds;
     std::vector<std::shared_ptr<JoinExpr>> jointree;
-
 
     bool has_sort;
     std::shared_ptr<OrderBys> orderbys;
@@ -229,6 +228,7 @@ struct SelectStmt : public TreeNode {
 // Semantic value
 struct SemValue {
     float sv_float;
+    char sv_sign;
     std::string sv_str;
     OrderByDir sv_orderby_dir;
 

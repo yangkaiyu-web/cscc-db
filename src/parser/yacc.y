@@ -26,7 +26,7 @@ using namespace ast;
 WHERE UPDATE SET SELECT INT CHAR FLOAT DATETIME INDEX AND JOIN EXIT HELP TXN_BEGIN TXN_COMMIT TXN_ABORT TXN_ROLLBACK ORDER_BY BIGINT
 COUNT MAX MIN SUM AS
 // non-keywords
-%token LEQ NEQ GEQ T_EOF
+%token LEQ NEQ GEQ T_EOF ADD MINUS
 
 // type-specific tokens
 %token <sv_str> IDENTIFIER VALUE_STRING
@@ -43,6 +43,7 @@ COUNT MAX MIN SUM AS
 %type <sv_val> value
 %type <sv_vals> valueList
 %type <sv_str> tbName colName
+%type <sv_sign> sign
 %type <sv_strs> tableList colNameList
 %type <sv_col> col aggregate_clause
 %type <sv_cols> colList selector aggregate_list
@@ -237,6 +238,22 @@ value:
     {
         $$ = std::make_shared<StringLit>($1);
     }
+    |   '+' VALUE_INT_BIGINT
+    {
+        $$ = std::make_shared<Int_Bint_Lit>($2);
+    }
+    |   '-' VALUE_INT_BIGINT
+    {
+        $$ = std::make_shared<Int_Bint_Lit>("-" + $2);
+    }
+    |   '+' VALUE_FLOAT
+    {
+        $$ = std::make_shared<FloatLit>($2);
+    }
+    |   '-' VALUE_FLOAT
+    {
+        $$ = std::make_shared<FloatLit>(-$2);
+    }
     ;
 
 condition:
@@ -314,6 +331,17 @@ op:
     }
     ;
 
+sign:
+        '+'
+    {
+        $$ = '+';
+    }
+    |   '-'
+    {
+        $$ = '-';
+    }
+    ;
+
 expr:
         value
     {
@@ -337,9 +365,13 @@ setClauses:
     ;
 
 setClause:
-        colName '=' value
+    colName '=' value
     {
-        $$ = std::make_shared<SetClause>($1, $3);
+        $$ = std::make_shared<SetClause>($1, '\0', $3);
+    }
+    |    colName '=' colName sign value
+    {
+        $$ = std::make_shared<SetClause>($1, $4, $5);
     }
     ;
 

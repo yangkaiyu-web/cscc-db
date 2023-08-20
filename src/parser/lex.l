@@ -39,8 +39,8 @@ white_space [ \t]+
 new_line "\r"|"\n"|"\r\n"
 sign "+"|"-"
 identifier {alpha}(_|{alpha}|{digit})*
-value_int_bigint {sign}?{digit}+
-value_float {sign}?{digit}+\.({digit}+)?
+value_int_bigint {digit}+
+value_float {digit}+\.({digit}+)?
 value_string '[^']*'
 single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
 
@@ -57,6 +57,7 @@ single_op ";"|"("|")"|","|"*"|"="|">"|"<"|"."
     /* white space and new line */
 {white_space} { /* ignore white space */ }
 {new_line} { /* ignore new line */ }
+{sign} { return yytext[0]; }
     /* keywords */
 "SHOW" { return SHOW; }
 "BEGIN" { return TXN_BEGIN; }

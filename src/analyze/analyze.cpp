@@ -121,6 +121,7 @@ std::shared_ptr<Query> Analyze::do_analyze(std::shared_ptr<ast::TreeNode> parse)
             sm_manager_->db_.RUnLatch();
 
             set_clause.rhs = convert_sv_value(set_clause_ptr->val, lhs_col);
+            set_clause.op = set_clause_ptr->op;
             query->set_clauses.push_back(set_clause);
         }
 

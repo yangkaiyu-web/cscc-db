@@ -38,12 +38,12 @@ struct TabCol {
 };
 
 struct Value {
-    ColType type;            // type of value
+    ColType type;  // type of value
     union {
         int int_val;         // int value
         int64_t bigint_val;  // bigint or datatime value,
                              // datatime时，40~56位年，32~40位月，24~32位日，16~24位时，8~16位分，0~8位秒
-        float float_val;            // float value
+        float float_val;  // float value
     };
     std::string str_val;            // string value
     std::shared_ptr<RmRecord> raw;  // raw record buffer
@@ -322,6 +322,7 @@ struct Condition {
 struct SetClause {
     TabCol lhs;
     Value rhs;
+    char op;
 };
 
 struct OrderByCaluse {
