@@ -51,7 +51,7 @@ class LogRecord {
     txn_id_t log_tid_;     /* 创建当前日志的事务ID */
     lsn_t prev_lsn_;  /* 事务创建的前一条日志记录的lsn，用于undo ,在 clr 日志中就表示 undo next*/
     lsn_t undo_next_; /*  用于 clr 类型的 日志*/
-
+    virtual ~LogRecord()=default;
     void setCLR() {
         switch (log_type_) {
             case LogType::UPDATE:
@@ -248,6 +248,9 @@ class InsertLogRecord : public LogRecord {
         printf("insert rid: %d, %d\n", rid_.page_no, rid_.slot_no);
         printf("table name: %s\n", table_name_);
     }
+    ~InsertLogRecord()override{
+        delete[] table_name_;
+    }
 };
 
 /*
@@ -319,6 +322,10 @@ class DeleteLogRecord : public LogRecord {
         printf("delete_value: %s\n", delete_value_.data);
         printf("delete rid: %d, %d\n", rid_.page_no, rid_.slot_no);
         printf("table name: %s\n", table_name_);
+    }
+
+    ~DeleteLogRecord()override{
+        delete[] table_name_;
     }
 };
 
@@ -410,6 +417,9 @@ class UpdateLogRecord : public LogRecord {
         printf("new_value: %s\n", new_value_.data);
         printf("update rid: %d, %d\n", rid_.page_no, rid_.slot_no);
         printf("table name: %s\n", table_name_);
+    }
+    ~UpdateLogRecord() override{
+        delete[] table_name_;
     }
 };
 
