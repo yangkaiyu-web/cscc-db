@@ -34,8 +34,9 @@ class BufferPoolManager {
     DiskManager *disk_manager_;
     LogManager * log_manager_;
     Replacer *replacer_;  // buffer_pool的置换策略，当前赛题中为LRU置换策略
-    std::mutex latch_;  // 用于共享数据结构的并发控制
-    std::mutex *page_latches_;
+    std::mutex latch_;    // 用于保护page_table_, free_list_,
+                        // 和page_latches_一起可以保证只要加入了page_table_的页就是可用页（可fetch）
+    std::mutex *page_latches_;  // 保护page的元数据和bpm内部对page的读写; 确保unpin的page pin_cnt一定为0
 
    public:
     BufferPoolManager(size_t pool_size, DiskManager *disk_manager,LogManager* log_manager)

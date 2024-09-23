@@ -260,9 +260,11 @@ bool BufferPoolManager::delete_page(PageId page_id) {
     free_list_.push_back(frame_id);
     latch_.unlock();
 
-    disk_manager_->write_page(page.id_.fd, page.id_.page_no, page.data_, PAGE_SIZE);
+    if (page.is_dirty_) {
+        disk_manager_->write_page(page.id_.fd, page.id_.page_no, page.data_, PAGE_SIZE);
+        page.is_dirty_ = false;
+    }
     page.reset_memory();
-    page.is_dirty_ = false;
     page.id_.fd = -1;
     page.id_.page_no = INVALID_PAGE_ID;
     page_latches_[frame_id].unlock();
